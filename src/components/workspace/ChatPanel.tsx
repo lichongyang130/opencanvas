@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Check, Copy, ImageIcon, Sparkles, Square } from "lucide-react";
+import { ArrowUp, Check, Copy, ImageIcon, Loader2, Sparkles, Square, Wand2 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
 import { Markdown } from "./Markdown";
 import { toast } from "@/lib/store/toast";
+import { getOverrides } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 const EXAMPLES: Record<WorkspaceMode, string[]> = {
@@ -105,6 +106,7 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [imgSize, setImgSize] = useState("1024x1024");
   const [showJump, setShowJump] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -148,6 +150,86 @@ export function ChatPanel() {
       void useChatStore.getState().generateImage(text, imgSize);
     } else {
       void send(text);
+    }
+  };
+
+  /** 一键优化提示词：配置真实模型走 AI 改写，否则用结构化模板 */
+  const enhancePrompt = async () => {
+    const raw = input.trim();
+    if (!raw || enhancing) return;
+    setEnhancing(true);
+    const ov = getOverrides();
+    const hasModel = Object.values(ov).some((p) => p?.apiKey);
+    try {
+      if (hasModel && mode !== "image") {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: convo?.model ?? "demo",
+            overrides: ov,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "你是提示词专家。把用户粗糙的需求改写成结构清晰、效果更好的中文提示词，包含：角色设定、具体任务、背景/受众、输出格式与约束。只输出改写后的提示词本身，不要解释、不要前后缀。",
+              },
+              { role: "user", content: raw },
+            ],
+          }),
+        });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          let acc = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() ?? "";
+            for (const line of lines) {
+              const t = line.trim();
+              if (!t.startsWith("data:")) continue;
+              const evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string };
+              if (evt.type === "token" && evt.delta) acc += evt.delta;
+            }
+          }
+          if (acc.trim()) {
+            setInput(acc.trim());
+            toast("提示词已优化", "success");
+            return;
+          }
+        }
+      }
+      // 本地模板兜底
+      const modeHint: Record<string, string> = {
+        image:
+          "请输出一段英文绘图提示词，包含：主体细节、艺术风格、构图景别、光线氛围、画质词，用逗号分隔。",
+        slides: "请输出一份幻灯片结构：标题、封面副标题、每页标题与 3-4 个要点。",
+        research: "请从背景、现状、关键数据、主要玩家、趋势与结论几个方面展开。",
+        docs: "请输出结构完整的文档：标题、导语、分小节（含小标题与要点）、结论。",
+        video: "请输出分镜脚本：每个镜头含时长、画面、旁白、字幕。",
+        chat: "请分点、有条理地回答，必要时给出步骤和示例。",
+      };
+      const improved = `# 角色
+你是该领域的资深专家。
+
+# 任务
+${raw}
+
+# 要求
+- 面向：相关从业者 / 普通读者（按需）
+- 语言：中文，专业且易懂
+- 输出：${modeHint[mode] ?? modeHint.chat}
+- 约束：内容准确、结构清晰、可直接使用，避免空话`;
+      setInput(improved);
+      toast(hasModel ? "已生成结构化提示词" : "已生成结构化提示词（配置模型后可 AI 智能改写）", "success");
+    } catch {
+      toast("优化失败，请重试", "error");
+    } finally {
+      setEnhancing(false);
     }
   };
 
@@ -261,6 +343,18 @@ export function ChatPanel() {
               }
               className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-stone-400"
             />
+            <button
+              onClick={() => void enhancePrompt()}
+              disabled={!input.trim() || enhancing}
+              title="优化提示词（结构化为更有效的指令）"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+            >
+              {enhancing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+            </button>
             {sending ? (
               <button
                 onClick={stopGeneration}

@@ -185,10 +185,10 @@ export function Sidebar() {
           className="mt-2 flex w-full items-center justify-between rounded-xl border border-dashed border-stone-300 px-3 py-2.5 text-sm text-stone-600 transition hover:border-brand-300 hover:bg-brand-50/40 hover:text-brand-700"
         >
           <span className="flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4 text-brand-500" /> 模板库
+            <LayoutGrid className="h-4 w-4 text-brand-500" /> 提示词模板库
           </span>
           <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500">
-            {TEMPLATES.length} 个场景
+            {TEMPLATES.length}+ 精选
           </span>
         </button>
 
