@@ -1,18 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Bookmark,
   BookmarkCheck,
+  Bot,
   Clock,
+  Download,
   Heart,
   LayoutGrid,
+  Loader2,
   Play,
   Plus,
   Search,
+  Share2,
   Sparkles,
   Star,
   Trash2,
+  Upload,
   Wand2,
   X,
 } from "lucide-react";
@@ -27,8 +32,9 @@ import {
 } from "@/lib/templates";
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { useChatStore } from "@/lib/store/chat";
-import { usePromptStore } from "@/lib/prompt-store";
+import { usePromptStore, encodePrompts, decodePrompts } from "@/lib/prompt-store";
 import { toast } from "@/lib/store/toast";
+import { getOverrides } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -68,6 +74,51 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
   const [running, setRunning] = useState<Template | null>(null);
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [showCreate, setShowCreate] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+
+  /** 导出全部自建提示词为 JSON 文件 */
+  const exportPrompts = () => {
+    if (custom.length === 0) {
+      toast("还没有自建提示词可导出", "info");
+      return;
+    }
+    const blob = new Blob([JSON.stringify({ app: "opencanvas-prompts", version: 1, exportedAt: Date.now(), prompts: custom.map(({ id: _id, builtin: _b, ...rest }) => rest) }, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `opencanvas-prompts-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`已导出 ${custom.length} 条提示词`, "success");
+  };
+
+  const importPrompts = (list: Array<Omit<Template, "id" | "builtin">>) => {
+    const n = usePromptStore.getState().importCustom(list);
+    if (n > 0) {
+      toast(`成功导入 ${n} 条提示词`, "success");
+      setTab("mine");
+    } else {
+      toast("没有有效的提示词数据", "error");
+    }
+  };
+
+  /** 从 JSON 文件导入 */
+  const onImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const parsed = decodePrompts(String(reader.result ?? ""));
+      if (!parsed) {
+        toast("文件格式不正确", "error");
+        return;
+      }
+      importPrompts(parsed.prompts);
+      setShowImport(false);
+    };
+    reader.readAsText(file);
+  };
 
   const all = useMemo(() => [...custom, ...TEMPLATES], [custom]);
   const favSet = useMemo(() => new Set(favorites), [favorites]);
@@ -155,13 +206,33 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
               </button>
             ))}
           </div>
-          <div className="border-t border-stone-100 p-2">
+          <div className="space-y-1.5 border-t border-stone-100 p-2">
+            <button
+              onClick={() => setShowAI(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-violet-600 px-3 py-2 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              <Bot className="h-4 w-4" /> AI 帮我写提示词
+            </button>
             <button
               onClick={() => setShowCreate(true)}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-brand-300 px-3 py-2 text-sm text-brand-600 transition hover:bg-brand-50"
             >
-              <Plus className="h-4 w-4" /> 新建提示词
+              <Plus className="h-4 w-4" /> 手动新建
             </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setShowImport(true)}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-500 transition hover:bg-stone-100"
+              >
+                <Upload className="h-3.5 w-3.5" /> 导入
+              </button>
+              <button
+                onClick={exportPrompts}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-500 transition hover:bg-stone-100"
+              >
+                <Download className="h-3.5 w-3.5" /> 导出
+              </button>
+            </div>
           </div>
         </div>
 
@@ -226,17 +297,34 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                             </span>
                           </div>
                         </div>
-                        <button
-                          title={fav ? "取消收藏" : "收藏"}
-                          onClick={() => toggleFavorite(t.id)}
-                          className="shrink-0 text-stone-300 transition hover:text-amber-400"
-                        >
-                          {fav ? (
-                            <BookmarkCheck className="h-4 w-4 text-brand-600" />
-                          ) : (
-                            <Bookmark className="h-4 w-4" />
+                        <div className="flex shrink-0 items-center gap-1">
+                          {isMine && (
+                            <button
+                              title="复制分享码"
+                              onClick={() => {
+                                const { id: _i, builtin: _b, ...rest } = t as Template & { builtin?: boolean };
+                                navigator.clipboard?.writeText(encodePrompts([rest])).then(
+                                  () => toast("分享码已复制，发给好友即可导入", "success"),
+                                  () => toast("复制失败", "error")
+                                );
+                              }}
+                              className="text-stone-300 transition hover:text-brand-500"
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </button>
                           )}
-                        </button>
+                          <button
+                            title={fav ? "取消收藏" : "收藏"}
+                            onClick={() => toggleFavorite(t.id)}
+                            className="text-stone-300 transition hover:text-amber-400"
+                          >
+                            {fav ? (
+                              <BookmarkCheck className="h-4 w-4 text-brand-600" />
+                            ) : (
+                              <Bookmark className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       <p className="mb-3 line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-stone-400">
                         {t.prompt.length > 90 ? t.prompt.slice(0, 90) + "…" : t.prompt}
@@ -301,6 +389,287 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
           }}
         />
       )}
+
+      {showAI && (
+        <AIPromptDialog
+          onClose={() => setShowAI(false)}
+          onSave={(p) => {
+            addCustom(p);
+            setShowAI(false);
+            setTab("mine");
+            toast("AI 提示词已保存到「我的提示词」", "success");
+          }}
+        />
+      )}
+
+      {showImport && (
+        <ImportDialog
+          onClose={() => setShowImport(false)}
+          onImport={(list) => importPrompts(list)}
+          onFile={onImportFile}
+        />
+      )}
+    </div>
+  );
+}
+
+/** AI 生成提示词弹窗：描述需求 → AI 产出完整提示词 → 存入我的提示词 */
+function AIPromptDialog({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (p: Omit<Template, "id" | "builtin">) => void;
+}) {
+  const [need, setNeed] = useState("");
+  const [mode, setMode] = useState<WorkspaceMode>("chat");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState("");
+
+  const generate = async () => {
+    const raw = need.trim();
+    if (!raw || busy) return;
+    setBusy(true);
+    setResult("");
+    const ov = getOverrides();
+    const hasModel = Object.values(ov).some((p) => p?.apiKey);
+    try {
+      if (hasModel) {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "demo",
+            overrides: ov,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "你是提示词工程专家。根据用户的粗略需求，产出一条高质量、可直接复用的中文提示词：包含角色设定、任务描述、输入变量（用 {{变量名}} 标注需要用户每次替换的部分）、输出格式与约束。只输出提示词本身，不要解释。",
+              },
+              { role: "user", content: `用途场景：${mode}。需求：${raw}` },
+            ],
+          }),
+        });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          let acc = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() ?? "";
+            for (const line of lines) {
+              const t = line.trim();
+              if (!t.startsWith("data:")) continue;
+              try {
+                const evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string };
+                if (evt.type === "token" && evt.delta) {
+                  acc += evt.delta;
+                  setResult(acc);
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+          if (acc.trim()) {
+            setResult(acc.trim());
+            return;
+          }
+        }
+      }
+      // 本地兜底：结构化提示词模板
+      const modeOut: Record<string, string> = {
+        image: "输出英文绘图提示词（主体+风格+构图+光线+画质词，逗号分隔）",
+        slides: "输出幻灯片结构（标题 + 每页标题与要点）",
+        research: "从背景、现状、数据、玩家、趋势、结论展开",
+        docs: "输出完整文档结构（标题、导语、分小节、结论）",
+        video: "输出分镜表（镜头时长/画面/旁白/字幕）",
+        chat: "分点作答，含步骤与示例",
+      };
+      const fallback = `# 角色
+你是{{领域}}方面的资深专家，有丰富的实战经验。
+
+# 任务
+${raw}
+涉及的具体对象：{{主题}}
+
+# 要求
+- 面向受众：{{受众}}
+- 语言：中文，专业且易懂
+- 输出格式：${modeOut[mode] ?? modeOut.chat}
+- 约束：内容准确、结构清晰、可直接使用；必要处给出示例
+
+# 输入
+{{用户输入}}`;
+      setResult(fallback);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = () => {
+    if (!result.trim()) return;
+    onSave({
+      label: need.trim().slice(0, 20) || "AI 生成提示词",
+      desc: `AI 生成 · ${MODE_TAG[mode]}`,
+      category: "productivity",
+      mode,
+      prompt: result.trim(),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-semibold">
+            <Bot className="h-4 w-4 text-brand-600" /> AI 帮我写提示词
+          </div>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-500">你想用这个提示词做什么？</label>
+            <textarea
+              autoFocus
+              value={need}
+              onChange={(e) => setNeed(e.target.value)}
+              rows={3}
+              placeholder="例如：帮我批量生成小红书风格的产品种草文案，要有标题和标签"
+              className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-500">用于哪个工作台</label>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as WorkspaceMode)}
+              className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+            >
+              {(Object.keys(MODE_TAG) as WorkspaceMode[]).map((m) => (
+                <option key={m} value={m}>
+                  {MODE_TAG[m]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={() => void generate()}
+            disabled={!need.trim() || busy}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {busy ? "AI 正在撰写提示词…" : "生成提示词"}
+          </button>
+          {result && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-500">生成结果（可编辑后保存）</label>
+              <textarea
+                value={result}
+                onChange={(e) => setResult(e.target.value)}
+                rows={10}
+                className="w-full rounded-lg border border-stone-200 px-3 py-2 font-mono text-xs leading-relaxed outline-none focus:border-brand-400"
+              />
+              <button
+                onClick={save}
+                className="mt-2 w-full rounded-lg border border-brand-300 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+              >
+                保存到「我的提示词」
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 导入弹窗：粘贴分享码或上传 JSON 文件 */
+function ImportDialog({
+  onClose,
+  onImport,
+  onFile,
+}: {
+  onClose: () => void;
+  onImport: (list: Array<Omit<Template, "id" | "builtin">>) => void;
+  onFile: (f: File) => void;
+}) {
+  const [code, setCode] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const doPaste = () => {
+    const parsed = decodePrompts(code);
+    if (!parsed) {
+      toast("分享码无效，请检查后重试", "error");
+      return;
+    }
+    onImport(parsed.prompts);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-semibold">
+            <Share2 className="h-4 w-4 text-brand-600" /> 导入提示词
+          </div>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-500">粘贴分享码</label>
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              rows={4}
+              placeholder="粘贴好友分享的提示词码（一长串字符）…"
+              className="w-full rounded-lg border border-stone-200 px-3 py-2 font-mono text-xs outline-none focus:border-brand-400"
+            />
+            <button
+              onClick={doPaste}
+              disabled={!code.trim()}
+              className="mt-2 w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
+            >
+              导入
+            </button>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-stone-300">
+            <span className="h-px flex-1 bg-stone-200" /> 或 <span className="h-px flex-1 bg-stone-200" />
+          </div>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 px-4 py-3 text-sm text-stone-600 hover:border-brand-300 hover:bg-brand-50/40"
+          >
+            <Upload className="h-4 w-4" /> 选择 JSON 备份文件
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onFile(f);
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

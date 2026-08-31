@@ -6,6 +6,7 @@ import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@
 import { Markdown } from "./Markdown";
 import { toast } from "@/lib/store/toast";
 import { getOverrides } from "@/lib/settings";
+import { SLASH_COMMANDS, matchSlash, TONE_CHIPS, LENGTH_CHIPS, AUDIENCE_CHIPS, type PromptChip } from "@/lib/slash";
 import { cn } from "@/lib/utils";
 
 const EXAMPLES: Record<WorkspaceMode, string[]> = {
@@ -107,8 +108,47 @@ export function ChatPanel() {
   const [imgSize, setImgSize] = useState("1024x1024");
   const [showJump, setShowJump] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
+  const [slashIdx, setSlashIdx] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 斜杠命令菜单
+  const slashMatches = matchSlash(input);
+  useEffect(() => setSlashIdx(0), [input]);
+
+  const applyChip = (chip: PromptChip) => {
+    setInput((v) => {
+      const has = v.includes(chip.suffix);
+      if (has) {
+        // 移除该约束
+        return v.replace(new RegExp(`\\n?${chip.suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"), "").trimEnd();
+      }
+      // 斜杠命令进行中时不打扰
+      if (v.startsWith("/")) return v;
+      return v.trim() ? v.replace(/\s*$/, "") + "\n" + chip.suffix : chip.suffix;
+    });
+  };
+  const chipOn = (c: PromptChip) => input.includes(c.suffix);
+
+  const runSlash = (cmd: (typeof SLASH_COMMANDS)[number]) => {
+    if (cmd.kind === "action" && cmd.mode) {
+      useChatStore.getState().setMode(cmd.mode);
+      setInput("");
+      toast(`已切换到${MODE_LABELS[cmd.mode]}工作台`, "info");
+      return;
+    }
+    const raw = input.replace(/^\/[a-z]*\s*/i, "").trim();
+    const text = (cmd.insert ?? "").replace("{q}", raw);
+    setInput(text);
+    // 光标定位到「」中间或末尾
+    setTimeout(() => {
+      const ta = inputRef.current;
+      if (!ta) return;
+      const pos = text.includes("「") ? text.indexOf("」") : text.length;
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+    }, 0);
+  };
 
   // 切换会话/新建时聚焦输入框
   useEffect(() => {
@@ -324,12 +364,116 @@ ${raw}
               </div>
             </div>
           )}
+          {/* 语气 / 长度 / 受众 快捷参数（文字类模式） */}
+          {mode !== "image" && !slashMatches && (
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-stone-400">语气</span>
+              {TONE_CHIPS.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => applyChip(c)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[11px] transition",
+                    chipOn(c)
+                      ? "border-brand-400 bg-brand-50 text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+              <span className="ml-1 text-[11px] text-stone-400">长度</span>
+              {LENGTH_CHIPS.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => applyChip(c)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[11px] transition",
+                    chipOn(c)
+                      ? "border-brand-400 bg-brand-50 text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+              <span className="ml-1 text-[11px] text-stone-400">受众</span>
+              {AUDIENCE_CHIPS.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => applyChip(c)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[11px] transition",
+                    chipOn(c)
+                      ? "border-brand-400 bg-brand-50 text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="relative">
+          {/* 斜杠命令菜单 */}
+          {slashMatches && (
+            <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
+              <div className="px-2 py-1 text-[11px] text-stone-400">快捷命令（↑↓ 选择，Enter 执行）</div>
+              {slashMatches.length === 0 && (
+                <div className="px-2 py-3 text-center text-xs text-stone-400">没有匹配的命令</div>
+              )}
+              {slashMatches.map((c, i) => (
+                <button
+                  key={c.cmd}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    runSlash(c);
+                  }}
+                  onMouseEnter={() => setSlashIdx(i)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
+                    i === slashIdx ? "bg-brand-50" : "hover:bg-stone-50"
+                  )}
+                >
+                  <span className="flex h-6 w-12 shrink-0 items-center justify-center rounded bg-stone-100 font-mono text-[11px] text-stone-500">
+                    /{c.cmd}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium text-stone-700">{c.label}</span>
+                    <span className="block truncate text-[11px] text-stone-400">{c.desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-white p-2 shadow-sm focus-within:border-brand-400">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
+                if (slashMatches && slashMatches.length > 0) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSlashIdx((i) => (i + 1) % slashMatches.length);
+                    return;
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                    return;
+                  }
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setInput("");
+                    return;
+                  }
+                }
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   submit();
@@ -373,10 +517,11 @@ ${raw}
               </button>
             )}
           </div>
+          </div>
           <div className="mt-2 text-center text-xs text-stone-400">
             {mode === "image"
               ? "演示绘图为本地占位图 · 配置图像模型密钥后生成真实图片"
-              : "Enter 发送 · Shift+Enter 换行 · 生成中可点停止"}
+              : "输入 / 唤起快捷命令 · 语气/长度/受众一键叠加 · Enter 发送"}
           </div>
         </div>
       </div>

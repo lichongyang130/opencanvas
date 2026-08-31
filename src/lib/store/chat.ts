@@ -103,6 +103,8 @@ interface ChatState {
   stopGeneration: () => void;
   hydrate: () => Promise<void>;
   runTemplate: (t: { mode: WorkspaceMode; prompt: string }) => Promise<void>;
+  /** 一键素材包：串行产出整套素材 */
+  runPack: (packId: string, topic: string) => Promise<void>;
   setModel: (id: string, provider?: string) => void;
   newConversation: (mode?: WorkspaceMode) => Promise<string>;
   selectConversation: (id: string) => void;
@@ -208,6 +210,31 @@ export const useChatStore = create<ChatState>((set, get) => {
         if (t.mode === "image") void get().generateImage(t.prompt, "1024x1024");
         else void get().send(t.prompt);
       }, 60);
+    },
+
+    runPack: async (packId, topic) => {
+      const { ASSET_PACKS } = await import("@/lib/packs");
+      const pack = ASSET_PACKS.find((p) => p.id === packId);
+      const t = topic.trim();
+      if (!pack || !t) return;
+      toast(`素材包「${pack.label}」开始生成，共 ${pack.steps.length} 个任务`, "info");
+      for (let i = 0; i < pack.steps.length; i++) {
+        const step = pack.steps[i];
+        const id = await get().newConversation(step.mode);
+        await get().selectConversation(id);
+        // 设置标题
+        patchConvo(id, { title: `【${pack.label}】${step.title}` });
+        persistConvo(id, { title: `【${pack.label}】${step.title}` });
+        toast(`素材包进度 ${i + 1}/${pack.steps.length}：${step.title}`, "info");
+        // 等新会话激活后发送（send 会按模式路由到 slides/research/docs 专用流程）
+        await new Promise((r) => setTimeout(r, 120));
+        if (step.mode === "image") {
+          await get().generateImage(step.prompt(t), "1024x1024");
+        } else {
+          await get().send(step.prompt(t));
+        }
+      }
+      toast(`素材包「${pack.label}」全部完成 ✅ 可在左栏查看各任务`, "success");
     },
 
     hydrate: async () => {

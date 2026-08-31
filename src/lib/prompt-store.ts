@@ -21,6 +21,45 @@ interface PromptState {
   removeCustom: (id: string) => void;
   markUsed: (id: string) => void;
   isFavorite: (id: string) => boolean;
+  /** 批量导入自建提示词，返回导入条数 */
+  importCustom: (list: Array<Omit<CustomPrompt, "id" | "builtin">>) => number;
+}
+
+/** 导出/分享用的数据结构 */
+export interface PromptExport {
+  app: "opencanvas-prompts";
+  version: 1;
+  exportedAt: number;
+  prompts: Array<Omit<CustomPrompt, "id" | "builtin">>;
+}
+
+/** 序列化为分享码（base64 JSON，中文安全） */
+export function encodePrompts(prompts: Array<Omit<CustomPrompt, "id" | "builtin">>): string {
+  const data: PromptExport = {
+    app: "opencanvas-prompts",
+    version: 1,
+    exportedAt: Date.now(),
+    prompts,
+  };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+
+/** 解析分享码/导入文件，失败返回 null */
+export function decodePrompts(code: string): PromptExport | null {
+  try {
+    let s = code.trim();
+    // 容忍用户粘贴 JSON 全文
+    if (s.startsWith("{")) {
+      const obj = JSON.parse(s) as PromptExport;
+      return obj.app === "opencanvas-prompts" ? obj : null;
+    }
+    // 去掉可能的 URL 前缀
+    s = s.replace(/^.*#/, "").replace(/\s/g, "");
+    const obj = JSON.parse(decodeURIComponent(escape(atob(s)))) as PromptExport;
+    return obj.app === "opencanvas-prompts" ? obj : null;
+  } catch {
+    return null;
+  }
 }
 
 let seq = 0;
@@ -48,6 +87,21 @@ export const usePromptStore = create<PromptState>()(
           recent: [id, ...s.recent.filter((x) => x !== id)].slice(0, 12),
         })),
       isFavorite: (id) => get().favorites.includes(id),
+      importCustom: (list) => {
+        const valid = list.filter(
+          (p) => p && typeof p.label === "string" && typeof p.prompt === "string" && p.prompt.trim()
+        );
+        if (valid.length === 0) return 0;
+        const stamped = valid.map((p) => ({
+          ...p,
+          label: p.label.trim(),
+          prompt: p.prompt,
+          builtin: false as const,
+          id: `custom-${Date.now()}-${seq++}`,
+        }));
+        set((s) => ({ custom: [...stamped, ...s.custom] }));
+        return stamped.length;
+      },
     }),
     { name: "opencanvas.prompts.v1" }
   )

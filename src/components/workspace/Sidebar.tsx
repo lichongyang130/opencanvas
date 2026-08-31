@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   MessageSquare,
+  Package,
   Pencil,
   Pin,
   Plus,
@@ -30,6 +31,7 @@ import {
 } from "@/lib/store/chat";
 import { TEMPLATES } from "@/lib/templates";
 import { TemplatesModal } from "./TemplatesModal";
+import { PacksModal } from "./PacksModal";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -89,6 +91,7 @@ export function Sidebar() {
   } = useChatStore();
 
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [packsOpen, setPacksOpen] = useState(false);
   const [view, setView] = useState<"active" | "archived">("active");
   const [showSearch, setShowSearch] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
@@ -189,6 +192,19 @@ export function Sidebar() {
           </span>
           <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500">
             {TEMPLATES.length}+ 精选
+          </span>
+        </button>
+
+        {/* 一键素材包 */}
+        <button
+          onClick={() => setPacksOpen(true)}
+          className="mt-2 flex w-full items-center justify-between rounded-xl border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5 text-sm text-amber-700 transition hover:border-amber-400 hover:bg-amber-50"
+        >
+          <span className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-amber-500" /> 一键素材包
+          </span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-600">
+            整套产出
           </span>
         </button>
 
@@ -419,6 +435,7 @@ export function Sidebar() {
       </button>
 
       <TemplatesModal open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+      <PacksModal open={packsOpen} onClose={() => setPacksOpen(false)} />
     </aside>
   );
 }
