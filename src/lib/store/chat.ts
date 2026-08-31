@@ -6,6 +6,7 @@ import { getOverrides, loadTavilyKey } from "@/lib/settings";
 import { toast } from "./toast";
 import type { SlideDeck, ThemeId } from "@/lib/slides/types";
 import type { ResearchReport } from "@/lib/research/types";
+import { getPersona } from "@/lib/personas";
 
 export type WorkspaceMode = "chat" | "research" | "slides" | "image" | "video" | "docs";
 
@@ -51,6 +52,8 @@ export interface Conversation {
   researchMessage?: string;
   archived?: boolean;
   pinned?: boolean;
+  /** 绑定的 AI 角色 id（personas.ts） */
+  personaId?: string;
   createdAt: number;
 }
 
@@ -115,6 +118,8 @@ interface ChatState {
   batchArchive: (ids: string[], archived: boolean) => Promise<void>;
   batchDelete: (ids: string[]) => Promise<void>;
   setMode: (mode: WorkspaceMode) => void;
+  /** 为当前会话设置/取消 AI 角色（null = 默认） */
+  setPersona: (id: string | null) => void;
   send: (text: string) => Promise<void>;
   generateSlides: (topic: string, context?: string) => Promise<void>;
   generateImage: (prompt: string, size: string) => Promise<void>;
@@ -258,6 +263,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           researchStatus: c.report ? "done" : undefined,
           doc: (c.doc as UIDoc) ?? undefined,
           archived: Boolean(c.archived),
+          personaId: (c.personaId as string) ?? undefined,
           pinned: Boolean(c.pinned),
           createdAt: (c.createdAt as number) ?? Date.now(),
         }));
@@ -428,6 +434,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       persistConvo(activeId, { mode });
     },
 
+    setPersona: (id) => {
+      const { activeId } = get();
+      if (!activeId) return;
+      patchConvo(activeId, { personaId: id || undefined });
+      persistConvo(activeId, { personaId: id || null });
+    },
+
     addImages: (images) => {
       const { activeId, conversations } = get();
       if (!activeId) return;
@@ -561,8 +574,16 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (title !== current.title) persistConvo(current.id, { title });
       set({ sending: true });
 
+      // AI 角色 system prompt（叠加在模式提示词之后）
+      let personaSystem = "";
+      if (current.personaId) {
+        const persona = getPersona(current.personaId);
+        if (persona?.system) personaSystem = persona.system;
+      }
+      const systemContent = [MODE_PROMPTS[current.mode], personaSystem].filter(Boolean).join("\n\n");
+
       const apiMessages = [
-        { role: "system" as const, content: MODE_PROMPTS[current.mode] },
+        { role: "system" as const, content: systemContent },
         ...current.messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: trimmed },
       ];

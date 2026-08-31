@@ -11,6 +11,7 @@ export interface StoredConversation {
   images: StoredImage[];
   report: unknown | null;
   doc: unknown | null;
+  personaId: string | null;
   archived: boolean;
   pinned: boolean;
   createdAt: number;
@@ -55,6 +56,7 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
     images: parseJson<StoredImage[]>(r.images as string | null, []),
     report: parseJson(r.report as string | null, null),
     doc: parseJson(r.doc as string | null, null),
+    personaId: (r.personaId as string | null) ?? null,
     archived: Boolean(r.archived),
     pinned: Boolean(r.pinned),
     createdAt: r.createdAt as number,
@@ -107,6 +109,7 @@ export const repo = {
     images?: StoredImage[];
     report?: unknown;
     doc?: unknown;
+    personaId?: string | null;
     archived?: boolean;
     pinned?: boolean;
   }): void {
@@ -128,6 +131,7 @@ export const repo = {
           images = COALESCE(?, images),
           report = COALESCE(?, report),
           doc = COALESCE(?, doc),
+          personaId = COALESCE(?, personaId),
           archived = COALESCE(?, archived),
           pinned = COALESCE(?, pinned),
           updatedAt = ?
@@ -142,6 +146,7 @@ export const repo = {
         c.images === undefined ? null : JSON.stringify(c.images),
         c.report === undefined ? null : JSON.stringify(c.report),
         c.doc === undefined ? null : JSON.stringify(c.doc),
+        c.personaId === undefined ? null : c.personaId,
         c.archived === undefined ? null : c.archived ? 1 : 0,
         c.pinned === undefined ? null : c.pinned ? 1 : 0,
         now,
@@ -149,8 +154,8 @@ export const repo = {
       );
     } else {
       db.prepare(
-        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, archived, pinned, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, archived, pinned, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         c.id,
         c.title ?? "新任务",
@@ -162,6 +167,7 @@ export const repo = {
         c.images === undefined ? "[]" : JSON.stringify(c.images),
         c.report === undefined || c.report === null ? null : JSON.stringify(c.report),
         c.doc === undefined || c.doc === null ? null : JSON.stringify(c.doc),
+        c.personaId ?? null,
         c.archived ? 1 : 0,
         c.pinned ? 1 : 0,
         now,

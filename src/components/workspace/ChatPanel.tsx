@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Check, Copy, ImageIcon, Loader2, Sparkles, Square, Wand2 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
 import { Markdown } from "./Markdown";
+import { PersonaPicker } from "./PersonaPicker";
 import { toast } from "@/lib/store/toast";
 import { getOverrides } from "@/lib/settings";
 import { SLASH_COMMANDS, matchSlash, TONE_CHIPS, LENGTH_CHIPS, AUDIENCE_CHIPS, type PromptChip } from "@/lib/slash";
@@ -279,13 +280,25 @@ ${raw}
         <div className="mx-auto w-full max-w-2xl">
           {messages.length === 0 ? (
             <div className="pt-10">
-              <div className="mb-2 flex items-center gap-2 text-2xl font-semibold tracking-tight">
-                {mode === "image" ? (
-                  <ImageIcon className="h-6 w-6 text-brand-600" />
-                ) : (
-                  <Sparkles className="h-6 w-6 text-brand-600" />
+              <div className="mb-2 flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
+                <span className="flex items-center gap-2">
+                  {mode === "image" ? (
+                    <ImageIcon className="h-6 w-6 text-brand-600" />
+                  ) : (
+                    <Sparkles className="h-6 w-6 text-brand-600" />
+                  )}
+                  {MODE_LABELS[mode]}
+                </span>
+                {mode === "chat" && (
+                  <span className="scale-90 origin-left">
+                    <PersonaPicker
+                      onStarter={(t) => {
+                        setInput(t);
+                        setTimeout(() => inputRef.current?.focus(), 0);
+                      }}
+                    />
+                  </span>
                 )}
-                {MODE_LABELS[mode]}
               </div>
               <p className="mb-8 text-stone-500">
                 {mode === "image"
@@ -310,6 +323,16 @@ ${raw}
             </div>
           ) : (
             <div className="space-y-5">
+              {mode === "chat" && (
+                <div className="flex justify-center">
+                  <PersonaPicker
+                    onStarter={(t) => {
+                      setInput(t);
+                      setTimeout(() => inputRef.current?.focus(), 0);
+                    }}
+                  />
+                </div>
+              )}
               {messages.map((m) => (
                 <MessageBubble key={m.id} m={m} />
               ))}

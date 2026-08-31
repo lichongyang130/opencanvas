@@ -62,6 +62,9 @@ export function getDb(): DatabaseSync {
   if (!cols.some((c) => c.name === "doc")) {
     db.exec("ALTER TABLE conversations ADD COLUMN doc TEXT");
   }
+  if (!cols.some((c) => c.name === "personaId")) {
+    db.exec("ALTER TABLE conversations ADD COLUMN personaId TEXT");
+  }
 
   return db;
 }
