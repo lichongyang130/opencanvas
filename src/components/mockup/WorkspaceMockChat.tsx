@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { ShellSidebar } from "./ShellSidebar";
 import {
   ArrowUp,
   Bell,
@@ -198,7 +199,7 @@ export default function WorkspaceMockChat() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#fbf8f4] text-stone-800">
-      <Sidebar />
+      <ShellSidebar active="chat" />
 
       {/* 主区域 */}
       <main className="relative flex min-w-0 flex-1 flex-col">
