@@ -28,6 +28,46 @@ export function Workspace() {
     void hydrate();
   }, [hydrate]);
 
+  // 消费首页带来的意图（sessionStorage 传递，避免 URL 泄漏长文本）
+  useEffect(() => {
+    if (!hydrated) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem("oc:homeIntent");
+      if (raw) sessionStorage.removeItem("oc:homeIntent");
+    } catch {}
+    if (!raw) return;
+    try {
+      const intent = JSON.parse(raw) as {
+        type: "send" | "fill" | "mode" | "new" | "convo";
+        mode?: import("@/lib/store/chat").WorkspaceMode;
+        text?: string;
+        id?: string;
+        ts?: number;
+      };
+      // 超过 30 秒的意图视为过期
+      if (intent.ts && Date.now() - intent.ts > 30_000) return;
+      const store = useChatStore.getState();
+      switch (intent.type) {
+        case "send":
+          if (intent.text) void store.runTemplate({ mode: intent.mode ?? "chat", prompt: intent.text });
+          break;
+        case "fill":
+          void store.fillTemplate({ mode: intent.mode ?? "chat", prompt: intent.text ?? "" });
+          break;
+        case "mode":
+          void store.newConversation(intent.mode ?? "chat").then((id) => store.selectConversation(id));
+          break;
+        case "new":
+          void store.newConversation("chat").then((id) => store.selectConversation(id));
+          break;
+        case "convo":
+          if (intent.id) void store.selectConversation(intent.id);
+          break;
+      }
+    } catch {}
+  }, [hydrated]);
+
   if (!hydrated) {
     return (
       <div className="flex h-screen items-center justify-center">

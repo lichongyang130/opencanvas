@@ -1,252 +1,423 @@
-import Link from "next/link";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   ArrowRight,
+  ArrowUp,
+  BarChart3,
+  Bell,
+  Bot,
+  BrainCircuit,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Code2,
+  Database,
   FileText,
+  FileUp,
   Globe,
+  Home,
   Image as ImageIcon,
-  LayoutDashboard,
-  Search,
+  LayoutGrid,
+  LayoutTemplate,
+  Lightbulb,
+  MessageSquare,
+  Presentation,
+  Scan,
+  Share2,
   Sparkles,
-  Video,
+  Wrench,
 } from "lucide-react";
+import type { WorkspaceMode } from "@/lib/store/chat";
 
-const CAPABILITIES = [
-  { icon: <Search className="h-5 w-5" />, title: "深度研究", desc: "自动多轮搜索、阅读资料，输出带引用的研究报告" },
-  { icon: <LayoutDashboard className="h-5 w-5" />, title: "PPT 生成", desc: "一句话生成结构完整、配图精美的幻灯片，可导出 PPTX" },
-  { icon: <ImageIcon className="h-5 w-5" />, title: "图片设计", desc: "社媒图、海报、品牌视觉，文生图与图生图" },
-  { icon: <Video className="h-5 w-5" />, title: "视频创作", desc: "脚本分镜 + 文生视频，几分钟出成片素材" },
-  { icon: <FileText className="h-5 w-5" />, title: "文档写作", desc: "商业计划、邮件、制度、文案，出版级成稿" },
-  { icon: <Globe className="h-5 w-5" />, title: "国内外模型一站切换", desc: "GPT、Claude、DeepSeek、通义千问…密钥统一网关" },
+/* ---------------- 数据 ---------------- */
+
+const NAV_ITEMS = [
+  { icon: Home, label: "首页", active: true },
+  { icon: MessageSquare, label: "AI 对话", href: "/chat" },
+  { icon: Bot, label: "智能体", href: "/chat" },
+  { icon: Database, label: "知识库", href: "/chat" },
+  { icon: FileText, label: "文档中心", href: "/chat", mode: "docs" as WorkspaceMode },
+  { icon: LayoutTemplate, label: "模板中心", href: "/chat" },
+  { icon: Wrench, label: "工具箱", href: "/chat" },
+  { icon: LayoutGrid, label: "更多应用", href: "/chat" },
 ];
 
-const AUDIENCES = [
-  { title: "市场营销人员", desc: "趋势调研、社媒文案、品牌视觉，campaign 上线快一步" },
-  { title: "研究与分析师", desc: "从复杂信息中提取洞察，快速产出专业报告与 PPT" },
-  { title: "创业者", desc: "商业计划、产品概念、网站原型，从想法到上线全程加速" },
-  { title: "教师与教育者", desc: "教案、课件、学习材料一键生成，长文即时总结" },
+const QUICK_ACTIONS: Array<{
+  icon: typeof FileText;
+  label: string;
+  color: string;
+  mode: WorkspaceMode;
+  prompt?: string;
+}> = [
+  { icon: FileText, label: "写文档", color: "text-blue-500", mode: "docs" },
+  { icon: Presentation, label: "做PPT", color: "text-orange-500", mode: "slides" },
+  { icon: ImageIcon, label: "生成图片", color: "text-emerald-500", mode: "image" },
+  { icon: BarChart3, label: "数据分析", color: "text-violet-500", mode: "chat", prompt: "帮我分析以下数据，给出关键洞察和图表建议：\n" },
+  { icon: Lightbulb, label: "头脑风暴", color: "text-amber-500", mode: "chat", prompt: "围绕以下主题做一次头脑风暴，给出 10 个有创意的想法：" },
+  { icon: Scan, label: "更多", color: "text-stone-500", mode: "chat" },
 ];
 
-const PRICING = [
-  { name: "Free", price: "¥0 / $0", tag: "体验", features: ["每月 100 积分", "演示模型 + 基础模型", "文档与对话"], cta: "免费开始" },
-  { name: "Pro", price: "$19.9/月", tag: "个人", features: ["高额度积分", "全部高级模型", "PPT / 研究 / 视频", "品牌中心"], cta: "升级 Pro", highlight: true },
-  { name: "Teams", price: "$49/人/月", tag: "团队", features: ["团队协作空间", "品牌资产共享", "优先算力", "API 接入"], cta: "联系我们" },
+const RECOMMEND_CARDS: Array<{
+  icon: typeof FileText;
+  title: string;
+  desc: string;
+  tile: string;
+  bg: string;
+  mode: WorkspaceMode;
+  prompt?: string;
+}> = [
+  {
+    icon: Presentation,
+    title: "PPT 生成",
+    desc: "一键生成专业演示文稿",
+    tile: "from-orange-400 to-red-400",
+    bg: "bg-orange-50/60",
+    mode: "slides",
+  },
+  {
+    icon: FileText,
+    title: "文档写作",
+    desc: "撰写各类专业文档",
+    tile: "from-blue-400 to-sky-400",
+    bg: "bg-blue-50/60",
+    mode: "docs",
+  },
+  {
+    icon: Share2,
+    title: "思维导图",
+    desc: "可视化你的思维与创意",
+    tile: "from-emerald-400 to-green-400",
+    bg: "bg-emerald-50/60",
+    mode: "chat",
+    prompt: "请以思维导图的结构（多级列表）帮我梳理这个主题：",
+  },
+  {
+    icon: BarChart3,
+    title: "数据分析",
+    desc: "智能分析，洞察数据价值",
+    tile: "from-violet-400 to-purple-400",
+    bg: "bg-violet-50/60",
+    mode: "chat",
+    prompt: "帮我分析以下数据，输出关键结论、趋势与建议：\n",
+  },
+  {
+    icon: Code2,
+    title: "代码助手",
+    desc: "编写、调试各类代码",
+    tile: "from-indigo-400 to-blue-500",
+    bg: "bg-indigo-50/60",
+    mode: "chat",
+    prompt: "你是资深工程师，请帮我：",
+  },
+  {
+    icon: ImageIcon,
+    title: "AI 绘图",
+    desc: "描述想法，生成精美图片",
+    tile: "from-pink-400 to-rose-400",
+    bg: "bg-pink-50/60",
+    mode: "image",
+  },
 ];
 
-export default function LandingPage() {
+const RECENT_USE = [
+  { icon: Presentation, label: "季度汇报 PPT", color: "text-orange-500", mode: "slides" as WorkspaceMode, prompt: "生成一份季度工作汇报 PPT，包含业绩回顾、问题复盘、下季度计划" },
+  { icon: FileText, label: "竞品分析报告", color: "text-blue-500", mode: "docs" as WorkspaceMode, prompt: "写一份竞品分析报告，对比核心功能、定价与市场策略" },
+  { icon: Lightbulb, label: "营销文案", color: "text-amber-500", mode: "chat" as WorkspaceMode, prompt: "为新品上市写 5 条小红书风格的营销文案：" },
+  { icon: BarChart3, label: "周报助手", color: "text-violet-500", mode: "chat" as WorkspaceMode, prompt: "根据以下工作要点，帮我整理一份结构清晰的周报：\n" },
+  { icon: ImageIcon, label: "海报设计", color: "text-pink-500", mode: "image" as WorkspaceMode, prompt: "设计一张暖色调的活动宣传海报，主题：" },
+];
+
+interface RecentConvo {
+  id: string;
+  title: string;
+}
+
+/* ---------------- 页面 ---------------- */
+
+export default function HomePage() {
+  const router = useRouter();
+  const [input, setInput] = useState("");
+  const [greeting, setGreeting] = useState("你好");
+  const [recent, setRecent] = useState<RecentConvo[]>([]);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 6 ? "夜深了" : h < 12 ? "上午好" : h < 18 ? "下午好" : "晚上好");
+    // 拉取最近对话
+    fetch("/api/conversations")
+      .then((r) => r.json())
+      .then((d: { conversations?: Array<{ id: string; title: string; archived?: boolean }> }) => {
+        const list = (d.conversations ?? []).filter((c) => !c.archived).slice(0, 4);
+        setRecent(list.map((c) => ({ id: c.id, title: c.title })));
+      })
+      .catch(() => {});
+  }, []);
+
+  /** 把意图写入 sessionStorage，交给 /chat 工作区消费 */
+  const goChat = (intent?: Record<string, unknown>) => {
+    if (intent) {
+      try {
+        sessionStorage.setItem("oc:homeIntent", JSON.stringify({ ...intent, ts: Date.now() }));
+      } catch {}
+    }
+    router.push("/chat");
+  };
+
+  const submit = () => {
+    const text = input.trim();
+    if (!text) return goChat();
+    goChat({ type: "send", mode: "chat", text });
+  };
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Nav */}
-      <header className="sticky top-0 z-20 border-b border-stone-100 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-bold text-white">
-              O
-            </div>
-            <span className="text-lg font-semibold tracking-tight">OpenCanvas AI</span>
+    <div className="flex h-screen overflow-hidden bg-[#fdfaf6] text-stone-800">
+      {/* ============ 左侧导航 ============ */}
+      <aside className="hidden w-[256px] shrink-0 flex-col border-r border-stone-100 bg-white md:flex">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-5 pb-2 pt-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-lg font-bold text-white shadow-sm">
+            O
           </div>
-          <nav className="hidden items-center gap-7 text-sm text-stone-600 md:flex">
-            <a href="#features" className="hover:text-brand-600">功能</a>
-            <a href="#audience" className="hover:text-brand-600">适用人群</a>
-            <a href="#pricing" className="hover:text-brand-600">定价</a>
-            <a href="#faq" className="hover:text-brand-600">常见问题</a>
-          </nav>
-          <Link
-            href="/chat"
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
-          >
-            免费试用
-          </Link>
+          <span className="text-[17px] font-semibold tracking-tight">AI 对话</span>
         </div>
-      </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-50/80 to-white" />
-        <div className="relative mx-auto max-w-4xl px-6 py-24 text-center">
-          <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-medium text-brand-700">
-            <Sparkles className="h-3.5 w-3.5" /> 你的终极 AI 智能体工作空间
+        {/* 导航 */}
+        <nav className="mt-3 flex flex-col gap-0.5 px-3">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.label}
+              onClick={() =>
+                item.active
+                  ? undefined
+                  : item.mode
+                    ? goChat({ type: "mode", mode: item.mode })
+                    : goChat()
+              }
+              className={
+                item.active
+                  ? "flex items-center gap-3 rounded-xl bg-orange-50 px-3.5 py-2.5 text-[14px] font-medium text-orange-600"
+                  : "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+              }
+            >
+              <item.icon className="h-[18px] w-[18px]" strokeWidth={item.active ? 2.2 : 1.8} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* 最近对话 */}
+        <div className="mt-5 flex-1 overflow-y-auto px-5">
+          <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
+          <div className="flex flex-col gap-0.5 -mx-2">
+            {recent.length === 0 && (
+              <p className="px-2 py-1 text-xs text-stone-300">暂无历史对话</p>
+            )}
+            {recent.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => goChat({ type: "convo", id: c.id })}
+                className="flex items-center gap-2 truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-stone-500 transition hover:bg-stone-50 hover:text-stone-800"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-stone-300" />
+                <span className="truncate">{c.title}</span>
+              </button>
+            ))}
           </div>
-          <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-6xl">
-            研究、分析、创作
-            <br />
-            <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent">
-              在一个流程里全部完成
+          <button
+            onClick={() => goChat()}
+            className="mt-2 flex items-center gap-1 text-xs text-stone-400 transition hover:text-orange-600"
+          >
+            查看全部历史记录 <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+
+        {/* 用户卡片 */}
+        <div className="border-t border-stone-100 p-3">
+          <button className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50">
+            <Image
+              src="/avatar.png"
+              alt="Alex Chen"
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-full object-cover"
+            />
+            <span className="flex min-w-0 flex-1 flex-col items-start">
+              <span className="text-[13.5px] font-medium text-stone-800">Alex Chen</span>
+              <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-orange-50 px-1.5 py-px text-[10px] font-medium text-orange-600">
+                <Sparkles className="h-2.5 w-2.5" /> 专业版
+              </span>
             </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-stone-500">
-            说一句话，AI 自动完成深度调研、写出文档、做好 PPT、生成图片与视频。
-            聚合国内外主流大模型，营销、研究、创业、教学全场景覆盖。
-          </p>
-          <div className="mt-9 flex items-center justify-center gap-3">
-            <Link
-              href="/chat"
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-base font-medium text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700"
-            >
-              立即免费开始 <ArrowRight className="h-4 w-4" />
-            </Link>
-            <a
-              href="#features"
-              className="rounded-xl border border-stone-200 px-6 py-3 text-base font-medium text-stone-700 transition hover:border-brand-300"
-            >
-              查看功能
-            </a>
-          </div>
-          <p className="mt-4 text-sm text-stone-400">注册即送免费积分 · 无需信用卡</p>
+            <ChevronDown className="h-4 w-4 text-stone-400" />
+          </button>
         </div>
-      </section>
+      </aside>
 
-      {/* Features */}
-      <section id="features" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-center text-3xl font-bold tracking-tight">一个工作空间，六种生产力</h2>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CAPABILITIES.map((c) => (
-            <div
-              key={c.title}
-              className="rounded-2xl border border-stone-200 p-6 transition hover:border-brand-300 hover:shadow-lg hover:shadow-brand-600/5"
-            >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                {c.icon}
-              </div>
-              <h3 className="mb-1.5 font-semibold">{c.title}</h3>
-              <p className="text-sm leading-relaxed text-stone-500">{c.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ============ 主区域 ============ */}
+      <main className="relative flex-1 overflow-y-auto">
+        {/* 背景光晕 */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(60%_100%_at_50%_0%,rgba(255,183,148,0.18),rgba(244,114,182,0.07)_55%,transparent_100%)]" />
 
-      {/* Audience */}
-      <section id="audience" className="bg-stone-50 py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight">为每个人打造</h2>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {AUDIENCES.map((a) => (
-              <div key={a.title} className="rounded-2xl bg-white p-6 shadow-sm">
-                <h3 className="mb-2 font-semibold text-brand-700">{a.title}</h3>
-                <p className="text-sm leading-relaxed text-stone-500">{a.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-center text-3xl font-bold tracking-tight">简单透明的定价</h2>
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {PRICING.map((p) => (
-            <div
-              key={p.name}
-              className={`relative rounded-2xl border p-7 ${
-                p.highlight
-                  ? "border-brand-600 shadow-xl shadow-brand-600/10"
-                  : "border-stone-200"
-              }`}
-            >
-              {p.highlight && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-3 py-0.5 text-xs font-medium text-white">
-                  最受欢迎
-                </span>
-              )}
-              <div className="text-sm font-medium text-stone-400">
-                {p.name} · {p.tag}
-              </div>
-              <div className="mt-2 text-2xl font-bold">{p.price}</div>
-              <ul className="mt-5 space-y-2.5 text-sm text-stone-600">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/chat"
-                className={`mt-7 block rounded-xl py-2.5 text-center text-sm font-medium transition ${
-                  p.highlight
-                    ? "bg-brand-600 text-white hover:bg-brand-700"
-                    : "border border-stone-200 hover:border-brand-300"
-                }`}
-              >
-                {p.cta}
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="bg-stone-50 py-20">
-        <div className="mx-auto max-w-3xl px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight">常见问题</h2>
-          <div className="mt-10 space-y-3">
-            {[
-              {
-                q: "这是什么？",
-                a: "一个一站式 AI 智能体工作空间：在对话里完成深度研究、PPT、文档、绘图，产物实时出现在右侧画布并可持续编辑。",
-              },
-              {
-                q: "支持哪些大模型？",
-                a: "支持 OpenAI、Anthropic Claude、DeepSeek、阿里云通义/万相，国内外模型在一个地方切换。你也可以用自己的 API Key（BYOK），密钥只存在本地浏览器。",
-              },
-              {
-                q: "没有 API Key 能用吗？",
-                a: "可以。内置免费演示模型，对话、PPT、绘图、研究都能完整体验流程；配置真实密钥后即切换为真实生成。",
-              },
-              {
-                q: "数据会丢吗？",
-                a: "会话、消息、PPT、图片、报告都保存在本地数据库，刷新和重启不丢失；还可以在模型设置里一键导出 JSON 备份。",
-              },
-              {
-                q: "PPT 能导出吗？",
-                a: "能。一键导出 .pptx，可直接用 PowerPoint / WPS 打开；支持换主题、在线编辑文字、增删页面。",
-              },
-            ].map((f) => (
-              <details
-                key={f.q}
-                className="group rounded-xl border border-stone-200 bg-white p-4 [&_summary]:cursor-pointer"
-              >
-                <summary className="flex items-center justify-between font-medium text-stone-800 marker:content-none">
-                  {f.q}
-                  <span className="text-brand-500 transition group-open:rotate-45">＋</span>
-                </summary>
-                <p className="mt-2 text-sm leading-relaxed text-stone-500">{f.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="rounded-3xl bg-brand-600 px-8 py-16 text-center text-white">
-          <h2 className="text-3xl font-bold">开始你的第一个 AI 任务</h2>
-          <p className="mt-3 text-brand-100">深度研究、PPT、图片、视频、文档——把想法变成成品</p>
-          <Link
-            href="/chat"
-            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 font-medium text-brand-700 transition hover:bg-brand-50"
+        {/* 顶栏 */}
+        <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
+          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
+            <Bell className="h-[18px] w-[18px]" />
+          </button>
+          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
+            <LayoutGrid className="h-[18px] w-[18px]" />
+          </button>
+          <button
+            onClick={() => goChat({ type: "new" })}
+            className="ml-2 rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-600 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
           >
-            免费进入工作空间 <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
+            新建对话
+          </button>
+        </header>
 
-      <footer className="border-t border-stone-100 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 text-sm text-stone-400 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
-              O
+        <div className="relative z-10 mx-auto max-w-[1080px] px-8 pb-16">
+          {/* 问候 */}
+          <div className="mt-10 text-center">
+            <h1 className="text-[40px] font-bold leading-tight tracking-tight text-stone-900">
+              {greeting}，Alex 👋
+            </h1>
+            <p className="mt-1 bg-gradient-to-r from-orange-500 via-pink-500 to-violet-500 bg-clip-text text-[34px] font-bold tracking-tight text-transparent">
+              今天想创造点什么？
+            </p>
+            <p className="mt-3 text-[15px] text-stone-500">
+              用 AI 把想法变成现实，探索<span className="font-medium text-stone-700">无限可能</span>
+            </p>
+          </div>
+
+          {/* 输入舱 */}
+          <div className="mt-8 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.05)]">
+            <textarea
+              ref={taRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              rows={3}
+              placeholder="描述你的需求，或直接 @ 提及文件 / 智能体 / 知识库..."
+              className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
+            />
+            <div className="mt-2 flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <button className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50">
+                  <BrainCircuit className="h-4 w-4" /> 深度思考
+                  <ChevronDown className="h-3.5 w-3.5 text-stone-400" />
+                </button>
+                <button className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50">
+                  <Globe className="h-4 w-4" /> 联网搜索
+                </button>
+                <button className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50">
+                  <FileUp className="h-4 w-4" /> 上传文件
+                </button>
+                <button
+                  onClick={() => goChat()}
+                  className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+                >
+                  <Bot className="h-4 w-4" /> 选择智能体
+                </button>
+              </div>
+              <button
+                onClick={submit}
+                aria-label="发送"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-md shadow-orange-200 transition hover:brightness-105 active:scale-95"
+              >
+                <ArrowUp className="h-5 w-5" strokeWidth={2.4} />
+              </button>
             </div>
-            OpenCanvas AI
           </div>
-          <div className="flex items-center gap-5">
-            <a href="#features" className="hover:text-brand-600">功能</a>
-            <a href="#pricing" className="hover:text-brand-600">定价</a>
-            <a href="#faq" className="hover:text-brand-600">常见问题</a>
-            <Link href="/chat" className="hover:text-brand-600">进入工作台</Link>
+
+          {/* 快捷操作 */}
+          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {QUICK_ACTIONS.map((a) => (
+              <button
+                key={a.label}
+                onClick={() =>
+                  a.prompt
+                    ? goChat({ type: "fill", mode: a.mode, text: a.prompt })
+                    : goChat({ type: "mode", mode: a.mode })
+                }
+                className="flex items-center justify-center gap-2 rounded-xl border border-stone-200/80 bg-white py-3 text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow"
+              >
+                <a.icon className={`h-4 w-4 ${a.color}`} />
+                {a.label}
+              </button>
+            ))}
           </div>
-          <div>© 2026 OpenCanvas AI</div>
+
+          {/* 为你推荐 */}
+          <div className="mt-10">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-800">
+                <Sparkles className="h-4 w-4 text-orange-500" /> 为你推荐
+              </h2>
+              <div className="flex items-center gap-1.5">
+                <button className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 transition hover:text-stone-700">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:text-stone-900">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+              {RECOMMEND_CARDS.map((c) => (
+                <div
+                  key={c.title}
+                  className={`group flex flex-col rounded-2xl border border-stone-200/70 ${c.bg} p-4 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-stone-200/60`}
+                >
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${c.tile} text-white shadow-sm`}
+                  >
+                    <c.icon className="h-6 w-6" />
+                  </div>
+                  <p className="mt-4 text-[14.5px] font-semibold text-stone-800">{c.title}</p>
+                  <p className="mt-1 min-h-[36px] text-xs leading-relaxed text-stone-500">
+                    {c.desc}
+                  </p>
+                  <button
+                    onClick={() =>
+                      c.prompt
+                        ? goChat({ type: "fill", mode: c.mode, text: c.prompt })
+                        : goChat({ type: "mode", mode: c.mode })
+                    }
+                    className="mt-3 self-start rounded-lg border border-stone-300/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-stone-600 transition group-hover:border-orange-300 group-hover:text-orange-600"
+                  >
+                    立即使用
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 最近使用 */}
+          <div className="mt-10">
+            <h2 className="text-[15px] font-semibold text-stone-800">最近使用</h2>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {RECENT_USE.map((r) => (
+                <button
+                  key={r.label}
+                  onClick={() => goChat({ type: "fill", mode: r.mode, text: r.prompt })}
+                  className="flex items-center gap-2.5 rounded-xl border border-stone-200/80 bg-white px-4 py-3.5 text-left text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow"
+                >
+                  <r.icon className={`h-4.5 w-4.5 h-[18px] w-[18px] shrink-0 ${r.color}`} />
+                  <span className="truncate">{r.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </footer>
+      </main>
     </div>
   );
 }
