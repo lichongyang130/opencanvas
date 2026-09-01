@@ -2,22 +2,17 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Home, Loader2 } from "lucide-react";
+import { Home, LayoutDashboard, Loader2 } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ChatPanel } from "./ChatPanel";
 import { ArtifactPanel } from "./ArtifactPanel";
-import { ModeSwitcher } from "./ModeSwitcher";
-import { ModelSelector } from "./ModelSelector";
 import { SettingsModal } from "./SettingsModal";
 import { Toaster } from "@/components/Toaster";
-import { toast } from "@/lib/store/toast";
 import { useChatStore } from "@/lib/store/chat";
-import { MODELS } from "@/lib/gateway/models";
+import { cn } from "@/lib/utils";
 
 export function Workspace() {
   const {
-    model,
-    setModel,
     hydrated,
     hydrate,
     settingsOpen,
@@ -25,6 +20,8 @@ export function Workspace() {
     sending,
     conversations,
     activeId,
+    artifactOpen,
+    setArtifactOpen,
   } = useChatStore();
 
   useEffect(() => {
@@ -47,7 +44,6 @@ export function Workspace() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-[#e8ddca] bg-[#faf6ee] px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
-            <ModeSwitcher />
             {active && (
               <span className="hidden max-w-[220px] truncate text-sm text-stone-400 md:inline">
                 · {active.title}
@@ -67,14 +63,18 @@ export function Workspace() {
             >
               <Home className="h-4 w-4" />
             </Link>
-            <ModelSelector
-              value={model}
-              onChange={(id, provider) => {
-                setModel(id, provider);
-                const label = MODELS.find((m) => m.id === id)?.label ?? id;
-                toast(`已切换到 ${label}`, "success");
-              }}
-            />
+            <button
+              onClick={() => setArtifactOpen(!artifactOpen)}
+              title={artifactOpen ? "关闭产物画布" : "打开产物画布"}
+              className={cn(
+                "rounded-lg p-1.5 transition",
+                artifactOpen
+                  ? "bg-brand-50 text-brand-600"
+                  : "text-stone-400 hover:bg-stone-100 hover:text-brand-600"
+              )}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+            </button>
           </div>
         </header>
         <div className="flex min-h-0 flex-1">

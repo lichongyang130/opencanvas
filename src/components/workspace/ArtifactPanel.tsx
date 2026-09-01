@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Download,
   FileText as FileTextIcon,
@@ -72,9 +72,11 @@ function ImageGallery({ images }: { images: UIImage[] }) {
  * - PPT 模式：完整幻灯片工作台（主题/编辑/导出）
  * - 其他模式：最近一条 AI 回复作为"文档"产物
  * 后续阶段：图片、视频、代码预览挂载在这里。
+ * 
+ * 默认关闭，有产物时自动弹出。
  */
 export function ArtifactPanel() {
-  const { conversations, activeId, sending } = useChatStore();
+  const { conversations, activeId, sending, artifactOpen, setArtifactOpen } = useChatStore();
   const convo = conversations.find((c) => c.id === activeId);
   const mode = convo?.mode ?? "chat";
 
@@ -82,18 +84,28 @@ export function ArtifactPanel() {
     .reverse()
     .find((m) => m.role === "assistant" && m.content && !m.error);
 
-  return (
-    <aside className="hidden w-[30rem] shrink-0 flex-col border-l border-stone-200 bg-white lg:flex">
-      <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <LayoutDashboard className="h-4 w-4 text-brand-600" />
-          产物画布
-        </div>
-        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
-          {MODE_LABELS[mode]}
-        </span>
-      </div>
+  // 检测是否有产物内容
+  const hasArtifact = 
+    (mode === "image" && (convo?.images?.length ?? 0) > 0) ||
+    (mode === "research" && convo?.report) ||
+    (mode === "docs" && convo?.doc) ||
+    (mode === "slides" && convo?.deck) ||
+    (mode === "chat" && lastAssistant);
 
+  // 有产物时自动弹出
+  useEffect(() => {
+    if (hasArtifact && !artifactOpen) {
+      setArtifactOpen(true);
+    }
+  }, [hasArtifact, artifactOpen, setArtifactOpen]);
+
+  // 隐藏状态或无产物内容时不渲染
+  if (!artifactOpen) {
+    return null;
+  }
+
+  return (
+    <aside className="flex w-[30rem] shrink-0 flex-col border-l border-stone-200 bg-white">
       {/* 图像画廊 */}
       {mode === "image" && (convo?.images?.length ?? 0) > 0 ? (
         <ImageGallery images={convo!.images!} />

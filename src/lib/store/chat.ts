@@ -103,6 +103,9 @@ interface ChatState {
   hydrated: boolean;
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
+  /** 产物画布是否展开 */
+  artifactOpen: boolean;
+  setArtifactOpen: (v: boolean) => void;
   stopGeneration: () => void;
   hydrate: () => Promise<void>;
   runTemplate: (t: { mode: WorkspaceMode; prompt: string }) => Promise<void>;
@@ -211,10 +214,12 @@ export const useChatStore = create<ChatState>((set, get) => {
     sending: false,
     hydrated: false,
     settingsOpen: false,
+    artifactOpen: false,
     docBusy: false,
     pendingInput: null,
 
     setSettingsOpen: (v) => set({ settingsOpen: v }),
+    setArtifactOpen: (v) => set({ artifactOpen: v }),
 
     stopGeneration: () => {
       activeAbort?.abort();
