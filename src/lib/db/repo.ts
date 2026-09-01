@@ -1,4 +1,5 @@
 import { getDb } from "./sqlite";
+import { randomUUID } from "node:crypto";
 
 export interface StoredConversation {
   id: string;
@@ -120,38 +121,33 @@ export const repo = {
       .get(c.id) as Record<string, unknown> | undefined;
 
     if (existing) {
-      db.prepare(
-        `UPDATE conversations SET
-          title = COALESCE(?, title),
-          mode = COALESCE(?, mode),
-          model = COALESCE(?, model),
-          modelProvider = COALESCE(?, modelProvider),
-          deck = COALESCE(?, deck),
-          deckStatus = COALESCE(?, deckStatus),
-          images = COALESCE(?, images),
-          report = COALESCE(?, report),
-          doc = COALESCE(?, doc),
-          personaId = COALESCE(?, personaId),
-          archived = COALESCE(?, archived),
-          pinned = COALESCE(?, pinned),
-          updatedAt = ?
-        WHERE id = ?`
-      ).run(
-        c.title ?? null,
-        c.mode ?? null,
-        c.model ?? null,
-        c.modelProvider === undefined ? null : c.modelProvider,
-        c.deck === undefined ? null : JSON.stringify(c.deck),
-        c.deckStatus === undefined ? null : c.deckStatus,
-        c.images === undefined ? null : JSON.stringify(c.images),
-        c.report === undefined ? null : JSON.stringify(c.report),
-        c.doc === undefined ? null : JSON.stringify(c.doc),
-        c.personaId === undefined ? null : c.personaId,
-        c.archived === undefined ? null : c.archived ? 1 : 0,
-        c.pinned === undefined ? null : c.pinned ? 1 : 0,
-        now,
-        c.id
-      );
+      // 动态拼 SET：undefined = 不改动；显式 null = 清空为 NULL。
+      // （旧版用 COALESCE(?, col)，导致任何字段都写不进 NULL，
+      //   「取消角色 / 清空 deckStatus」等静默失效。）
+      const sets: string[] = [];
+      const params: (string | number | null)[] = [];
+      const set = (col: string, val: string | number | null) => {
+        sets.push(`${col} = ?`);
+        params.push(val);
+      };
+      if (c.title !== undefined) set("title", c.title);
+      if (c.mode !== undefined) set("mode", c.mode);
+      if (c.model !== undefined) set("model", c.model);
+      if (c.modelProvider !== undefined) set("modelProvider", c.modelProvider);
+      if (c.deck !== undefined) set("deck", c.deck === null ? null : JSON.stringify(c.deck));
+      if (c.deckStatus !== undefined) set("deckStatus", c.deckStatus);
+      if (c.images !== undefined) set("images", JSON.stringify(c.images));
+      if (c.report !== undefined) set("report", c.report === null ? null : JSON.stringify(c.report));
+      if (c.doc !== undefined) set("doc", c.doc === null ? null : JSON.stringify(c.doc));
+      if (c.personaId !== undefined) set("personaId", c.personaId);
+      if (c.archived !== undefined) set("archived", c.archived ? 1 : 0);
+      if (c.pinned !== undefined) set("pinned", c.pinned ? 1 : 0);
+
+      if (sets.length > 0) {
+        sets.push("updatedAt = ?");
+        params.push(now, c.id);
+        db.prepare(`UPDATE conversations SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+      }
     } else {
       db.prepare(
         `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, archived, pinned, createdAt, updatedAt)
@@ -233,3 +229,39 @@ export const repo = {
     }
   },
 };
+
+/** 案例分享（方案 B：服务器公开链接） */
+export interface CaseShareRecord {
+  code: string;
+  templateId: string;
+  label: string;
+  prompt: string;
+  values: Record<string, string>;
+  output?: string;
+  image?: string;
+  source?: string;
+}
+
+export function createCaseShare(rec: Omit<CaseShareRecord, "code">): string {
+  const db = getDb();
+  const code = randomUUID().replace(/-/g, "").slice(0, 12);
+  db.prepare("INSERT INTO case_shares (code, data, createdAt) VALUES (?, ?, ?)").run(
+    code,
+    JSON.stringify(rec),
+    Date.now()
+  );
+  return code;
+}
+
+export function getCaseShare(code: string): CaseShareRecord | null {
+  const db = getDb();
+  const row = db.prepare("SELECT data FROM case_shares WHERE code = ?").get(code) as
+    | { data: string }
+    | undefined;
+  if (!row) return null;
+  try {
+    return { code, ...(JSON.parse(row.data) as Omit<CaseShareRecord, "code">) };
+  } catch {
+    return null;
+  }
+}

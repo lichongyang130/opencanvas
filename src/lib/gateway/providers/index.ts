@@ -51,6 +51,11 @@ export function getProviders(): Record<ProviderId, ProviderAdapter> {
   return cache;
 }
 
+/** 读取服务端环境变量中某供应商的密钥（不泄露内容，仅供路由内部兜底使用） */
+export function getEnvApiKey(id: Exclude<ProviderId, "demo">): string | undefined {
+  return ENV_KEY[id];
+}
+
 /** 供前端展示：服务端环境变量配置状态（不泄露密钥） */
 export function getProviderConfigStatus(): Record<ProviderId, boolean> {
   const p = getProviders();

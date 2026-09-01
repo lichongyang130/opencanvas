@@ -1,7 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Check, Copy, ImageIcon, Loader2, Sparkles, Square, Wand2 } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  Copy,
+  FileText,
+  ImageIcon,
+  Loader2,
+  Mail,
+  Presentation,
+  Search,
+  Send,
+  Sparkles,
+  Square,
+  Video,
+  Wand2,
+} from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
 import { Markdown } from "./Markdown";
 import { PersonaPicker } from "./PersonaPicker";
@@ -38,6 +53,22 @@ const IMAGE_STYLES = [
   "新中式国风",
   "吉卜力动画风",
   "产品摄影",
+];
+
+/** 首页功能卡片（参照设计图 3 的宫格） */
+const HOME_CARDS: {
+  icon: typeof Mail;
+  title: string;
+  desc: string;
+  mode: WorkspaceMode;
+  prompt: string;
+}[] = [
+  { icon: Mail, title: "撰写邮件", desc: "起草清晰、有说服力的商务邮件", mode: "chat", prompt: "帮我写一封商务合作邮件" },
+  { icon: FileText, title: "生成文档", desc: "商业计划书 / 制度 / 报告一键成稿", mode: "docs", prompt: "写一份 SaaS 产品商业计划书" },
+  { icon: Presentation, title: "制作 PPT", desc: "输入主题，生成整套幻灯片", mode: "slides", prompt: "为产品发布会生成一套 10 页 PPT" },
+  { icon: ImageIcon, title: "生成图片", desc: "描述画面，AI 立即出图", mode: "image", prompt: "一只戴宇航头盔的柯基在月球上，电影感海报" },
+  { icon: Search, title: "深度研究", desc: "市场 / 竞品 / 行业调研报告", mode: "research", prompt: "研究 2025 年 AI 搜索赛道的竞争格局" },
+  { icon: Video, title: "视频脚本", desc: "带货 / 分镜 / 口播脚本", mode: "video", prompt: "为新款降噪耳机写一条 15 秒带货短视频脚本" },
 ];
 
 function MessageBubble({ m }: { m: UIMessage }) {
@@ -104,6 +135,7 @@ function MessageBubble({ m }: { m: UIMessage }) {
 
 export function ChatPanel() {
   const { conversations, activeId, send, sending, stopGeneration } = useChatStore();
+  const pendingInput = useChatStore((s) => s.pendingInput);
   const convo = conversations.find((c) => c.id === activeId);
   const [input, setInput] = useState("");
   const [imgSize, setImgSize] = useState("1024x1024");
@@ -116,6 +148,15 @@ export function ChatPanel() {
   // 斜杠命令菜单
   const slashMatches = matchSlash(input);
   useEffect(() => setSlashIdx(0), [input]);
+
+  // 提示词库「真实案例」点击后：把内容填进输入框（不发送）
+  useEffect(() => {
+    if (pendingInput) {
+      setInput(pendingInput.text);
+      inputRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInput?.nonce]);
 
   const applyChip = (chip: PromptChip) => {
     setInput((v) => {
@@ -233,7 +274,12 @@ export function ChatPanel() {
             for (const line of lines) {
               const t = line.trim();
               if (!t.startsWith("data:")) continue;
-              const evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string };
+              let evt: { type: string; delta?: string } | null = null;
+              try {
+                evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string };
+              } catch {
+                continue;
+              }
               if (evt.type === "token" && evt.delta) acc += evt.delta;
             }
           }
@@ -274,49 +320,271 @@ ${raw}
     }
   };
 
-  return (
-    <div className="relative flex min-w-0 flex-1 flex-col bg-stone-50">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="mx-auto w-full max-w-2xl">
-          {messages.length === 0 ? (
-            <div className="pt-10">
-              <div className="mb-2 flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
-                <span className="flex items-center gap-2">
-                  {mode === "image" ? (
-                    <ImageIcon className="h-6 w-6 text-brand-600" />
-                  ) : (
-                    <Sparkles className="h-6 w-6 text-brand-600" />
-                  )}
-                  {MODE_LABELS[mode]}
-                </span>
-                {mode === "chat" && (
-                  <span className="scale-90 origin-left">
-                    <PersonaPicker
-                      onStarter={(t) => {
-                        setInput(t);
-                        setTimeout(() => inputRef.current?.focus(), 0);
-                      }}
-                    />
-                  </span>
+  useEffect(() => {
+    const ta = inputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+  }, [input]);
+
+  const paramChips = (
+    <>
+      {mode === "image" && (
+        <div className="mb-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            {IMAGE_SIZES.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setImgSize(s.id)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs transition",
+                  imgSize === s.id
+                    ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
+                    : "border-stone-200 text-stone-500 hover:border-brand-300"
                 )}
-              </div>
-              <p className="mb-8 text-stone-500">
-                {mode === "image"
-                  ? "描述你想要的画面，AI 生成图像并展示在右侧画布。"
-                  : "输入需求，AI 自动完成。产物（文档 / PPT / 图片 / 报告）会实时出现在右侧画布。"}
-              </p>
-              <div className="grid gap-2.5">
-                {(EXAMPLES[mode] ?? EXAMPLES.chat).map((ex) => (
-                  <button
-                    key={ex}
-                    onClick={() =>
-                      mode === "image"
-                        ? void useChatStore.getState().generateImage(ex, imgSize)
-                        : void send(ex)
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-stone-400">风格：</span>
+            {IMAGE_STYLES.map((st) => (
+              <button
+                key={st}
+                onClick={() => setInput((v) => (v.trim() ? v.replace(/[，,。\s]*$/, "") + "，" + st : st))}
+                className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] text-stone-600 transition hover:bg-brand-100 hover:text-brand-700"
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {mode !== "image" && !slashMatches && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-stone-400">语气</span>
+          {TONE_CHIPS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => applyChip(c)}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] transition",
+                chipOn(c) ? "border-brand-400 bg-brand-50 text-brand-700" : "border-stone-200 text-stone-500 hover:border-brand-300"
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+          <span className="ml-1 text-[11px] text-stone-400">长度</span>
+          {LENGTH_CHIPS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => applyChip(c)}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] transition",
+                chipOn(c) ? "border-brand-400 bg-brand-50 text-brand-700" : "border-stone-200 text-stone-500 hover:border-brand-300"
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+          <span className="ml-1 text-[11px] text-stone-400">受众</span>
+          {AUDIENCE_CHIPS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => applyChip(c)}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] transition",
+                chipOn(c) ? "border-brand-400 bg-brand-50 text-brand-700" : "border-stone-200 text-stone-500 hover:border-brand-300"
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const composer = (
+    <div className="relative">
+      {slashMatches && (
+        <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
+          <div className="px-2 py-1 text-[11px] text-stone-400">快捷命令（↑↓ 选择，Enter 执行）</div>
+          {slashMatches.length === 0 && (
+            <div className="px-2 py-3 text-center text-xs text-stone-400">没有匹配的命令</div>
+          )}
+          {slashMatches.map((c, i) => (
+            <button
+              key={c.cmd}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                runSlash(c);
+              }}
+              onMouseEnter={() => setSlashIdx(i)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
+                i === slashIdx ? "bg-brand-50" : "hover:bg-stone-50"
+              )}
+            >
+              <span className="flex h-6 w-12 shrink-0 items-center justify-center rounded bg-stone-100 font-mono text-[11px] text-stone-500">
+                /{c.cmd}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-stone-700">{c.label}</span>
+                <span className="block truncate text-[11px] text-stone-400">{c.desc}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="rounded-3xl border border-stone-200 bg-white p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition focus-within:border-brand-400 focus-within:shadow-md">
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (slashMatches && slashMatches.length > 0) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSlashIdx((i) => (i + 1) % slashMatches.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                return;
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setInput("");
+                return;
+              }
+            }
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          rows={1}
+          placeholder={
+            mode === "image"
+              ? "描述你想要的画面…"
+              : mode === "chat"
+                ? "分配任务，或问我任何事"
+                : `${MODE_LABELS[mode]}：描述你的需求…`
+          }
+          className="max-h-[200px] w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-relaxed outline-none placeholder:text-stone-400"
+        />
+        <div className="mt-1 flex items-center justify-between px-1.5 pb-0.5">
+          <button
+            onClick={() => void enhancePrompt()}
+            disabled={!input.trim() || enhancing}
+            title="优化提示词（结构化为更有效的指令）"
+            className="flex h-8 items-center gap-1.5 rounded-full border border-stone-200 px-3 text-xs text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+          >
+            {enhancing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            优化
+          </button>
+          {sending ? (
+            <button
+              onClick={stopGeneration}
+              title="停止生成"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-700 text-white transition hover:bg-stone-800"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={submit}
+              disabled={!input.trim()}
+              title="发送"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:bg-stone-100 disabled:text-stone-300"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="relative flex min-w-0 flex-1 flex-col bg-[#f9f5ec]">
+      <div
+        ref={scrollRef}
+        className={cn(
+          "flex-1 overflow-y-auto px-6",
+          messages.length === 0 ? "bg-[#f6f1e9] py-10" : "py-8"
+        )}
+      >
+        <div className={cn("mx-auto w-full", messages.length === 0 ? "max-w-4xl" : "max-w-2xl")}>
+          {messages.length === 0 ? (
+            <div className="pt-4 text-center">
+              <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#4a2e1d] md:text-4xl">
+                欢迎回来，今天想做点什么？
+              </h1>
+              <p className="mt-2 text-sm text-[#8a7a66]">用 AI 把想法变成现实。</p>
+
+              {/* 唯一输入框：一个输入 + 一个发送，一眼即懂 */}
+              <div className="mx-auto mt-8 max-w-xl rounded-3xl border border-[#e8ddca] bg-white p-2 text-left shadow-sm transition focus-within:border-[#c05f3c] focus-within:shadow-md">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      submit();
                     }
-                    className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-left text-sm text-stone-700 transition hover:border-brand-300 hover:bg-brand-50/40"
+                  }}
+                  rows={2}
+                  placeholder="输入你的任务，回车即可生成。例如：帮我写一份产品发布会 PPT…"
+                  className="w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-relaxed text-[#3f2d1e] outline-none placeholder:text-[#b9a98f]"
+                />
+                <div className="flex items-center justify-end px-1 pb-1">
+                  {sending ? (
+                    <button
+                      onClick={stopGeneration}
+                      title="停止"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3f2d1e] text-white"
+                    >
+                      <Square className="h-4 w-4 fill-current" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={submit}
+                      disabled={!input.trim()}
+                      title="生成"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#c05f3c] text-white transition hover:bg-[#a94f31] disabled:bg-[#eadfce] disabled:text-[#c0b193]"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行</p>
+
+              {/* 少量示例，一键填入 */}
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <span className="text-sm text-[#8a7a66]">试试：</span>
+                {HOME_CARDS.slice(0, 4).map((q) => (
+                  <button
+                    key={q.title}
+                    onClick={() => {
+                      useChatStore.getState().setMode(q.mode);
+                      setInput(q.prompt);
+                      setTimeout(() => inputRef.current?.focus(), 0);
+                    }}
+                    className="rounded-full border border-[#e3d8c6] bg-white px-3.5 py-1.5 text-sm text-[#6b5b48] transition hover:border-[#c05f3c] hover:text-[#c05f3c]"
                   >
-                    {ex}
+                    {q.title}
                   </button>
                 ))}
               </div>
@@ -351,7 +619,8 @@ ${raw}
         </button>
       )}
 
-      <div className="border-t border-stone-200 bg-white px-6 py-4">
+      {messages.length > 0 && (
+      <div className="border-t border-[#e8ddca] bg-[#fdfaf3] px-6 py-4">
         <div className="mx-auto w-full max-w-2xl">
           {mode === "image" && (
             <div className="mb-2 space-y-1.5">
@@ -469,7 +738,7 @@ ${raw}
               ))}
             </div>
           )}
-          <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-white p-2 shadow-sm focus-within:border-brand-400">
+          <div className="rounded-3xl border border-stone-200 bg-white p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition focus-within:border-brand-400 focus-within:shadow-md">
             <textarea
               ref={inputRef}
               value={input}
@@ -505,40 +774,46 @@ ${raw}
               rows={1}
               placeholder={
                 mode === "image"
-                  ? "描述画面：主体 + 风格 + 构图，Enter 生成"
-                  : `${MODE_LABELS[mode]}：描述你的需求，Enter 发送 / Shift+Enter 换行`
+                  ? "描述你想要的画面…"
+                  : mode === "chat"
+                    ? "有什么可以帮你的？"
+                    : `${MODE_LABELS[mode]}：描述你的需求…`
               }
-              className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-stone-400"
+              className="max-h-[200px] w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-relaxed outline-none placeholder:text-stone-400"
             />
-            <button
-              onClick={() => void enhancePrompt()}
-              disabled={!input.trim() || enhancing}
-              title="优化提示词（结构化为更有效的指令）"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
-            >
-              {enhancing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="mt-1 flex items-center justify-between px-1.5 pb-0.5">
+              <button
+                onClick={() => void enhancePrompt()}
+                disabled={!input.trim() || enhancing}
+                title="优化提示词（结构化为更有效的指令）"
+                className="flex h-8 items-center gap-1.5 rounded-full border border-stone-200 px-3 text-xs text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+              >
+                {enhancing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="h-3.5 w-3.5" />
+                )}
+                优化
+              </button>
+              {sending ? (
+                <button
+                  onClick={stopGeneration}
+                  title="停止生成"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-700 text-white transition hover:bg-stone-800"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                </button>
               ) : (
-                <Wand2 className="h-4 w-4" />
+                <button
+                  onClick={submit}
+                  disabled={!input.trim()}
+                  title="发送"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:bg-stone-100 disabled:text-stone-300"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
               )}
-            </button>
-            {sending ? (
-              <button
-                onClick={stopGeneration}
-                title="停止生成"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-stone-700 text-white transition hover:bg-stone-800"
-              >
-                <Square className="h-3.5 w-3.5 fill-current" />
-              </button>
-            ) : (
-              <button
-                onClick={submit}
-                disabled={!input.trim()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-30"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </button>
-            )}
+            </div>
           </div>
           </div>
           <div className="mt-2 text-center text-xs text-stone-400">
@@ -548,6 +823,7 @@ ${raw}
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

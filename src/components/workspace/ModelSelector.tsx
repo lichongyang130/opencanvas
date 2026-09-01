@@ -188,9 +188,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                     获取模型
                   </button>
                 </div>
-                {g.items
-                  .filter((x) => !x.dynamic || true)
-                  .map(({ info, dynamic: isDynamic }) => (
+                {g.items.map(({ info, dynamic: isDynamic }) => (
                     <ModelRow
                       key={info.id}
                       label={info.label + (isDynamic ? " ·" : "")}

@@ -1,4 +1,4 @@
-import { buildProviders, type ProviderId, type ProviderOverrides } from "@/lib/gateway";
+import { buildProviders, getEnvApiKey, type ProviderId, type ProviderOverrides } from "@/lib/gateway";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +33,9 @@ export async function POST(req: Request) {
 
   const ov = body.overrides?.[provider];
   const baseUrl = (ov?.baseUrl || DEFAULT_BASE[provider]).replace(/\/+$/, "");
-  const apiKey = ov?.apiKey || "";
+  // 密钥优先前台 BYOK，其次服务端 env —— 与 isConfigured() 的判断保持一致，
+  // 避免「env 配了密钥却发空 Bearer 导致 401」。
+  const apiKey = ov?.apiKey || getEnvApiKey(provider as Exclude<ProviderId, "demo">) || "";
 
   try {
     let ids: string[] = [];

@@ -99,14 +99,16 @@ export function Markdown({ content }: { content: string }) {
       });
       flushList(`l-${i}-end`);
     } else {
-      // 代码块：i 是语言，i+1 是代码（跳过）
+      // 代码块：i 是语言，i+1 是代码。
+      // split(/```(\w*)\n?/) 会把闭合围栏也捕获为一个空语言项，
+      // 因此一个围栏块占 [lang, code, ""] 三格，需跳两格落回偶数（正文）位。
       const code = blocks[i + 1] ?? "";
       nodes.push(
         <pre key={`code-${i}`} className="my-2 overflow-x-auto rounded-lg bg-stone-900 p-3 text-xs text-stone-100">
           <code>{code.replace(/\n$/, "")}</code>
         </pre>
       );
-      i += 1;
+      i += 2;
     }
   }
 

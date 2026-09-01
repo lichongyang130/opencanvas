@@ -12,6 +12,20 @@ export type TemplateCategory =
   | "video"
   | "productivity";
 
+/** 真实案例：变量填入真实值后的可复用示例。点击即填入输入框，不发送 */
+export interface TemplateCase {
+  /** 案例名（卡片展示） */
+  label: string;
+  /** 填入模板 {{变量}} 的真实值（key 需与 extractVariables 一致） */
+  values: Record<string, string>;
+  /** 效果图路径（public 下，如 /cases/d-corgi.jpg） */
+  image?: string;
+  /** 文字类案例的真实输出（节选），用于效果预览 */
+  output?: string;
+  /** 产出方式标注，用于说明真实性 */
+  source?: string;
+}
+
 export interface Template {
   id: string;
   label: string;
@@ -21,6 +35,8 @@ export interface Template {
   prompt: string;
   /** 是否官方内置 */
   builtin?: boolean;
+  /** 内置真实案例（0 到多个） */
+  cases?: TemplateCase[];
 }
 
 export const CATEGORIES: { id: TemplateCategory; label: string }[] = [
