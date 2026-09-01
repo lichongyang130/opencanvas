@@ -1,6 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useChatStore } from "@/lib/store/chat";
+import { PERSONAS } from "@/lib/personas";
 import {
   Bell,
   BookOpen,
@@ -35,19 +38,19 @@ const CAT_STYLE: Record<AgentCat, { text: string; bg: string; dot: string }> = {
 };
 
 const AGENT_CARDS = [
-  { name: "产品经理助手", cat: "工作" as AgentCat, desc: "帮助产品经理进行需求分析、竞品调研、PRD撰写等工作", avatar: "/mock-avatars/pm.png" },
-  { name: "数据分析师", cat: "工作" as AgentCat, desc: "数据清洗、分析、可视化及业务洞察", avatar: "/mock-avatars/analyst.png" },
-  { name: "内容创作助手", cat: "创作" as AgentCat, desc: "文案写作、文案创作、内容优化", avatar: "/mock-avatars/content.png" },
-  { name: "编程助手", cat: "开发" as AgentCat, desc: "代码编写、调试、技术问答", avatar: "/mock-avatars/coder.png" },
-  { name: "会议纪要助手", cat: "效率" as AgentCat, desc: "语音转写、会议纪要、待办整理", avatar: "/mock-avatars/meeting.png" },
+  { name: "产品经理助手", cat: "工作" as AgentCat, desc: "帮助产品经理进行需求分析、竞品调研、PRD撰写等工作", avatar: "/mock-avatars/pm.png", persona: "pm" },
+  { name: "数据分析师", cat: "工作" as AgentCat, desc: "数据清洗、分析、可视化及业务洞察", avatar: "/mock-avatars/analyst.png", persona: "data-analyst" },
+  { name: "内容创作助手", cat: "创作" as AgentCat, desc: "文案写作、文案创作、内容优化", avatar: "/mock-avatars/content.png", persona: "copywriter" },
+  { name: "编程助手", cat: "开发" as AgentCat, desc: "代码编写、调试、技术问答", avatar: "/mock-avatars/coder.png", persona: "code-reviewer" },
+  { name: "会议纪要助手", cat: "效率" as AgentCat, desc: "语音转写、会议纪要、待办整理", avatar: "/mock-avatars/meeting.png", persona: "hr" },
 ];
 
 const AGENT_ROWS = [
-  { name: "产品经理助手", desc: "帮助产品经理进行需求分析、竞品调研、PRD撰写等工作", cat: "工作" as AgentCat, count: "128 次", time: "今天 14:30", avatar: "/mock-avatars/pm.png" },
-  { name: "数据分析师", desc: "数据清洗、分析、可视化及业务洞察", cat: "工作" as AgentCat, count: "96 次", time: "今天 11:20", avatar: "/mock-avatars/analyst.png" },
-  { name: "内容创作助手", desc: "文案写作、文案创作、内容优化", cat: "创作" as AgentCat, count: "75 次", time: "昨天 16:45", avatar: "/mock-avatars/content.png" },
-  { name: "编程助手", desc: "代码编写、调试、技术问答", cat: "开发" as AgentCat, count: "62 次", time: "昨天 10:15", avatar: "/mock-avatars/coder.png" },
-  { name: "会议纪要助手", desc: "语音转写、会议纪要、待办整理", cat: "效率" as AgentCat, count: "48 次", time: "08-13 09:30", avatar: "/mock-avatars/meeting.png" },
+  { name: "产品经理助手", desc: "帮助产品经理进行需求分析、竞品调研、PRD撰写等工作", cat: "工作" as AgentCat, count: "128 次", time: "今天 14:30", avatar: "/mock-avatars/pm.png", persona: "pm" },
+  { name: "数据分析师", desc: "数据清洗、分析、可视化及业务洞察", cat: "工作" as AgentCat, count: "96 次", time: "今天 11:20", avatar: "/mock-avatars/analyst.png", persona: "data-analyst" },
+  { name: "内容创作助手", desc: "文案写作、文案创作、内容优化", cat: "创作" as AgentCat, count: "75 次", time: "昨天 16:45", avatar: "/mock-avatars/content.png", persona: "copywriter" },
+  { name: "编程助手", desc: "代码编写、调试、技术问答", cat: "开发" as AgentCat, count: "62 次", time: "昨天 10:15", avatar: "/mock-avatars/coder.png", persona: "code-reviewer" },
+  { name: "会议纪要助手", desc: "语音转写、会议纪要、待办整理", cat: "效率" as AgentCat, count: "48 次", time: "08-13 09:30", avatar: "/mock-avatars/meeting.png", persona: "hr" },
 ];
 
 const CATEGORY_TABS = ["全部智能体", "工作", "创作", "开发", "效率", "自定义"];
@@ -60,7 +63,19 @@ const SKILLS = [
 ];
 
 export default function AgentsPage() {
+  const router = useRouter();
+  const { newConversation, selectConversation, setPersona } = useChatStore();
   const demo = (label: string) => toast(`演示预览：${label} 功能即将接入`, "info");
+
+  /** 开始对话：创建一个绑定该智能体角色的会话，并跳转到 /chat */
+  const startChat = async (personaId: string) => {
+    const persona = PERSONAS.find((p) => p.id === personaId);
+    const id = await newConversation("chat");
+    await selectConversation(id);
+    setPersona(personaId);
+    toast(`已创建「${persona?.name ?? "助手"}」智能体对话`, "success");
+    router.push("/chat");
+  };
   return (
     <div className="flex h-screen overflow-hidden bg-[#fbf8f4] text-stone-800">
       <ShellSidebar active="agents" />
@@ -106,9 +121,10 @@ export default function AgentsPage() {
               {AGENT_CARDS.map((a) => {
                 const s = CAT_STYLE[a.cat];
                 return (
-                  <div
+                  <button
                     key={a.name}
-                    className="relative rounded-2xl border border-[#ece6db] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition hover:shadow-md"
+                    onClick={() => void startChat(a.persona)}
+                    className="relative rounded-2xl border border-[#ece6db] bg-white p-4 text-left shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition hover:shadow-md"
                   >
                     <span className={`absolute right-3 top-3 h-2 w-2 rounded-full ${s.dot}`} />
                     <div className="mx-auto h-16 w-16 overflow-hidden rounded-full border border-stone-100">
@@ -119,7 +135,7 @@ export default function AgentsPage() {
                       <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>{a.cat}</span>
                     </div>
                     <p className="mt-2 text-center text-xs leading-5 text-stone-400">{a.desc}</p>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -179,7 +195,8 @@ export default function AgentsPage() {
                     <span className="w-[24%] text-[13px] text-stone-500">{r.time}</span>
                     <div className="flex flex-1 items-center justify-end gap-1">
                       <button
-                        onClick={() => demo("运行智能体")}
+                        onClick={() => void startChat(r.persona)}
+                        title={`与 ${r.name} 开始对话`}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
                       >
                         <Play className="h-4 w-4" />
@@ -299,7 +316,7 @@ export default function AgentsPage() {
                 <Share2 className="h-4 w-4" /> 分享智能体
               </button>
               <button
-                onClick={() => demo("开始对话")}
+                onClick={() => void startChat("pm")}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105"
               >
                 <MessageCircle className="h-4 w-4" /> 开始对话

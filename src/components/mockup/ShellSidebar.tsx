@@ -14,6 +14,7 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
+import { useChatStore } from "@/lib/store/chat";
 
 export type ShellActive = "chat" | "agents" | "knowledge";
 
@@ -28,21 +29,20 @@ const NAV = [
   { label: "更多应用", icon: LayoutGrid, route: "/chat" },
 ];
 
-const RECENT = [
-  "产品策略会议纪要",
-  "用户需求分析报告",
-  "品牌营销方案",
-  "培训课程大纲",
-  "如何提高团队效率",
-];
-
 export function ShellSidebar({ active }: { active: ShellActive }) {
   const router = useRouter();
+  const { conversations, selectConversation } = useChatStore();
+  const recent = conversations.filter((c) => !c.archived).slice(0, 6);
 
   const go = (route: string) => {
     if (route.startsWith("/agents")) router.push("/agents");
     else if (route.startsWith("/knowledge")) router.push("/knowledge");
     else router.push(route === "/" ? "/" : "/chat");
+  };
+
+  const openConvo = (id: string) => {
+    router.push("/chat");
+    void selectConversation(id);
   };
 
   return (
@@ -88,14 +88,17 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
       <div className="flex-1 overflow-y-auto px-5">
         <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
         <div className="-mx-2 flex flex-col gap-0.5">
-          {RECENT.map((r) => (
+          {recent.length === 0 && (
+            <p className="px-2 py-1 text-xs text-stone-300">暂无历史对话</p>
+          )}
+          {recent.map((r) => (
             <button
-              key={r}
-              onClick={() => router.push("/chat")}
+              key={r.id}
+              onClick={() => openConvo(r.id)}
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-stone-500 transition hover:bg-stone-50 hover:text-stone-800"
             >
               <FileText className="h-3.5 w-3.5 shrink-0 text-stone-300" />
-              <span className="truncate">{r}</span>
+              <span className="truncate">{r.title}</span>
             </button>
           ))}
           <button
