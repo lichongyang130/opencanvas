@@ -7,15 +7,20 @@ import {
   ChevronLeft,
   ChevronRight,
   FileImage,
+  FileText,
+  Home,
   LayoutGrid,
   Lightbulb,
   MessageSquare,
+  Package,
   Paperclip,
   Pencil,
   Plus,
+  Presentation,
   RefreshCw,
   Search,
   Send,
+  Settings,
   Share2,
   Star,
   Type,
@@ -62,6 +67,53 @@ const MESSAGES = [
     text: "好的，明白！正在根据您的要求生成文案中。请稍候…",
   },
 ];
+
+/* 最左侧图标导航树栏 */
+function IconRail() {
+  const items = [
+    { icon: Home, label: "首页", active: true },
+    { icon: MessageSquare, label: "AI 对话", active: false },
+    { icon: FileText, label: "文档中心", active: false },
+    { icon: Presentation, label: "PPT", active: false },
+    { icon: LayoutGrid, label: "模板库", active: false },
+    { icon: Package, label: "素材包", active: false },
+  ];
+  return (
+    <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[#eadfd0] bg-[#f5efe4] py-3">
+      {/* 品牌 */}
+      <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-sm font-bold text-white shadow-sm">
+        AI
+      </span>
+
+      {/* 树栏功能图标 */}
+      <div className="flex flex-col items-center gap-1">
+        {items.map((it) => (
+          <button
+            key={it.label}
+            title={it.label}
+            className={
+              it.active
+                ? "flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-600"
+                : "flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            }
+          >
+            <it.icon className="h-[18px] w-[18px]" />
+          </button>
+        ))}
+      </div>
+
+      <div className="my-3 h-px w-7 bg-stone-200" />
+
+      {/* 设置 */}
+      <button
+        title="设置"
+        className="flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+      >
+        <Settings className="h-[18px] w-[18px]" />
+      </button>
+    </aside>
+  );
+}
 
 function AvatarAI() {
   return (
@@ -147,8 +199,10 @@ export default function WorkspaceMock04() {
           </button>
         </div>
 
-        {/* Three columns */}
-        <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)_380px] gap-3 px-3 pb-3">
+        {/* 最左侧图标树栏 + 主三栏 */}
+        <div className="flex min-h-0 flex-1 overflow-hidden pl-2 pr-3 pb-3">
+          <IconRail />
+          <div className="grid min-h-0 flex-1 grid-cols-[228px_minmax(0,1fr)_480px] gap-3 pl-3">
           {/* ───── 左：对话历史 ───── */}
           <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#eadfd0] bg-white shadow-sm">
             <div className="flex items-center justify-between px-4 pb-2 pt-4">
@@ -327,6 +381,7 @@ export default function WorkspaceMock04() {
               </div>
             </div>
           </section>
+          </div>
         </div>
       </div>
     </div>
