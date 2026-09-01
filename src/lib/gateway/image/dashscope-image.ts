@@ -56,6 +56,11 @@ export function createDashScopeImageAdapter(apiKey?: string, baseUrl?: string): 
           headers: { Authorization: `Bearer ${apiKey}` },
           signal: opts.signal,
         });
+        // 轮询请求也要校验状态，避免密钥失效/限流被吞成「超时」
+        if (!r.ok) {
+          const t = await r.text().catch(() => "");
+          throw new Error(`万相轮询失败 ${r.status}: ${t.slice(0, 200)}`);
+        }
         const data = (await r.json()) as {
           output?: {
             task_status?: string;

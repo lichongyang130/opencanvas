@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { MODELS, resolveModel } from "@/lib/gateway/models";
-import { getOverrides, loadTavilyKey } from "@/lib/settings";
+import { getOverrides, loadTavilyKey, serverProviderStatus } from "@/lib/settings";
 import { toast } from "./toast";
 import type { SlideDeck, ThemeId } from "@/lib/slides/types";
 import type { ResearchReport } from "@/lib/research/types";
@@ -106,11 +106,15 @@ interface ChatState {
   stopGeneration: () => void;
   hydrate: () => Promise<void>;
   runTemplate: (t: { mode: WorkspaceMode; prompt: string }) => Promise<void>;
+  /** 把提示词填进输入框但不发送（真实案例点击行为）；若模式不符则新开同模式会话 */
+  fillTemplate: (t: { mode: WorkspaceMode; prompt: string }) => Promise<void>;
+  /** 待填入输入框的内容（nonce 变化触发 ChatPanel 消费） */
+  pendingInput: { text: string; nonce: number } | null;
   /** 一键素材包：串行产出整套素材 */
   runPack: (packId: string, topic: string) => Promise<void>;
   setModel: (id: string, provider?: string) => void;
   newConversation: (mode?: WorkspaceMode) => Promise<string>;
-  selectConversation: (id: string) => void;
+  selectConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   togglePin: (id: string) => void;
   toggleArchive: (id: string) => Promise<void>;
@@ -162,6 +166,17 @@ async function api<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** 安全解析 SSE 数据行（`data: {...}`）；半包/异常包返回 null 而不是抛错中断整条流 */
+function parseSSE<T>(line: string): T | null {
+  try {
+    return JSON.parse(line.slice(5).trim()) as T;
+  } catch {
+    return null;
+  }
+}
+
+// 文档与 PPT 各自的落库防抖定时器（旧版共用一个，会互相取消）
+let docPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let deckPersistTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useChatStore = create<ChatState>((set, get) => {
@@ -197,6 +212,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     hydrated: false,
     settingsOpen: false,
     docBusy: false,
+    pendingInput: null,
 
     setSettingsOpen: (v) => set({ settingsOpen: v }),
 
@@ -215,6 +231,19 @@ export const useChatStore = create<ChatState>((set, get) => {
         if (t.mode === "image") void get().generateImage(t.prompt, "1024x1024");
         else void get().send(t.prompt);
       }, 60);
+    },
+
+    fillTemplate: async (t) => {
+      const { activeId, conversations } = get();
+      const active = conversations.find((c) => c.id === activeId);
+      // 模式不符时新开一个同模式会话，保证提示词落在正确的工作台
+      if (!active || active.mode !== t.mode) {
+        const id = await get().newConversation(t.mode);
+        await get().selectConversation(id);
+      }
+      set((s) => ({
+        pendingInput: { text: t.prompt, nonce: (s.pendingInput?.nonce ?? 0) + 1 },
+      }));
     },
 
     runPack: async (packId, topic) => {
@@ -486,11 +515,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       else if (ov.openai?.apiKey) imageModel = "dall-e-3";
       else if (ov.dashscope?.apiKey) imageModel = "wan2.7-t2i-flash";
 
+      const controller = newAbort();
       try {
         const res = await fetch("/api/images", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: imageModel, prompt: p, size, overrides: ov }),
+          signal: controller.signal,
         });
         const data = (await res.json()) as { url?: string; model?: string; error?: string };
         if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
@@ -512,16 +543,17 @@ export const useChatStore = create<ChatState>((set, get) => {
         persistMessage(current.id, userMsg);
         persistMessage(current.id, { ...assistantMsg, content: note });
       } catch (err) {
-        const content = `⚠️ ${err instanceof Error ? err.message : "图像生成失败"}`;
+        const aborted = (err as Error)?.name === "AbortError";
+        const content = aborted ? "已停止生成。" : `⚠️ ${err instanceof Error ? err.message : "图像生成失败"}`;
         patchConvo(current.id, {
           messages: get()
             .conversations.find((x) => x.id === current.id)!
             .messages.map((m) =>
-              m.id === assistantMsg.id ? { ...m, content, streaming: false, error: true } : m
+              m.id === assistantMsg.id ? { ...m, content, streaming: false, error: !aborted } : m
             ),
         });
         persistMessage(current.id, userMsg);
-        persistMessage(current.id, { ...assistantMsg, content, error: true });
+        persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
       } finally {
         set({ sending: false });
       }
@@ -612,10 +644,12 @@ export const useChatStore = create<ChatState>((set, get) => {
           for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith("data:")) continue;
-            const evt = JSON.parse(t.slice(5).trim()) as
+            const evt = parseSSE<
               | { type: "token"; delta: string }
               | { type: "usage"; credits: number }
-              | { type: "error"; message: string };
+              | { type: "error"; message: string }
+            >(t);
+            if (!evt) continue;
             if (evt.type === "token") {
               const c = get().conversations.find((x) => x.id === current.id);
               const m = c?.messages.find((x) => x.id === assistantMsg.id);
@@ -710,6 +744,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         });
       };
 
+      const slidesController = newAbort(180_000);
       try {
         const res = await fetch("/api/slides", {
           method: "POST",
@@ -721,6 +756,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             overrides: getOverrides(),
             context: context ? context.slice(0, 6000) : undefined,
           }),
+          signal: slidesController.signal,
         });
         if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
 
@@ -739,10 +775,12 @@ export const useChatStore = create<ChatState>((set, get) => {
           for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith("data:")) continue;
-            const evt = JSON.parse(t.slice(5).trim()) as
+            const evt = parseSSE<
               | { type: "status"; message: string }
               | { type: "deck"; deck: SlideDeck }
-              | { type: "error"; message: string };
+              | { type: "error"; message: string }
+            >(t);
+            if (!evt) continue;
             if (evt.type === "status") {
               patchConvo(current.id, { deckMessage: evt.message });
               updateAssistant(evt.message + "…");
@@ -765,12 +803,16 @@ export const useChatStore = create<ChatState>((set, get) => {
           throw new Error(error ?? "生成失败");
         }
       } catch (err) {
-        const content = `⚠️ ${err instanceof Error ? err.message : "幻灯片生成失败"}`;
-        patchConvo(current.id, { deckStatus: "error", deckMessage: undefined });
-        updateAssistant(content, { streaming: false, error: true });
-        persistConvo(current.id, { deckStatus: "error" });
+        const aborted = (err as Error)?.name === "AbortError";
+        const content = aborted ? "已停止生成。" : `⚠️ ${err instanceof Error ? err.message : "幻灯片生成失败"}`;
+        patchConvo(current.id, {
+          deckStatus: aborted ? "idle" : "error",
+          deckMessage: undefined,
+        });
+        updateAssistant(content, { streaming: false, error: !aborted });
+        if (!aborted) persistConvo(current.id, { deckStatus: "error" });
         persistMessage(current.id, userMsg);
-        persistMessage(current.id, { ...assistantMsg, content, error: true });
+        persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
       } finally {
         set({ sending: false });
       }
@@ -818,6 +860,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         });
       };
 
+      const researchController = newAbort(180_000);
       try {
         const res = await fetch("/api/research", {
           method: "POST",
@@ -829,6 +872,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             overrides: getOverrides(),
             tavilyKey: loadTavilyKey(),
           }),
+          signal: researchController.signal,
         });
         if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
 
@@ -847,10 +891,12 @@ export const useChatStore = create<ChatState>((set, get) => {
           for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith("data:")) continue;
-            const evt = JSON.parse(t.slice(5).trim()) as
+            const evt = parseSSE<
               | { type: "status"; message: string }
               | { type: "report"; report: ResearchReport }
-              | { type: "error"; message: string };
+              | { type: "error"; message: string }
+            >(t);
+            if (!evt) continue;
             if (evt.type === "status") {
               patchConvo(current.id, { researchMessage: evt.message });
               updateAssistant(evt.message + "…");
@@ -870,19 +916,23 @@ export const useChatStore = create<ChatState>((set, get) => {
             researchMessage: undefined,
           });
           updateAssistant(note, { streaming: false });
-          persistConvo(current.id, { report, researchStatus: "done" });
+          // researchStatus 不是数据库字段（水合时由 report 是否存在推导），不再发送死字段
+          persistConvo(current.id, { report });
           persistMessage(current.id, userMsg);
           persistMessage(current.id, { ...assistantMsg, content: note });
         } else {
           throw new Error(error ?? "研究失败");
         }
       } catch (err) {
-        const content = `⚠️ ${err instanceof Error ? err.message : "研究失败"}`;
-        patchConvo(current.id, { researchStatus: "error", researchMessage: undefined });
-        updateAssistant(content, { streaming: false, error: true });
-        persistConvo(current.id, { researchStatus: "error" });
+        const aborted = (err as Error)?.name === "AbortError";
+        const content = aborted ? "已停止生成。" : `⚠️ ${err instanceof Error ? err.message : "研究失败"}`;
+        patchConvo(current.id, {
+          researchStatus: aborted ? "idle" : "error",
+          researchMessage: undefined,
+        });
+        updateAssistant(content, { streaming: false, error: !aborted });
         persistMessage(current.id, userMsg);
-        persistMessage(current.id, { ...assistantMsg, content, error: true });
+        persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
       } finally {
         set({ sending: false });
       }
@@ -911,8 +961,8 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (!activeId) return;
       const next = { ...doc, updatedAt: Date.now() };
       patchConvo(activeId, { doc: next });
-      if (deckPersistTimer) clearTimeout(deckPersistTimer);
-      deckPersistTimer = setTimeout(() => persistConvo(activeId, { doc: next }), 600);
+      if (docPersistTimer) clearTimeout(docPersistTimer);
+      docPersistTimer = setTimeout(() => persistConvo(activeId, { doc: next }), 600);
     },
 
     reportToDoc: async () => {
@@ -961,11 +1011,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({ docBusy: true, sending: true });
 
       const ov = getOverrides();
-      // demo / 未配置密钥：给出结构完整的示例文档
+      // 密钥可能只配在服务端 .env（localStorage 看不到），需问服务端真实配置状态，
+      // 否则「env 配了密钥但文档仍出示例占位文」。
       const { providerId } = resolveModel(model, (modelProvider as never) ?? null);
+      const serverStatus = await serverProviderStatus();
       const configured =
-        ov[providerId]?.apiKey ||
-        providerId === "demo";
+        providerId !== "demo" &&
+        (Boolean(ov[providerId]?.apiKey) || Boolean(serverStatus[providerId]));
       if (!configured || model === "demo") {
         const sample = seed
           ? seed
@@ -1010,7 +1062,8 @@ export const useChatStore = create<ChatState>((set, get) => {
           for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith("data:")) continue;
-            const evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string; message?: string };
+            const evt = parseSSE<{ type: string; delta?: string; message?: string }>(t);
+            if (!evt) continue;
             if (evt.type === "token" && evt.delta) {
               acc += evt.delta;
               if (acc.length % 12 === 0) render();
@@ -1074,7 +1127,8 @@ export const useChatStore = create<ChatState>((set, get) => {
           for (const line of lines) {
             const t = line.trim();
             if (!t.startsWith("data:")) continue;
-            const evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string; message?: string };
+            const evt = parseSSE<{ type: string; delta?: string; message?: string }>(t);
+            if (!evt) continue;
             if (evt.type === "token" && evt.delta) {
               acc += evt.delta;
               const content = op === "continue" ? base + "\n\n" + acc : acc;

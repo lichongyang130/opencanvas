@@ -6,7 +6,7 @@ import type { ChatMessage, ProviderId, ProviderOverrides } from "./types";
 export * from "./types";
 export * from "./models";
 export * from "./credits";
-export { getProviders, getProviderConfigStatus, buildProviders } from "./providers";
+export { getProviders, getProviderConfigStatus, buildProviders, getEnvApiKey } from "./providers";
 
 export interface StreamHandlers {
   onToken: (delta: string) => void;

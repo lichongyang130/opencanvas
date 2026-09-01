@@ -127,6 +127,23 @@ export function getOverrides(): ProviderOverrides {
   return toOverrides(loadSettings());
 }
 
+/**
+ * 服务端（.env / .env.local）配置状态，带内存缓存。
+ * 用于前端判断「密钥只配在服务端」的场景 —— localStorage 里没有不代表没配。
+ */
+let serverStatusCache: Record<string, boolean> | null = null;
+export async function serverProviderStatus(): Promise<Record<string, boolean>> {
+  if (serverStatusCache) return serverStatusCache;
+  try {
+    const res = await fetch("/api/models");
+    const data = (await res.json()) as { status?: Record<string, boolean> };
+    serverStatusCache = data.status ?? {};
+  } catch {
+    serverStatusCache = {};
+  }
+  return serverStatusCache;
+}
+
 /** 本地已配置密钥的供应商集合 */
 export function localConfiguredProviders(): Record<string, boolean> {
   const s = loadSettings();

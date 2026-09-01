@@ -146,13 +146,15 @@ export function Sidebar() {
   const selectedIds = [...selected];
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-stone-200 bg-white">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-[#e8ddca] bg-[#faf6ee]">
       {/* 品牌 */}
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
           O
         </div>
-        <span className="font-semibold tracking-tight">OpenCanvas AI</span>
+        <span className="font-serif text-[15px] font-semibold tracking-tight text-[#4a2e1d]">
+          OpenCanvas AI
+        </span>
       </div>
 
       <div className="px-3">

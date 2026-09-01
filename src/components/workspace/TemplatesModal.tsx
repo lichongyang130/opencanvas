@@ -7,6 +7,7 @@ import {
   Bot,
   Clock,
   Download,
+  Eye,
   Heart,
   LayoutGrid,
   Loader2,
@@ -33,6 +34,8 @@ import {
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { useChatStore } from "@/lib/store/chat";
 import { usePromptStore, encodePrompts, decodePrompts } from "@/lib/prompt-store";
+import { getTemplateCases } from "@/lib/template-cases";
+import { decodeCaseShare } from "@/lib/case-share";
 import { toast } from "@/lib/store/toast";
 import { getOverrides } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -65,6 +68,7 @@ const TAB_ICONS: Record<string, ReactNode> = {
 
 export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const runTemplate = useChatStore((s) => s.runTemplate);
+  const fillTemplate = useChatStore((s) => s.fillTemplate);
   const sending = useChatStore((s) => s.sending);
   const { favorites, custom, recent, toggleFavorite, addCustom, removeCustom, markUsed } =
     usePromptStore();
@@ -76,6 +80,13 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
   const [showCreate, setShowCreate] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [zoomCase, setZoomCase] = useState<{
+    image?: string;
+    label: string;
+    prompt: string;
+    output?: string;
+    source?: string;
+  } | null>(null);
 
   /** 导出全部自建提示词为 JSON 文件 */
   const exportPrompts = () => {
@@ -155,6 +166,42 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
     markUsed(t.id);
     close();
     setTimeout(() => void runTemplate({ mode: t.mode, prompt }), 80);
+  };
+
+  /** 做同款：把案例参数填入输入框（不自动发送，待用户确认） */
+  const makeSame = (t: Template, c: { label: string; values: Record<string, string> }) => {
+    markUsed(t.id);
+    close();
+    void fillTemplate({ mode: t.mode, prompt: applyVariables(t.prompt, c.values) });
+    toast(`已把「${t.label}」同款填入输入框，确认后发送`, "success");
+  };
+
+  /** 分享：生成公开链接并复制（方案 B） */
+  const shareCase = async (
+    t: Template,
+    c: { label: string; values: Record<string, string>; output?: string; image?: string; source?: string }
+  ) => {
+    try {
+      const r = await fetch("/api/cases/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: t.id,
+          label: c.label,
+          prompt: applyVariables(t.prompt, c.values),
+          values: c.values,
+          output: c.output,
+          image: c.image,
+          source: c.source,
+        }),
+      });
+      const j = (await r.json()) as { url?: string; error?: string };
+      if (!j.url) throw new Error(j.error || "生成失败");
+      await navigator.clipboard?.writeText(`${location.origin}${j.url}`);
+      toast("分享链接已复制", "success");
+    } catch {
+      toast("分享失败，请稍后重试", "error");
+    }
   };
 
   const sidebar: { id: Tab; label: string; icon: ReactNode; count?: number }[] = [
@@ -278,6 +325,8 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                 {list.map((t) => {
                   const fav = favSet.has(t.id);
                   const isMine = tab === "mine" || custom.some((c) => c.id === t.id);
+                  const cases = getTemplateCases(t.id);
+                  const thumb = cases.find((c) => c.image);
                   return (
                     <div
                       key={t.id}
@@ -326,9 +375,70 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                           </button>
                         </div>
                       </div>
+                      {thumb && (
+                        <button
+                          onClick={() =>
+                            setZoomCase({
+                              image: thumb.image!,
+                              label: thumb.label,
+                              prompt: applyVariables(t.prompt, thumb.values),
+                            })
+                          }
+                          title="查看真实效果图"
+                          className="mb-2 block w-full overflow-hidden rounded-lg border border-stone-100 bg-stone-50"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={thumb.image}
+                            alt={thumb.label}
+                            loading="lazy"
+                            className="h-32 w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                          />
+                        </button>
+                      )}
                       <p className="mb-3 line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-stone-400">
                         {t.prompt.length > 90 ? t.prompt.slice(0, 90) + "…" : t.prompt}
                       </p>
+                      {cases.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                          {cases.map((c) => (
+                            <span
+                              key={c.label}
+                              className="flex items-center overflow-hidden rounded-full border border-brand-200 bg-brand-50 text-[11px] text-brand-700"
+                            >
+                              <button
+                                onClick={() => makeSame(t, c)}
+                                title="做同款：把该案例填入输入框（不发送）"
+                                className="flex items-center gap-1 px-2 py-0.5 transition hover:bg-brand-100"
+                              >
+                                <Sparkles className="h-3 w-3" /> {c.label}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setZoomCase({
+                                    image: c.image,
+                                    label: c.label,
+                                    prompt: applyVariables(t.prompt, c.values),
+                                    output: c.output,
+                                    source: c.source,
+                                  })
+                                }
+                                title="查看真实效果"
+                                className="border-l border-brand-200 px-1.5 py-0.5 transition hover:bg-brand-100"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => void shareCase(t, c)}
+                                title="分享该真实案例（生成公开链接）"
+                                className="border-l border-brand-200 px-1.5 py-0.5 transition hover:bg-brand-100"
+                              >
+                                <Share2 className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div className="mt-auto flex items-center gap-2">
                         <button
                           disabled={sending}
@@ -378,6 +488,45 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
         />
       )}
 
+      {/* 效果图放大查看 */}
+      {zoomCase && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-6" onClick={() => setZoomCase(null)}>
+          <div
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{zoomCase.label}</span>
+                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">真实案例</span>
+              </div>
+              <button onClick={() => setZoomCase(null)} className="rounded-lg p-1 text-stone-400 hover:bg-stone-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {zoomCase.image ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={zoomCase.image} alt={zoomCase.label} className="w-full" />
+                </>
+              ) : (
+                <div className="bg-stone-900 px-4 py-4">
+                  <p className="mb-1 text-[11px] font-medium text-stone-400">真实输出（节选）</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-100">{zoomCase.output}</p>
+                </div>
+              )}
+              <div className="border-t border-stone-100 bg-stone-50 px-4 py-3">
+                <p className="mb-1 text-[11px] font-medium text-stone-400">
+                  对应的真实提示词{zoomCase.source ? ` · ${zoomCase.source}` : ""}
+                </p>
+                <p className="whitespace-pre-wrap text-xs leading-relaxed text-stone-600">{zoomCase.prompt}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreate && (
         <CreatePromptDialog
           onClose={() => setShowCreate(false)}
@@ -407,6 +556,21 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
           onClose={() => setShowImport(false)}
           onImport={(list) => importPrompts(list)}
           onFile={onImportFile}
+          onCase={(c) => {
+            const p = decodeCaseShare(c);
+            if (!p) return false;
+            const t =
+              TEMPLATES.find((x) => x.id === p.templateId) ?? custom.find((x) => x.id === p.templateId);
+            if (!t) {
+              toast("找不到对应的模板，无法做同款", "error");
+              return false;
+            }
+            setShowImport(false);
+            close();
+            void fillTemplate({ mode: t.mode, prompt: applyVariables(t.prompt, p.values) });
+            toast(`已载入同款「${t.label}」，确认后发送`, "success");
+            return true;
+          }}
         />
       )}
     </div>
@@ -599,15 +763,22 @@ function ImportDialog({
   onClose,
   onImport,
   onFile,
+  onCase,
 }: {
   onClose: () => void;
   onImport: (list: Array<Omit<Template, "id" | "builtin">>) => void;
   onFile: (f: File) => void;
+  onCase: (code: string) => boolean;
 }) {
   const [code, setCode] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const doPaste = () => {
+    // 先尝试「做同款」案例码，再尝试提示词分享码
+    if (onCase(code)) {
+      onClose();
+      return;
+    }
     const parsed = decodePrompts(code);
     if (!parsed) {
       toast("分享码无效，请检查后重试", "error");

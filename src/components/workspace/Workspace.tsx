@@ -45,7 +45,7 @@ export function Workspace() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-2.5">
+        <header className="flex items-center justify-between gap-3 border-b border-[#e8ddca] bg-[#faf6ee] px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
             <ModeSwitcher />
             {active && (

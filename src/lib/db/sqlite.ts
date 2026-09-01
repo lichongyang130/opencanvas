@@ -41,6 +41,11 @@ export function getDb(): DatabaseSync {
       createdAt      REAL NOT NULL,
       FOREIGN KEY (conversationId) REFERENCES conversations(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS case_shares (
+      code      TEXT PRIMARY KEY,
+      data      TEXT NOT NULL,
+      createdAt REAL NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_messages_convo ON messages(conversationId);
   `);

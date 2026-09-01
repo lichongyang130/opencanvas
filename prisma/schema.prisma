@@ -13,15 +13,22 @@ datasource db {
 }
 
 model Conversation {
-  id          String    @id
-  title       String    @default("新任务")
-  mode        String    @default("chat") // chat/research/slides/image/video/docs
-  model       String    @default("demo") // 使用的模型 id
-  deck        String?   // PPT 产物 JSON (SlideDeck)
-  deckStatus  String?   // idle/loading/done/error
-  createdAt   Float
-  updatedAt   Float
-  messages    Message[]
+  id            String    @id
+  title         String    @default("新任务")
+  mode          String    @default("chat") // chat/research/slides/image/video/docs
+  model         String    @default("demo") // 使用的模型 id
+  modelProvider String?   // 动态模型对应的供应商
+  deck          String?   // PPT 产物 JSON (SlideDeck)
+  deckStatus    String?   // idle/loading/done/error
+  images        String?   // 图像产物 JSON (StoredImage[])
+  report        String?   // 研究报告 JSON (ResearchReport)
+  doc           String?   // 文档产物 JSON (UIDoc)
+  personaId     String?   // 绑定的 AI 角色 id
+  archived      Boolean   @default(false)
+  pinned        Boolean   @default(false)
+  createdAt     Float
+  updatedAt     Float
+  messages      Message[]
 
   @@index([updatedAt])
 }

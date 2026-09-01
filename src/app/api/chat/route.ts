@@ -40,7 +40,11 @@ export async function POST(req: Request) {
         const result = await streamChatCompletion(
           model,
           messages,
-          { onToken: (delta) => controller.enqueue(sse({ type: "token", delta })) },
+          {
+            onToken: (delta) => controller.enqueue(sse({ type: "token", delta })),
+            // 客户端断开/停止时同步中断上游模型流，避免白烧 token
+            signal: req.signal,
+          },
           overrides,
           body.provider ?? null
         );
