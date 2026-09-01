@@ -12,7 +12,6 @@ import {
   Presentation,
   Search,
   Send,
-  Sparkles,
   Square,
   Video,
   Wand2,
@@ -20,10 +19,95 @@ import {
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
 import { Markdown } from "./Markdown";
 import { PersonaPicker } from "./PersonaPicker";
+import { ModelSelector } from "./ModelSelector";
+import { MODELS } from "@/lib/gateway/models";
 import { toast } from "@/lib/store/toast";
 import { getOverrides } from "@/lib/settings";
 import { SLASH_COMMANDS, matchSlash, TONE_CHIPS, LENGTH_CHIPS, AUDIENCE_CHIPS, type PromptChip } from "@/lib/slash";
 import { cn } from "@/lib/utils";
+
+/* ═══════════════════════════════════════════
+ *  能力体系（E5 分体式输入舱用）
+ * ═══════════════════════════════════════════ */
+
+interface SubCapability {
+  id: string;
+  label: string;
+  emoji: string;
+  mode: WorkspaceMode;
+}
+
+interface CatDef {
+  id: string;
+  label: string;
+  emoji: string;
+  items: SubCapability[];
+}
+
+const CAPABILITIES: CatDef[] = [
+  {
+    id: "brand",
+    label: "品牌与传播",
+    emoji: "🌐",
+    items: [
+      { id: "brand-website", label: "产品官网", emoji: "🌐", mode: "docs" },
+      { id: "brand-landing", label: "营销落地页", emoji: "", mode: "docs" },
+      { id: "brand-mall", label: "品牌商城", emoji: "🛒", mode: "docs" },
+      { id: "brand-visual", label: "品牌主视觉", emoji: "", mode: "image" },
+      { id: "brand-poster", label: "活动海报", emoji: "🪧", mode: "image" },
+      { id: "brand-launch", label: "产品发布会", emoji: "🎤", mode: "slides" },
+    ],
+  },
+  {
+    id: "content",
+    label: "内容与视频",
+    emoji: "",
+    items: [
+      { id: "content-concept", label: "产品概念图", emoji: "💡", mode: "image" },
+      { id: "content-promo", label: "产品宣传片", emoji: "🎬", mode: "video" },
+      { id: "content-short", label: "社交短视频", emoji: "", mode: "video" },
+      { id: "content-tutorial", label: "功能讲解", emoji: "🎓", mode: "video" },
+      { id: "content-3d", label: "3D 产品展示", emoji: "🧊", mode: "image" },
+      { id: "content-hall", label: "3D 虚拟展厅", emoji: "🏛️", mode: "image" },
+    ],
+  },
+  {
+    id: "product",
+    label: "产品与体验",
+    emoji: "📱",
+    items: [
+      { id: "product-flow", label: "用户流程图", emoji: "🗺️", mode: "docs" },
+      { id: "product-wire", label: "低保真原型", emoji: "️", mode: "docs" },
+      { id: "product-app", label: "移动应用 MVP", emoji: "📲", mode: "docs" },
+      { id: "product-companion", label: "设备伴侣", emoji: "🤖", mode: "docs" },
+      { id: "product-web", label: "Web 应用", emoji: "💻", mode: "docs" },
+      { id: "product-ext", label: "浏览器扩展", emoji: "🧩", mode: "docs" },
+    ],
+  },
+  {
+    id: "data",
+    label: "数据与运营",
+    emoji: "📊",
+    items: [
+      { id: "data-ops", label: "运营看板", emoji: "📈", mode: "docs" },
+      { id: "data-cockpit", label: "管理驾驶舱", emoji: "🛰️", mode: "docs" },
+      { id: "data-monitor", label: "系统监控台", emoji: "🔭", mode: "docs" },
+      { id: "data-agent", label: "AI Agent 工作流", emoji: "🕸️", mode: "docs" },
+    ],
+  },
+  {
+    id: "consult",
+    label: "咨询与策划",
+    emoji: "💼",
+    items: [
+      { id: "consult-pitch", label: "融资路演", emoji: "💼", mode: "slides" },
+      { id: "consult-strategy", label: "战略方案", emoji: "♟️", mode: "docs" },
+      { id: "consult-research", label: "研究报告", emoji: "🔬", mode: "research" },
+      { id: "consult-prd", label: "产品需求文档", emoji: "📐", mode: "docs" },
+      { id: "consult-training", label: "培训课件", emoji: "", mode: "slides" },
+    ],
+  },
+];
 
 const EXAMPLES: Record<WorkspaceMode, string[]> = {
   chat: ["帮我写一封商务合作邮件", "解释一下什么是 RAG", "把这段话翻译成英文"],
@@ -55,7 +139,7 @@ const IMAGE_STYLES = [
   "产品摄影",
 ];
 
-/** 首页功能卡片（参照设计图 3 的宫格） */
+/** 首页功能卡片 */
 const HOME_CARDS: {
   icon: typeof Mail;
   title: string;
@@ -70,6 +154,10 @@ const HOME_CARDS: {
   { icon: Search, title: "深度研究", desc: "市场 / 竞品 / 行业调研报告", mode: "research", prompt: "研究 2025 年 AI 搜索赛道的竞争格局" },
   { icon: Video, title: "视频脚本", desc: "带货 / 分镜 / 口播脚本", mode: "video", prompt: "为新款降噪耳机写一条 15 秒带货短视频脚本" },
 ];
+
+/* ═══════════════════════════════════════════
+ *  消息气泡
+ * ═══════════════════════════════════════════ */
 
 function MessageBubble({ m }: { m: UIMessage }) {
   const [copied, setCopied] = useState(false);
@@ -133,580 +221,140 @@ function MessageBubble({ m }: { m: UIMessage }) {
   );
 }
 
-export function ChatPanel() {
-  const { conversations, activeId, send, sending, stopGeneration } = useChatStore();
-  const pendingInput = useChatStore((s) => s.pendingInput);
-  const convo = conversations.find((c) => c.id === activeId);
-  const [input, setInput] = useState("");
-  const [imgSize, setImgSize] = useState("1024x1024");
-  const [showJump, setShowJump] = useState(false);
-  const [enhancing, setEnhancing] = useState(false);
-  const [slashIdx, setSlashIdx] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+/* ═══════════════════════════════════════════
+ *  分体式输入舱组件 (E5)
+ * ═══════════════════════════════════════════ */
 
-  // 斜杠命令菜单
-  const slashMatches = matchSlash(input);
-  useEffect(() => setSlashIdx(0), [input]);
+function SplitComposer({
+  input,
+  setInput,
+  inputRef,
+  submit,
+  sending,
+  stopGeneration,
+  model,
+  setModel,
+  mode,
+  imgSize,
+  setImgSize,
+  enhancing,
+  enhancePrompt,
+  slashMatches,
+  slashIdx,
+  setSlashIdx,
+  runSlash,
+}: {
+  input: string;
+  setInput: (v: string | ((prev: string) => string)) => void;
+  inputRef: React.Ref<HTMLTextAreaElement>;
+  submit: () => void;
+  sending: boolean;
+  stopGeneration: () => void;
+  model: string;
+  setModel: (id: string, provider?: string) => void;
+  mode: WorkspaceMode;
+  imgSize: string;
+  setImgSize: (v: string) => void;
+  enhancing: boolean;
+  enhancePrompt: () => void;
+  slashMatches: ReturnType<typeof matchSlash>;
+  slashIdx: number;
+  setSlashIdx: (v: number | ((prev: number) => number)) => void;
+  runSlash: (cmd: (typeof SLASH_COMMANDS)[number]) => void;
+}) {
+  const [activeCat, setActiveCat] = useState<string>("brand");
+  const activeCategory = CAPABILITIES.find((c) => c.id === activeCat) ?? CAPABILITIES[0];
 
-  // 提示词库「真实案例」点击后：把内容填进输入框（不发送）
-  useEffect(() => {
-    if (pendingInput) {
-      setInput(pendingInput.text);
-      inputRef.current?.focus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingInput?.nonce]);
-
-  const applyChip = (chip: PromptChip) => {
-    setInput((v) => {
-      const has = v.includes(chip.suffix);
-      if (has) {
-        // 移除该约束
-        return v.replace(new RegExp(`\\n?${chip.suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"), "").trimEnd();
-      }
-      // 斜杠命令进行中时不打扰
-      if (v.startsWith("/")) return v;
-      return v.trim() ? v.replace(/\s*$/, "") + "\n" + chip.suffix : chip.suffix;
-    });
-  };
-  const chipOn = (c: PromptChip) => input.includes(c.suffix);
-
-  const runSlash = (cmd: (typeof SLASH_COMMANDS)[number]) => {
-    if (cmd.kind === "action" && cmd.mode) {
-      useChatStore.getState().setMode(cmd.mode);
-      setInput("");
-      toast(`已切换到${MODE_LABELS[cmd.mode]}工作台`, "info");
-      return;
-    }
-    const raw = input.replace(/^\/[a-z]*\s*/i, "").trim();
-    const text = (cmd.insert ?? "").replace("{q}", raw);
-    setInput(text);
-    // 光标定位到「」中间或末尾
-    setTimeout(() => {
-      const ta = inputRef.current;
-      if (!ta) return;
-      const pos = text.includes("「") ? text.indexOf("」") : text.length;
-      ta.focus();
-      ta.setSelectionRange(pos, pos);
-    }, 0);
-  };
-
-  // 切换会话/新建时聚焦输入框
-  useEffect(() => {
-    if (messages.length === 0) inputRef.current?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]);
-
-  const messages = convo?.messages ?? [];
-  const mode: WorkspaceMode = convo?.mode ?? "chat";
-
-  const scrollToBottom = (smooth = true) =>
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages.length]);
-
-  // 流式更新时跟随 + 判断是否显示「回到底部」
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-      setShowJump(!nearBottom);
-    };
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    if (sending) scrollToBottom();
-  }, [messages[messages.length - 1]?.content]);
-
-  const submit = () => {
-    if (!input.trim() || sending) return;
-    const text = input;
+  const handleCapabilityClick = (item: SubCapability) => {
     setInput("");
-    if (mode === "image") {
-      void useChatStore.getState().generateImage(text, imgSize);
-    } else {
-      void send(text);
-    }
+    useChatStore.getState().setMode(item.mode);
+    toast(`已选择：${item.label}`, "info");
   };
-
-  /** 一键优化提示词：配置真实模型走 AI 改写，否则用结构化模板 */
-  const enhancePrompt = async () => {
-    const raw = input.trim();
-    if (!raw || enhancing) return;
-    setEnhancing(true);
-    const ov = getOverrides();
-    const hasModel = Object.values(ov).some((p) => p?.apiKey);
-    try {
-      if (hasModel && mode !== "image") {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: convo?.model ?? "demo",
-            overrides: ov,
-            messages: [
-              {
-                role: "system",
-                content:
-                  "你是提示词专家。把用户粗糙的需求改写成结构清晰、效果更好的中文提示词，包含：角色设定、具体任务、背景/受众、输出格式与约束。只输出改写后的提示词本身，不要解释、不要前后缀。",
-              },
-              { role: "user", content: raw },
-            ],
-          }),
-        });
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buf = "";
-          let acc = "";
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const lines = buf.split("\n");
-            buf = lines.pop() ?? "";
-            for (const line of lines) {
-              const t = line.trim();
-              if (!t.startsWith("data:")) continue;
-              let evt: { type: string; delta?: string } | null = null;
-              try {
-                evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string };
-              } catch {
-                continue;
-              }
-              if (evt.type === "token" && evt.delta) acc += evt.delta;
-            }
-          }
-          if (acc.trim()) {
-            setInput(acc.trim());
-            toast("提示词已优化", "success");
-            return;
-          }
-        }
-      }
-      // 本地模板兜底
-      const modeHint: Record<string, string> = {
-        image:
-          "请输出一段英文绘图提示词，包含：主体细节、艺术风格、构图景别、光线氛围、画质词，用逗号分隔。",
-        slides: "请输出一份幻灯片结构：标题、封面副标题、每页标题与 3-4 个要点。",
-        research: "请从背景、现状、关键数据、主要玩家、趋势与结论几个方面展开。",
-        docs: "请输出结构完整的文档：标题、导语、分小节（含小标题与要点）、结论。",
-        video: "请输出分镜脚本：每个镜头含时长、画面、旁白、字幕。",
-        chat: "请分点、有条理地回答，必要时给出步骤和示例。",
-      };
-      const improved = `# 角色
-你是该领域的资深专家。
-
-# 任务
-${raw}
-
-# 要求
-- 面向：相关从业者 / 普通读者（按需）
-- 语言：中文，专业且易懂
-- 输出：${modeHint[mode] ?? modeHint.chat}
-- 约束：内容准确、结构清晰、可直接使用，避免空话`;
-      setInput(improved);
-      toast(hasModel ? "已生成结构化提示词" : "已生成结构化提示词（配置模型后可 AI 智能改写）", "success");
-    } catch {
-      toast("优化失败，请重试", "error");
-    } finally {
-      setEnhancing(false);
-    }
-  };
-
-  useEffect(() => {
-    const ta = inputRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
-  }, [input]);
-
-  const paramChips = (
-    <>
-      {mode === "image" && (
-        <div className="mb-2 space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            {IMAGE_SIZES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setImgSize(s.id)}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-xs transition",
-                  imgSize === s.id
-                    ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
-                    : "border-stone-200 text-stone-500 hover:border-brand-300"
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-stone-400">风格：</span>
-            {IMAGE_STYLES.map((st) => (
-              <button
-                key={st}
-                onClick={() => setInput((v) => (v.trim() ? v.replace(/[，,。\s]*$/, "") + "，" + st : st))}
-                className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] text-stone-600 transition hover:bg-brand-100 hover:text-brand-700"
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {mode !== "image" && !slashMatches && (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-stone-400">语气</span>
-          {TONE_CHIPS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => applyChip(c)}
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px] transition",
-                chipOn(c) ? "border-brand-400 bg-brand-50 text-brand-700" : "border-stone-200 text-stone-500 hover:border-brand-300"
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-          <span className="ml-1 text-[11px] text-stone-400">长度</span>
-          {LENGTH_CHIPS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => applyChip(c)}
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px] transition",
-                chipOn(c) ? "border-brand-400 bg-brand-50 text-brand-700" : "border-stone-200 text-stone-500 hover:border-brand-300"
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-          <span className="ml-1 text-[11px] text-stone-400">受众</span>
-          {AUDIENCE_CHIPS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => applyChip(c)}
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px] transition",
-                chipOn(c) ? "border-brand-400 bg-brand-50 text-brand-700" : "border-stone-200 text-stone-500 hover:border-brand-300"
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
-
-  const composer = (
-    <div className="relative">
-      {slashMatches && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
-          <div className="px-2 py-1 text-[11px] text-stone-400">快捷命令（↑↓ 选择，Enter 执行）</div>
-          {slashMatches.length === 0 && (
-            <div className="px-2 py-3 text-center text-xs text-stone-400">没有匹配的命令</div>
-          )}
-          {slashMatches.map((c, i) => (
-            <button
-              key={c.cmd}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                runSlash(c);
-              }}
-              onMouseEnter={() => setSlashIdx(i)}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
-                i === slashIdx ? "bg-brand-50" : "hover:bg-stone-50"
-              )}
-            >
-              <span className="flex h-6 w-12 shrink-0 items-center justify-center rounded bg-stone-100 font-mono text-[11px] text-stone-500">
-                /{c.cmd}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-medium text-stone-700">{c.label}</span>
-                <span className="block truncate text-[11px] text-stone-400">{c.desc}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="rounded-3xl border border-stone-200 bg-white p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition focus-within:border-brand-400 focus-within:shadow-md">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (slashMatches && slashMatches.length > 0) {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setSlashIdx((i) => (i + 1) % slashMatches.length);
-                return;
-              }
-              if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length);
-                return;
-              }
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]);
-                return;
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setInput("");
-                return;
-              }
-            }
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={1}
-          placeholder={
-            mode === "image"
-              ? "描述你想要的画面…"
-              : mode === "chat"
-                ? "分配任务，或问我任何事"
-                : `${MODE_LABELS[mode]}：描述你的需求…`
-          }
-          className="max-h-[200px] w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-relaxed outline-none placeholder:text-stone-400"
-        />
-        <div className="mt-1 flex items-center justify-between px-1.5 pb-0.5">
-          <button
-            onClick={() => void enhancePrompt()}
-            disabled={!input.trim() || enhancing}
-            title="优化提示词（结构化为更有效的指令）"
-            className="flex h-8 items-center gap-1.5 rounded-full border border-stone-200 px-3 text-xs text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
-          >
-            {enhancing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-            优化
-          </button>
-          {sending ? (
-            <button
-              onClick={stopGeneration}
-              title="停止生成"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-700 text-white transition hover:bg-stone-800"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-            </button>
-          ) : (
-            <button
-              onClick={submit}
-              disabled={!input.trim()}
-              title="发送"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:bg-stone-100 disabled:text-stone-300"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col bg-[#f9f5ec]">
-      <div
-        ref={scrollRef}
-        className={cn(
-          "flex-1 overflow-y-auto px-6",
-          messages.length === 0 ? "bg-[#f6f1e9] py-10" : "py-8"
-        )}
-      >
-        <div className={cn("mx-auto w-full", messages.length === 0 ? "max-w-4xl" : "max-w-2xl")}>
-          {messages.length === 0 ? (
-            <div className="pt-4 text-center">
-              <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#4a2e1d] md:text-4xl">
-                欢迎回来，今天想做点什么？
-              </h1>
-              <p className="mt-2 text-sm text-[#8a7a66]">用 AI 把想法变成现实。</p>
+    <div className="rounded-2xl border border-[#e8ddca] bg-white shadow-sm overflow-hidden">
+      <div className="flex min-h-[160px]">
+        {/* ──── 左侧能力区 (约 38%) ──── */}
+        <div className="flex w-[38%] shrink-0 flex-col border-r border-[#e8ddca] bg-[#faf6ee]">
+          {/* 分类标签栏 */}
+          <div className="flex items-center gap-0 border-b border-[#e8ddca] px-2 py-1.5">
+            {CAPABILITIES.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCat(cat.id)}
+                className={cn(
+                  "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition",
+                  activeCat === cat.id
+                    ? "bg-brand-600 font-medium text-white"
+                    : "text-stone-500 hover:bg-stone-100"
+                )}
+              >
+                <span className="text-xs">{cat.emoji}</span>
+                <span className="hidden sm:inline">{cat.label}</span>
+              </button>
+            ))}
+          </div>
 
-              {/* 唯一输入框：一个输入 + 一个发送，一眼即懂 */}
-              <div className="mx-auto mt-8 max-w-xl rounded-3xl border border-[#e8ddca] bg-white p-2 text-left shadow-sm transition focus-within:border-[#c05f3c] focus-within:shadow-md">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                  rows={2}
-                  placeholder="输入你的任务，回车即可生成。例如：帮我写一份产品发布会 PPT…"
-                  className="w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-relaxed text-[#3f2d1e] outline-none placeholder:text-[#b9a98f]"
-                />
-                <div className="flex items-center justify-end px-1 pb-1">
-                  {sending ? (
-                    <button
-                      onClick={stopGeneration}
-                      title="停止"
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3f2d1e] text-white"
-                    >
-                      <Square className="h-4 w-4 fill-current" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={submit}
-                      disabled={!input.trim()}
-                      title="生成"
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#c05f3c] text-white transition hover:bg-[#a94f31] disabled:bg-[#eadfce] disabled:text-[#c0b193]"
-                    >
-                      <Send className="h-4 w-4" />
-                    </button>
+          {/* 子能力网格 */}
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-2 gap-1.5">
+              {activeCategory.items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleCapabilityClick(item)}
+                  className={cn(
+                    "group flex items-start gap-1.5 rounded-lg border border-transparent px-2 py-2 text-left transition",
+                    "hover:border-stone-200 hover:bg-white hover:shadow-sm"
                   )}
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行</p>
-
-              {/* 少量示例，一键填入 */}
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                <span className="text-sm text-[#8a7a66]">试试：</span>
-                {HOME_CARDS.slice(0, 4).map((q) => (
-                  <button
-                    key={q.title}
-                    onClick={() => {
-                      useChatStore.getState().setMode(q.mode);
-                      setInput(q.prompt);
-                      setTimeout(() => inputRef.current?.focus(), 0);
-                    }}
-                    className="rounded-full border border-[#e3d8c6] bg-white px-3.5 py-1.5 text-sm text-[#6b5b48] transition hover:border-[#c05f3c] hover:text-[#c05f3c]"
-                  >
-                    {q.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {mode === "chat" && (
-                <div className="flex justify-center">
-                  <PersonaPicker
-                    onStarter={(t) => {
-                      setInput(t);
-                      setTimeout(() => inputRef.current?.focus(), 0);
-                    }}
-                  />
-                </div>
-              )}
-              {messages.map((m) => (
-                <MessageBubble key={m.id} m={m} />
+                >
+                  <span className="mt-0.5 text-sm leading-none">{item.emoji}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[11px] font-medium text-stone-700 group-hover:text-stone-900">
+                      {item.label}
+                    </span>
+                    <span className="block text-[9px] text-stone-400">
+                      {MODE_LABELS[item.mode]}
+                    </span>
+                  </span>
+                </button>
               ))}
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      {/* 回到底部 */}
-      {showJump && messages.length > 0 && (
-        <button
-          onClick={() => scrollToBottom()}
-          className="absolute bottom-28 left-1/2 -translate-x-1/2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-500 shadow-md transition hover:text-brand-600"
-        >
-          ↓ 回到底部
-        </button>
-      )}
-
-      {messages.length > 0 && (
-      <div className="border-t border-[#e8ddca] bg-[#fdfaf3] px-6 py-4">
-        <div className="mx-auto w-full max-w-2xl">
+        {/* ──── 右侧输入区 (约 62%) ──── */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* 图片模式参数 */}
           {mode === "image" && (
-            <div className="mb-2 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                {IMAGE_SIZES.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setImgSize(s.id)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition",
-                      imgSize === s.id
-                        ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
-                        : "border-stone-200 text-stone-500 hover:border-brand-300"
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-stone-400">风格：</span>
-                {IMAGE_STYLES.map((st) => (
-                  <button
-                    key={st}
-                    onClick={() =>
-                      setInput((v) => (v.trim() ? v.replace(/[，,。\s]*$/, "") + "，" + st : st))
-                    }
-                    className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] text-stone-600 transition hover:bg-brand-100 hover:text-brand-700"
-                  >
-                    {st}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* 语气 / 长度 / 受众 快捷参数（文字类模式） */}
-          {mode !== "image" && !slashMatches && (
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-stone-400">语气</span>
-              {TONE_CHIPS.map((c) => (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-stone-100 px-3 py-1.5">
+              <span className="text-[10px] text-stone-400">尺寸</span>
+              {IMAGE_SIZES.map((s) => (
                 <button
-                  key={c.id}
-                  onClick={() => applyChip(c)}
+                  key={s.id}
+                  onClick={() => setImgSize(s.id)}
                   className={cn(
-                    "rounded-full border px-2 py-0.5 text-[11px] transition",
-                    chipOn(c)
-                      ? "border-brand-400 bg-brand-50 text-brand-700"
+                    "rounded-full border px-2 py-0.5 text-[10px] transition",
+                    imgSize === s.id
+                      ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
                       : "border-stone-200 text-stone-500 hover:border-brand-300"
                   )}
                 >
-                  {c.label}
+                  {s.label}
                 </button>
               ))}
-              <span className="ml-1 text-[11px] text-stone-400">长度</span>
-              {LENGTH_CHIPS.map((c) => (
+              <span className="ml-1 text-[10px] text-stone-400">风格</span>
+              {IMAGE_STYLES.slice(0, 4).map((st) => (
                 <button
-                  key={c.id}
-                  onClick={() => applyChip(c)}
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-[11px] transition",
-                    chipOn(c)
-                      ? "border-brand-400 bg-brand-50 text-brand-700"
-                      : "border-stone-200 text-stone-500 hover:border-brand-300"
-                  )}
+                  key={st}
+                  onClick={() => setInput((v) => (v.trim() ? v.replace(/[，,。\s]*$/, "") + "，" + st : st))}
+                  className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600 transition hover:bg-brand-100 hover:text-brand-700"
                 >
-                  {c.label}
-                </button>
-              ))}
-              <span className="ml-1 text-[11px] text-stone-400">受众</span>
-              {AUDIENCE_CHIPS.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => applyChip(c)}
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-[11px] transition",
-                    chipOn(c)
-                      ? "border-brand-400 bg-brand-50 text-brand-700"
-                      : "border-stone-200 text-stone-500 hover:border-brand-300"
-                  )}
-                >
-                  {c.label}
+                  {st}
                 </button>
               ))}
             </div>
           )}
-          <div className="relative">
+
           {/* 斜杠命令菜单 */}
           {slashMatches && (
             <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
@@ -738,91 +386,359 @@ ${raw}
               ))}
             </div>
           )}
-          <div className="rounded-3xl border border-stone-200 bg-white p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition focus-within:border-brand-400 focus-within:shadow-md">
+
+          {/* 文字类模式参数 */}
+          {mode !== "image" && !slashMatches && (
+            <div className="flex flex-wrap items-center gap-1 border-b border-stone-100 px-3 py-1.5">
+              <span className="text-[10px] text-stone-400">语气</span>
+              {TONE_CHIPS.slice(0, 4).map((c) => (
+                <button
+                  key={c.id}
+                  className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] text-stone-500 transition hover:border-brand-300"
+                >
+                  {c.label}
+                </button>
+              ))}
+              <span className="ml-1 text-[10px] text-stone-400">长度</span>
+              {LENGTH_CHIPS.slice(0, 3).map((c) => (
+                <button
+                  key={c.id}
+                  className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] text-stone-500 transition hover:border-brand-300"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 输入框 */}
+          <div className="relative flex flex-1 flex-col">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (slashMatches && slashMatches.length > 0) {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setSlashIdx((i) => (i + 1) % slashMatches.length);
-                    return;
-                  }
-                  if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length);
-                    return;
-                  }
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]);
-                    return;
-                  }
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setInput("");
-                    return;
-                  }
+                  if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx((i) => (i + 1) % slashMatches.length); return; }
+                  if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length); return; }
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]); return; }
+                  if (e.key === "Escape") { e.preventDefault(); setInput(""); return; }
                 }
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                }
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
               }}
-              rows={1}
+              rows={3}
               placeholder={
                 mode === "image"
                   ? "描述你想要的画面…"
                   : mode === "chat"
-                    ? "有什么可以帮你的？"
+                    ? "分配任务，或问我任何事…"
                     : `${MODE_LABELS[mode]}：描述你的需求…`
               }
-              className="max-h-[200px] w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-relaxed outline-none placeholder:text-stone-400"
+              className="flex-1 min-h-[80px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none placeholder:text-stone-400"
             />
-            <div className="mt-1 flex items-center justify-between px-1.5 pb-0.5">
-              <button
-                onClick={() => void enhancePrompt()}
-                disabled={!input.trim() || enhancing}
-                title="优化提示词（结构化为更有效的指令）"
-                className="flex h-8 items-center gap-1.5 rounded-full border border-stone-200 px-3 text-xs text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
-              >
-                {enhancing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Wand2 className="h-3.5 w-3.5" />
-                )}
-                优化
-              </button>
+          </div>
+
+          {/* 底部工具栏 */}
+          <div className="flex items-center justify-between border-t border-stone-100 px-3 py-2">
+            <button
+              onClick={() => void enhancePrompt()}
+              disabled={!input.trim() || enhancing}
+              title="优化提示词"
+              className="flex h-7 items-center gap-1 rounded-full border border-stone-200 px-2.5 text-[11px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+            >
+              {enhancing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+              优化
+            </button>
+            <div className="flex items-center gap-2">
+              <ModelSelector
+                value={model}
+                onChange={(id, provider) => {
+                  setModel(id, provider);
+                  const label = MODELS.find((m) => m.id === id)?.label ?? id;
+                  toast(`已切换到 ${label}`, "success");
+                }}
+              />
               {sending ? (
                 <button
                   onClick={stopGeneration}
                   title="停止生成"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-700 text-white transition hover:bg-stone-800"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-700 text-white transition hover:bg-stone-800"
                 >
-                  <Square className="h-3.5 w-3.5 fill-current" />
+                  <Square className="h-3 w-3 fill-current" />
                 </button>
               ) : (
                 <button
                   onClick={submit}
                   disabled={!input.trim()}
                   title="发送"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:bg-stone-100 disabled:text-stone-300"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:bg-stone-200 disabled:text-stone-400"
                 >
-                  <ArrowUp className="h-4 w-4" />
+                  <ArrowUp className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
           </div>
-          </div>
-          <div className="mt-2 text-center text-xs text-stone-400">
-            {mode === "image"
-              ? "演示绘图为本地占位图 · 配置图像模型密钥后生成真实图片"
-              : "输入 / 唤起快捷命令 · 语气/长度/受众一键叠加 · Enter 发送"}
-          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+ *  主 ChatPanel
+ * ═══════════════════════════════════════════ */
+
+export function ChatPanel() {
+  const { conversations, activeId, send, sending, stopGeneration, model, setModel } = useChatStore();
+  const pendingInput = useChatStore((s) => s.pendingInput);
+  const convo = conversations.find((c) => c.id === activeId);
+  const [input, setInput] = useState("");
+  const [imgSize, setImgSize] = useState("1024x1024");
+  const [showJump, setShowJump] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [slashIdx, setSlashIdx] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const slashMatches = matchSlash(input);
+  useEffect(() => setSlashIdx(0), [input]);
+
+  useEffect(() => {
+    if (pendingInput) {
+      setInput(pendingInput.text);
+      inputRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInput?.nonce]);
+
+  const applyChip = (chip: PromptChip) => {
+    setInput((v) => {
+      const has = v.includes(chip.suffix);
+      if (has) return v.replace(new RegExp(`\\n?${chip.suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"), "").trimEnd();
+      if (v.startsWith("/")) return v;
+      return v.trim() ? v.replace(/\s*$/, "") + "\n" + chip.suffix : chip.suffix;
+    });
+  };
+  const chipOn = (c: PromptChip) => input.includes(c.suffix);
+
+  const runSlash = (cmd: (typeof SLASH_COMMANDS)[number]) => {
+    if (cmd.kind === "action" && cmd.mode) {
+      useChatStore.getState().setMode(cmd.mode);
+      setInput("");
+      toast(`已切换到${MODE_LABELS[cmd.mode]}工作台`, "info");
+      return;
+    }
+    const raw = input.replace(/^\/[a-z]*\s*/i, "").trim();
+    const text = (cmd.insert ?? "").replace("{q}", raw);
+    setInput(text);
+    setTimeout(() => {
+      const ta = inputRef.current;
+      if (!ta) return;
+      const pos = text.includes("「") ? text.indexOf("」") : text.length;
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (messages.length === 0) inputRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
+  const messages = convo?.messages ?? [];
+  const mode: WorkspaceMode = convo?.mode ?? "chat";
+
+  const scrollToBottom = (smooth = true) =>
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+
+  useEffect(() => { scrollToBottom(); }, [messages.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => { setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight >= 120); };
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => { if (sending) scrollToBottom(); }, [messages[messages.length - 1]?.content]);
+
+  const submit = () => {
+    if (!input.trim() || sending) return;
+    const text = input;
+    setInput("");
+    if (mode === "image") void useChatStore.getState().generateImage(text, imgSize);
+    else void send(text);
+  };
+
+  const enhancePrompt = async () => {
+    const raw = input.trim();
+    if (!raw || enhancing) return;
+    setEnhancing(true);
+    const ov = getOverrides();
+    const hasModel = Object.values(ov).some((p) => p?.apiKey);
+    try {
+      if (hasModel && mode !== "image") {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: convo?.model ?? "demo",
+            overrides: ov,
+            messages: [
+              { role: "system", content: "你是提示词专家。把用户粗糙的需求改写成结构清晰、效果更好的中文提示词，包含：角色设定、具体任务、背景/受众、输出格式与约束。只输出改写后的提示词本身，不要解释、不要前后缀。" },
+              { role: "user", content: raw },
+            ],
+          }),
+        });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "", acc = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() ?? "";
+            for (const line of lines) {
+              const t = line.trim();
+              if (!t.startsWith("data:")) continue;
+              let evt: { type: string; delta?: string } | null = null;
+              try { evt = JSON.parse(t.slice(5).trim()) as { type: string; delta?: string }; } catch { continue; }
+              if (evt.type === "token" && evt.delta) acc += evt.delta;
+            }
+          }
+          if (acc.trim()) { setInput(acc.trim()); toast("提示词已优化", "success"); return; }
+        }
+      }
+      const modeHint: Record<string, string> = {
+        image: "请输出一段英文绘图提示词，包含：主体细节、艺术风格、构图景别、光线氛围、画质词，用逗号分隔。",
+        slides: "请输出一份幻灯片结构：标题、封面副标题、每页标题与 3-4 个要点。",
+        research: "请从背景、现状、关键数据、主要玩家、趋势与结论几个方面展开。",
+        docs: "请输出结构完整的文档：标题、导语、分小节（含小标题与要点）、结论。",
+        video: "请输出分镜脚本：每个镜头含时长、画面、旁白、字幕。",
+        chat: "请分点、有条理地回答，必要时给出步骤和示例。",
+      };
+      const improved = `# 角色\n你是该领域的资深专家。\n\n# 任务\n${raw}\n\n# 要求\n- 面向：相关从业者 / 普通读者（按需）\n- 语言：中文，专业且易懂\n- 输出：${modeHint[mode] ?? modeHint.chat}\n- 约束：内容准确、结构清晰、可直接使用，避免空话`;
+      setInput(improved);
+      toast("已生成结构化提示词", "success");
+    } catch { toast("优化失败，请重试", "error"); }
+    finally { setEnhancing(false); }
+  };
+
+  useEffect(() => {
+    const ta = inputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+  }, [input]);
+
+  return (
+    <div className="relative flex min-w-0 flex-1 flex-col bg-[#f9f5ec]">
+      <div
+        ref={scrollRef}
+        className={cn("flex-1 overflow-y-auto px-6", messages.length === 0 ? "bg-[#f6f1e9] py-10" : "py-8")}
+      >
+        <div className={cn("mx-auto w-full", messages.length === 0 ? "max-w-4xl" : "max-w-2xl")}>
+          {messages.length === 0 ? (
+            <div className="pt-4 text-center">
+              <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#4a2e1d] md:text-4xl">
+                欢迎回来，今天想做点什么？
+              </h1>
+              <p className="mt-2 text-sm text-[#8a7a66]">用 AI 把想法变成现实。</p>
+
+              {/* E5 分体式输入舱 */}
+              <div className="mx-auto mt-8 max-w-3xl">
+                <SplitComposer
+                  input={input}
+                  setInput={setInput}
+                  inputRef={inputRef}
+                  submit={submit}
+                  sending={sending}
+                  stopGeneration={stopGeneration}
+                  model={model}
+                  setModel={setModel}
+                  mode={mode}
+                  imgSize={imgSize}
+                  setImgSize={setImgSize}
+                  enhancing={enhancing}
+                  enhancePrompt={enhancePrompt}
+                  slashMatches={slashMatches}
+                  slashIdx={slashIdx}
+                  setSlashIdx={setSlashIdx}
+                  runSlash={runSlash}
+                />
+              </div>
+              <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行 · 点击左侧能力卡片快速开始</p>
+
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <span className="text-sm text-[#8a7a66]">试试：</span>
+                {HOME_CARDS.slice(0, 4).map((q) => (
+                  <button
+                    key={q.title}
+                    onClick={() => {
+                      useChatStore.getState().setMode(q.mode);
+                      setInput(q.prompt);
+                      setTimeout(() => inputRef.current?.focus(), 0);
+                    }}
+                    className="rounded-full border border-[#e3d8c6] bg-white px-3.5 py-1.5 text-sm text-[#6b5b48] transition hover:border-[#c05f3c] hover:text-[#c05f3c]"
+                  >
+                    {q.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {mode === "chat" && (
+                <div className="flex justify-center">
+                  <PersonaPicker
+                    onStarter={(t) => { setInput(t); setTimeout(() => inputRef.current?.focus(), 0); }}
+                  />
+                </div>
+              )}
+              {messages.map((m) => <MessageBubble key={m.id} m={m} />)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 回到底部 */}
+      {showJump && messages.length > 0 && (
+        <button
+          onClick={() => scrollToBottom()}
+          className="absolute bottom-[200px] left-1/2 -translate-x-1/2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-500 shadow-md transition hover:text-brand-600"
+        >
+          ↓ 回到底部
+        </button>
+      )}
+
+      {/* 对话中底部的分体式输入舱 */}
+      {messages.length > 0 && (
+        <div className="border-t border-[#e8ddca] bg-[#fdfaf3] px-6 py-3">
+          <div className="mx-auto w-full max-w-3xl">
+            <SplitComposer
+              input={input}
+              setInput={setInput}
+              inputRef={inputRef}
+              submit={submit}
+              sending={sending}
+              stopGeneration={stopGeneration}
+              model={model}
+              setModel={setModel}
+              mode={mode}
+              imgSize={imgSize}
+              setImgSize={setImgSize}
+              enhancing={enhancing}
+              enhancePrompt={enhancePrompt}
+              slashMatches={slashMatches}
+              slashIdx={slashIdx}
+              setSlashIdx={setSlashIdx}
+              runSlash={runSlash}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
