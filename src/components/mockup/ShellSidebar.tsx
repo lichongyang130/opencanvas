@@ -1,0 +1,131 @@
+"use client";
+
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import {
+  Bot,
+  ChevronDown,
+  Database,
+  FileText,
+  Home,
+  LayoutGrid,
+  LayoutTemplate,
+  MessageSquare,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
+
+export type ShellActive = "chat" | "agents" | "knowledge";
+
+const NAV = [
+  { label: "首页", icon: Home, route: "/" },
+  { label: "AI 对话", icon: MessageSquare, route: "/chat" },
+  { label: "智能体", icon: Bot, route: "/agents" },
+  { label: "知识库", icon: Database, route: "/knowledge" },
+  { label: "文档中心", icon: FileText, route: "/chat" },
+  { label: "模板中心", icon: LayoutTemplate, route: "/chat" },
+  { label: "工具箱", icon: Wrench, route: "/chat" },
+  { label: "更多应用", icon: LayoutGrid, route: "/chat" },
+];
+
+const RECENT = [
+  "产品策略会议纪要",
+  "用户需求分析报告",
+  "品牌营销方案",
+  "培训课程大纲",
+  "如何提高团队效率",
+];
+
+export function ShellSidebar({ active }: { active: ShellActive }) {
+  const router = useRouter();
+
+  const go = (route: string) => {
+    if (route.startsWith("/agents")) router.push("/agents");
+    else if (route.startsWith("/knowledge")) router.push("/knowledge");
+    else router.push(route === "/" ? "/" : "/chat");
+  };
+
+  return (
+    <aside className="flex w-[236px] shrink-0 flex-col border-r border-[#efe9dd] bg-white">
+      {/* 顶部 Logo */}
+      <button
+        onClick={() => router.push("/")}
+        className="flex items-center gap-3 px-5 pb-4 pt-5 text-left"
+      >
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-lg font-bold text-white shadow-sm">
+          O
+        </span>
+        <span className="text-lg font-semibold tracking-tight text-stone-800">AI 对话</span>
+      </button>
+
+      {/* 导航 */}
+      <nav className="flex flex-col gap-0.5 px-3">
+        {NAV.map((item) => {
+          const isActive = item.route === `/${active}`;
+          return (
+            <button
+              key={item.label}
+              onClick={() => go(item.route)}
+              className={
+                isActive
+                  ? "flex items-center gap-2.5 rounded-xl bg-[#fdeee1] px-3.5 py-2.5 text-[14px] font-medium text-[#c05f3c]"
+                  : "flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+              }
+            >
+              <item.icon
+                className="h-[18px] w-[18px]"
+                strokeWidth={isActive ? 2.1 : 1.8}
+              />
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mx-5 my-4 h-px bg-stone-100" />
+
+      {/* 最近对话 */}
+      <div className="flex-1 overflow-y-auto px-5">
+        <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
+        <div className="-mx-2 flex flex-col gap-0.5">
+          {RECENT.map((r) => (
+            <button
+              key={r}
+              onClick={() => router.push("/chat")}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-stone-500 transition hover:bg-stone-50 hover:text-stone-800"
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 text-stone-300" />
+              <span className="truncate">{r}</span>
+            </button>
+          ))}
+          <button
+            onClick={() => router.push("/chat")}
+            className="mt-1 flex items-center gap-1 px-2 text-xs text-stone-400 transition hover:text-[#c05f3c]"
+          >
+            查看全部历史记录 <span aria-hidden>→</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 用户 */}
+      <div className="border-t border-stone-100 p-3">
+        <button className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50">
+          <Image
+            src="/avatar.png"
+            alt="Alex Chen"
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-full object-cover"
+          />
+          <span className="flex min-w-0 flex-1 flex-col items-start">
+            <span className="text-[13.5px] font-medium text-stone-800">Alex Chen</span>
+            <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-[#fdeee1] px-1.5 py-px text-[10px] font-medium text-[#c05f3c]">
+              <Sparkles className="h-2.5 w-2.5" /> 专业版
+            </span>
+          </span>
+          <ChevronDown className="h-4 w-4 text-stone-400" />
+        </button>
+      </div>
+    </aside>
+  );
+}
