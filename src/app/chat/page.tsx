@@ -1,5 +1,5 @@
-import { Workspace } from "@/components/workspace/Workspace";
+import WorkspaceMockChat from "@/components/mockup/WorkspaceMockChat";
 
 export default function ChatPage() {
-  return <Workspace />;
+  return <WorkspaceMockChat />;
 }

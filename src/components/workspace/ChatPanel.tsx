@@ -561,7 +561,9 @@ export function ChatPanel() {
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => { if (sending) scrollToBottom(); }, [messages[messages.length - 1]?.content]);
+  // 发送中跟随最新消息滚动；scrollToBottom 由本组件定义，仅随 sending/最后一条消息变化触发
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (sending) scrollToBottom(); }, [sending, messages[messages.length - 1]?.content]);
 
   const submit = () => {
     if (!input.trim() || sending) return;
