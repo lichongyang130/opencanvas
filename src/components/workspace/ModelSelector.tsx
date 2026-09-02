@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Globe, KeyRound, Loader2, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, KeyRound, Loader2, RefreshCw, Sparkles, Zap } from "lucide-react";
 import { MODELS, inferProvider } from "@/lib/gateway/models";
 import type { ModelInfo, ProviderId as ProviderIdType } from "@/lib/gateway";
 import {
@@ -32,6 +32,24 @@ const PROVIDER_NAME: Record<string, string> = {
   dashscope: "阿里百炼 / 通义",
   demo: "内置",
 };
+const PROVIDER_TAG: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Claude",
+  deepseek: "DeepSeek",
+  dashscope: "通义",
+  demo: "演示",
+};
+
+/** 按钮上显示的简短模型名 */
+function shortLabel(label: string) {
+  return label
+    .replace("（免费）", "")
+    .replace(" / GPT", "")
+    .replace(" / Claude", "")
+    .replace("Chat (V3)", "")
+    .replace("(V3)", "")
+    .trim();
+}
 
 export function ModelSelector({ value, onChange }: { value: string; onChange: (id: string, provider?: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -122,27 +140,50 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
     }
   };
 
+  const short = shortLabel(currentModel.label);
+  const tag = PROVIDER_TAG[currentModel.provider] ?? "模型";
+  const online = providerAvailable(currentModel.provider);
+
   return (
     <div ref={ref} className="relative">
+      {/* 胶囊触发器 */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium hover:border-brand-300"
+        className={cn(
+          "group flex items-center gap-2 rounded-full border py-1.5 pl-2 pr-2.5 shadow-sm transition-all",
+          open
+            ? "border-orange-300 bg-white shadow-md shadow-orange-100/60"
+            : "border-orange-200/70 bg-white/90 hover:border-orange-300 hover:shadow-md hover:shadow-orange-100/50"
+        )}
       >
-        <Globe className="h-3.5 w-3.5 text-brand-600" />
-        {currentModel.label}
-        <span
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white">
+          <Sparkles className="h-3 w-3" />
+        </span>
+        <span className="flex flex-col items-start leading-none">
+          <span className="text-[12.5px] font-semibold text-stone-800">{short}</span>
+          <span className="mt-0.5 flex items-center gap-1 text-[9.5px] text-stone-400">
+            <span className={cn("h-1.5 w-1.5 rounded-full", online ? "bg-emerald-500" : "bg-stone-300")} />
+            {tag} · {online ? "可用" : "未配置"}
+          </span>
+        </span>
+        <ChevronDown
           className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            providerAvailable(currentModel.provider) ? "bg-green-500" : "bg-stone-300"
+            "h-3.5 w-3.5 text-stone-400 transition-transform group-hover:text-orange-500",
+            open && "rotate-180"
           )}
         />
-        <ChevronDown className="h-3.5 w-3.5 text-stone-400" />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1.5 max-h-[70vh] w-96 overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl">
-          <div className="sticky top-0 border-b border-stone-100 bg-white px-3 py-2 text-xs text-stone-500">
-            配置密钥后点「获取模型」拉取该账号 / 中转的真实模型列表
+        <div className="absolute right-0 z-30 mt-2 max-h-[70vh] w-[380px] overflow-y-auto rounded-2xl border border-orange-100 bg-white p-1.5 shadow-2xl shadow-orange-100/40 ring-1 ring-black/5">
+          <div className="flex items-center gap-2 border-b border-stone-100 px-3 py-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-red-500 text-white">
+              <Zap className="h-3.5 w-3.5" />
+            </span>
+            <div>
+              <p className="text-[13px] font-semibold text-stone-800">智能模型</p>
+              <p className="text-[11px] text-stone-400">配置密钥后即可拉取和使用真实模型</p>
+            </div>
           </div>
 
           {/* 演示模型 */}
@@ -162,14 +203,14 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
             const avail = providerAvailable(g.provider);
             return (
               <div key={g.provider}>
-                <div className="flex items-center justify-between px-3 pt-3">
+                <div className="flex items-center justify-between pl-3 pr-1 pt-3">
                   <GroupLabel>
                     <span className="flex items-center gap-1.5">
                       {PROVIDER_NAME[g.provider]}
                       <span
                         className={cn(
                           "h-1.5 w-1.5 rounded-full",
-                          avail ? "bg-green-500" : "bg-stone-300"
+                          avail ? "bg-emerald-500" : "bg-stone-300"
                         )}
                       />
                     </span>
@@ -178,7 +219,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                     onClick={() => void fetchModels(g.provider)}
                     disabled={!avail || fetching !== null}
                     title={avail ? "从供应商拉取最新模型列表" : "请先配置该供应商密钥"}
-                    className="flex items-center gap-1 rounded-md border border-stone-200 px-1.5 py-0.5 text-[11px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-40"
+                    className="flex items-center gap-1 rounded-full border border-stone-200 px-2 py-0.5 text-[11px] text-stone-500 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
                   >
                     {fetching === g.provider ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -218,7 +259,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
               setOpen(false);
               setSettingsOpen(true);
             }}
-            className="sticky bottom-0 mt-2 flex w-full items-center gap-2 border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
+            className="sticky bottom-0 mt-2 flex w-full items-center gap-2 rounded-xl border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"
           >
             <KeyRound className="h-4 w-4" />
             配置模型 API Key…
@@ -255,19 +296,32 @@ function ModelRow({
       disabled={!available}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-stone-50",
+        "flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left transition",
+        active ? "bg-orange-50" : "hover:bg-stone-50",
         !available && "cursor-not-allowed opacity-40"
       )}
     >
       <div className="min-w-0">
-        <div className={cn("truncate text-stone-800", bold && "font-medium text-brand-700")}>
+        <div className={cn("truncate text-[13.5px] text-stone-800", bold && "font-medium text-brand-700", active && "text-orange-700")}>
           {label}
         </div>
-        <div className="text-[11px] text-stone-400">
-          {[region, sub, !available ? "未配置密钥" : null].filter(Boolean).join(" · ")}
+        <div className="mt-0.5 text-[11px] text-stone-400">
+          <span
+            className={cn(
+              "mr-1.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+              active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-500"
+            )}
+          >
+            {region}
+          </span>
+          {[sub, !available ? "未配置密钥" : null].filter(Boolean).join(" · ")}
         </div>
       </div>
-      {active && <Check className="h-4 w-4 shrink-0 text-brand-600" />}
+      {active && (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white">
+          <Check className="h-3.5 w-3.5" />
+        </span>
+      )}
     </button>
   );
 }

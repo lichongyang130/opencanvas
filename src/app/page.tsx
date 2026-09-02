@@ -31,6 +31,8 @@ import {
   Wrench,
 } from "lucide-react";
 import type { WorkspaceMode } from "@/lib/store/chat";
+import { ModelSelector } from "@/components/workspace/ModelSelector";
+import { useChatStore } from "@/lib/store/chat";
 
 /* ---------------- 数据 ---------------- */
 
@@ -139,6 +141,7 @@ interface RecentConvo {
 
 export default function HomePage() {
   const router = useRouter();
+  const { model, setModel } = useChatStore();
   const [input, setInput] = useState("");
   const [greeting, setGreeting] = useState("你好");
   const [recent, setRecent] = useState<RecentConvo[]>([]);
@@ -263,6 +266,7 @@ export default function HomePage() {
 
         {/* 顶栏 */}
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
+          <ModelSelector value={model} onChange={(id, provider) => setModel(id, provider)} />
           <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
             <Bell className="h-[18px] w-[18px]" />
           </button>
