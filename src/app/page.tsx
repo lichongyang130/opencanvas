@@ -284,7 +284,6 @@ export default function HomePage() {
 
         {/* 顶栏 */}
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
-          <ModelSelector value={model} onChange={(id, provider) => setModel(id, provider)} />
           <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
             <Bell className="h-[18px] w-[18px]" />
           </button>
@@ -429,13 +428,16 @@ export default function HomePage() {
                   e.currentTarget.value = "";
                 }}
               />
-              <button
-                onClick={submit}
-                aria-label="发送"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-md shadow-orange-200 transition hover:brightness-105 active:scale-95"
-              >
-                <ArrowUp className="h-5 w-5" strokeWidth={2.4} />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <ModelSelector value={model} onChange={(id, provider) => setModel(id, provider)} />
+                <button
+                  onClick={submit}
+                  aria-label="发送"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-md shadow-orange-200 transition hover:brightness-105 active:scale-95"
+                >
+                  <ArrowUp className="h-5 w-5" strokeWidth={2.4} />
+                </button>
+              </div>
             </div>
           </div>
 
