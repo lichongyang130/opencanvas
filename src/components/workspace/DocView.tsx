@@ -144,12 +144,61 @@ export function DocView({ doc }: { doc: UIDoc }) {
             </button>
           ))}
         </div>
+        {/* Markdown 快捷工具栏 */}
+        {mode !== "preview" && (
+          <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-stone-100 pt-2">
+            <span className="mr-1 text-[10.5px] text-stone-400">格式</span>
+            {(
+              [
+                { label: "H2", insert: (v: string) => `## ${v}` },
+                { label: "H3", insert: (v: string) => `### ${v}` },
+                { label: "加粗", insert: (v: string) => `**${v}**` },
+                { label: "斜体", insert: (v: string) => `*${v}*` },
+                { label: "列表", insert: (v: string) => (v ? v.split("\n").map((l) => `- ${l}`).join("\n") : "- ") },
+                { label: "引用", insert: (v: string) => (v ? v.split("\n").map((l) => `> ${l}`).join("\n") : "> ") },
+                { label: "代码", insert: (v: string) => `\`\`\`\n${v}\n\`\`\`` },
+                { label: "链接", insert: (v: string) => `[${v}](https://)` },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.label}
+                onClick={() => {
+                  const ta = document.getElementById("oc-doc-textarea") as HTMLTextAreaElement | null;
+                  const selStart = ta?.selectionStart ?? doc.content.length;
+                  const selEnd = ta?.selectionEnd ?? doc.content.length;
+                  const selected = doc.content.slice(selStart, selEnd);
+                  const inserted = t.insert(selected || "文本");
+                  const content = doc.content.slice(0, selStart) + inserted + doc.content.slice(selEnd);
+                  onChange(content);
+                  requestAnimationFrame(() => {
+                    ta?.focus();
+                    const pos = selStart + inserted.length;
+                    ta?.setSelectionRange(pos, pos);
+                  });
+                }}
+                className="rounded-md border border-stone-200 px-2 py-0.5 text-[10.5px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
+              >
+                {t.label}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                window.print();
+              }}
+              title="导出 PDF（浏览器打印）"
+              className="ml-auto flex items-center gap-1 rounded-md border border-stone-200 px-2 py-0.5 text-[10.5px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
+            >
+              <Download className="h-3 w-3" /> PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 编辑/预览 */}
       <div className="flex min-h-0 flex-1">
         {(mode === "edit" || mode === "split") && (
           <textarea
+            id="oc-doc-textarea"
             value={doc.content}
             onChange={(e) => onChange(e.target.value)}
             placeholder="用 Markdown 写文档，或在左侧对话里让 AI 生成…"

@@ -2,6 +2,7 @@
 
 import { THEMES } from "@/lib/slides/themes";
 import type { Slide } from "@/lib/slides/types";
+import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -175,12 +176,34 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
             </ul>
           </div>
           {slide.imagePrompt && (
-            <div
-              className="flex flex-1 items-center justify-center rounded-[1.2cqw] border-2 border-dashed text-center text-[1.6cqw]"
-              style={{ borderColor: t.accent, color: t.muted, background: "rgba(255,255,255,0.5)" }}
-            >
-              配图位 · 第 2 阶段 AI 生成
-            </div>
+            slide.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={slide.imageUrl}
+                alt={slide.imagePrompt}
+                className="flex-1 rounded-[1.2cqw] object-cover shadow-sm"
+                style={{ background: t.surface }}
+              />
+            ) : (
+              <div
+                className="flex flex-1 flex-col items-center justify-center gap-[1cqw] rounded-[1.2cqw] border-2 border-dashed text-center text-[1.6cqw]"
+                style={{ borderColor: t.accent, color: t.muted, background: "rgba(255,255,255,0.5)" }}
+              >
+                <span>配图位（待生成）</span>
+                {editable && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void useChatStore.getState().generateSlideImages(index);
+                    }}
+                    className="rounded-full px-[2cqw] py-[0.8cqw] text-[1.5cqw] font-medium text-white transition hover:opacity-90"
+                    style={{ background: t.accent }}
+                  >
+                    ✨ 生成配图
+                  </button>
+                )}
+              </div>
+            )
           )}
         </div>
       )}

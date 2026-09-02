@@ -82,8 +82,13 @@ export interface Conversation {
   personaId?: string;
   /** 自定义智能体的 system prompt（内置智能体为空，运行时经 personaId 查 personas.ts） */
   personaSystem?: string;
-  /** 代码沙箱：AI 生成的 HTML 页面预览 */
-  codePreview?: { html: string; lang: string; createdAt: number } | null;
+  /** 代码沙箱：AI 生成的 HTML 页面预览（history = 历史版本，最多 10 份） */
+  codePreview?: {
+    html: string;
+    lang: string;
+    createdAt: number;
+    history?: { html: string; lang: string; createdAt: number }[];
+  } | null;
   /** 绑定的知识库 id（发送时自动 RAG 检索注入上下文） */
   kbId?: string;
   createdAt: number;
@@ -199,6 +204,8 @@ interface ChatState {
     builtin?: boolean;
   }) => Promise<void>;
   send: (text: string) => Promise<void>;
+  /** 重新生成最后一条 AI 回复（删除旧回复后重发上一条用户输入） */
+  regenerate: () => Promise<void>;
   generateSlides: (topic: string, context?: string) => Promise<void>;
   generateImage: (prompt: string, size: string) => Promise<void>;
   generateDocs: (topic: string, seed?: string) => Promise<void>;
@@ -215,6 +222,8 @@ interface ChatState {
   addImages: (images: UIImage[]) => void;
   setDeckTheme: (theme: ThemeId) => void;
   patchSlide: (slideIndex: number, patch: Record<string, unknown>) => void;
+  /** PPT 自动配图：slideIdx 不传时批量生成所有缺图页；返回生成数量 */
+  generateSlideImages: (slideIdx?: number) => Promise<number>;
   addSlide: () => void;
   duplicateSlide: (index: number) => void;
   deleteSlide: (index: number) => void;
@@ -728,6 +737,30 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
+    regenerate: async () => {
+      const { activeId, sending: busy } = get();
+      if (!activeId || busy) return;
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo) return;
+      // 找最后一条用户消息
+      let userIdx = -1;
+      for (let i = convo.messages.length - 1; i >= 0; i--) {
+        if (convo.messages[i].role === "user") { userIdx = i; break; }
+      }
+      if (userIdx < 0) return;
+      const removed = convo.messages.slice(userIdx + 1);
+      if (removed.length === 0) return; // 没有可重生成的回复
+      const lastUser = convo.messages[userIdx].content;
+      patchConvo(activeId, { messages: convo.messages.slice(0, userIdx + 1) });
+      // 同步清理数据库中的旧回复
+      try {
+        await api(`/api/messages?conversationId=${encodeURIComponent(activeId)}&ids=${removed.map((m) => encodeURIComponent(m.id)).join(",")}`, {
+          method: "DELETE",
+        });
+      } catch { /* 忽略：本地已移除 */ }
+      await get().send(lastUser);
+    },
+
     send: async (text) => {
       const trimmed = text.trim();
       if (!trimmed || get().sending) return;
@@ -1173,7 +1206,18 @@ export const useChatStore = create<ChatState>((set, get) => {
     setCodePreview: (html, lang = "html") => {
       const { activeId } = get();
       if (!activeId) return;
-      const next = html ? { html, lang, createdAt: Date.now() } : null;
+      const prev = get().conversations.find((c) => c.id === activeId)?.codePreview ?? null;
+      const next = html
+        ? {
+            html,
+            lang,
+            createdAt: Date.now(),
+            // 版本历史：替换前把旧版归档（上限 10 份）
+            history: prev
+              ? [{ html: prev.html, lang: prev.lang, createdAt: prev.createdAt }, ...(prev.history ?? [])].slice(0, 10)
+              : undefined,
+          }
+        : null;
       patchConvo(activeId, { codePreview: next });
       persistConvo(activeId, { codePreview: next });
     },
@@ -1386,6 +1430,45 @@ export const useChatStore = create<ChatState>((set, get) => {
       patchConvo(activeId!, { deck });
       if (deckPersistTimer) clearTimeout(deckPersistTimer);
       deckPersistTimer = setTimeout(() => persistConvo(activeId!, { deck }), 600);
+    },
+
+    generateSlideImages: async (slideIdx) => {
+      const { activeId } = get();
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo?.deck || get().sending) return 0;
+      const targets = convo.deck.slides
+        .map((s, i) => ({ s, i }))
+        .filter(({ s, i }) => s.imagePrompt && !s.imageUrl && (slideIdx === undefined || i === slideIdx));
+      if (targets.length === 0) return 0;
+
+      // 自动选择绘图模型：有 OpenAI Key → DALL·E 3；有百炼 Key → 万相；否则演示 SVG
+      const ov = getOverrides();
+      let imageModel = "demo-image";
+      if (ov.openai?.apiKey) imageModel = "dall-e-3";
+      else if (ov.dashscope?.apiKey) imageModel = "wan2.7-t2i-flash";
+
+      let done = 0;
+      for (const { s, i } of targets) {
+        try {
+          const res = await fetch("/api/images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: imageModel, prompt: s.imagePrompt, size: "1024x1024", overrides: ov }),
+          });
+          const data = (await res.json()) as { url?: string; error?: string };
+          if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
+          get().patchSlide(i, { imageUrl: data.url });
+          done++;
+        } catch (err) {
+          toast(`第 ${i + 1} 页配图失败：${err instanceof Error ? err.message : "未知错误"}`, "error");
+        }
+      }
+      // 确保批量生成结果落库（patchSlide 内部是 600ms 防抖）
+      if (done > 0) {
+        const latest = get().conversations.find((c) => c.id === convo.id);
+        if (latest?.deck) persistConvo(convo.id, { deck: latest.deck });
+      }
+      return done;
     },
 
     addSlide: () => {

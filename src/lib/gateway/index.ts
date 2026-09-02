@@ -32,10 +32,37 @@ export async function streamChatCompletion(
     throw new Error(`模型「${model.label}」的供应商未配置密钥，请在模型设置中配置或切换演示模型`);
   }
 
-  let output = "";
-  for await (const delta of provider.streamChat({ model: model.id, messages, signal: handlers.signal })) {
-    output += delta;
-    handlers.onToken(delta);
+  // 失败自动重试：仅在「尚未输出任何 token」时重试一次（已开始流式则无法撤回，直接报错）
+  const attempt = async (retry: boolean): Promise<string> => {
+    let output = "";
+    let flushed = false;
+    try {
+      for await (const delta of provider.streamChat({ model: model.id, messages, signal: handlers.signal })) {
+        if (!retry || !flushed) {
+          output += delta;
+          handlers.onToken(delta);
+          flushed = true;
+        } else {
+          output += delta;
+        }
+      }
+      return output;
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError" || handlers.signal?.aborted) throw err;
+      if (flushed || !retry) throw err;
+      throw new Error(`RETRY:${err instanceof Error ? err.message : "上游错误"}`);
+    }
+  };
+
+  let output: string;
+  try {
+    output = await attempt(false);
+  } catch (err) {
+    if (String((err as Error)?.message ?? "").startsWith("RETRY:")) {
+      output = await attempt(true);
+    } else {
+      throw err;
+    }
   }
 
   const inputText = messages.map((m) => m.content).join("\n");

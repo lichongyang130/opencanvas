@@ -4,6 +4,7 @@ import {
   type ProviderId,
   type ProviderOverrides,
 } from "@/lib/gateway";
+import { checkText, createOutputGuard } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +32,16 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: "messages 不能为空" }), { status: 400 });
   }
 
+  // 输入内容审核（本地规则；命中直接拒绝）
+  const userText = messages.map((m) => m.content).join("\n");
+  const mod = checkText(userText);
+  if (!mod.ok) {
+    return Response.json({ error: mod.reason }, { status: 400 });
+  }
+
   const encoder = new TextEncoder();
   const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
+  const guard = createOutputGuard();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -41,7 +50,16 @@ export async function POST(req: Request) {
           model,
           messages,
           {
-            onToken: (delta) => controller.enqueue(sse({ type: "token", delta })),
+            onToken: (delta) => {
+              // 输出流式审核：命中即终止
+              const hit = guard.feed(delta);
+              if (hit) {
+                controller.enqueue(sse({ type: "error", message: hit }));
+                controller.close();
+                throw new Error(`MODERATION:${hit}`);
+              }
+              controller.enqueue(sse({ type: "token", delta }));
+            },
             // 客户端断开/停止时同步中断上游模型流，避免白烧 token
             signal: req.signal,
           },

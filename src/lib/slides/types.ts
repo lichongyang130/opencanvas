@@ -18,8 +18,10 @@ export interface Slide {
   twoColTitle?: string;
   /** stats：关键数字卡片 [{value:"92%", label:"客户满意度"}] */
   stats?: { value: string; label: string }[];
-  /** 图片提示词（第 2 阶段自动生成配图；第 1 阶段由渐变占位） */
+  /** 图片提示词（AI 配图生成用；无配图时省略） */
   imagePrompt?: string;
+  /** 已生成的配图 URL（data URI / 图床） */
+  imageUrl?: string;
   note?: string;
 }
 

@@ -26,3 +26,15 @@ export async function POST(req: Request) {
   });
   return Response.json({ ok: true });
 }
+
+/** 删除消息：DELETE /api/messages?conversationId=..&ids=a,b（重新生成/编辑重发用） */
+export async function DELETE(req: Request) {
+  const url = new URL(req.url);
+  const conversationId = url.searchParams.get("conversationId");
+  const ids = (url.searchParams.get("ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!conversationId || ids.length === 0) {
+    return Response.json({ error: "参数不完整" }, { status: 400 });
+  }
+  repo.deleteMessages(conversationId, ids);
+  return Response.json({ ok: true });
+}

@@ -400,6 +400,14 @@ export const repo = {
     for (const id of ids) stmt.run(archived ? 1 : 0, Date.now(), id);
   },
 
+  /** 删除会话内指定消息（重新生成 / 编辑重发用） */
+  deleteMessages(conversationId: string, ids: string[]): void {
+    if (ids.length === 0) return;
+    const db = getDb();
+    const stmt = db.prepare("DELETE FROM messages WHERE conversationId = ? AND id = ?");
+    for (const id of ids) stmt.run(conversationId, id);
+  },
+
   deleteConversation(id: string): void {
     const db = getDb();
     db.prepare("DELETE FROM messages WHERE conversationId = ?").run(id);

@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   LayoutTemplate,
   Lightbulb,
+  Dices,
   MessageSquare,
   PanelRight,
   Presentation,
@@ -152,14 +153,23 @@ export default function HomePage() {
   const { model, setModel, settingsOpen, setSettingsOpen } = useChatStore();
   const [input, setInput] = useState("");
   const [greeting, setGreeting] = useState("你好");
+  const [shuffleKey, setShuffleKey] = useState(0); // 随机灵感：每次点击换一个提示
   const [recent, setRecent] = useState<RecentConvo[]>([]);
   const [featureOpen, setFeatureOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [onboardStep, setOnboardStep] = useState<number | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const featureRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 首次访问 3 步新手引导
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("oc:onboarded")) setOnboardStep(0);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -526,16 +536,27 @@ export default function HomePage() {
           <div className="mt-10">
             <h2 className="text-[15px] font-semibold text-stone-800">最近使用</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {RECENT_USE.map((r) => (
+              {RECENT_USE.map((r, i) => (
                 <button
-                  key={r.label}
+                  key={`${r.label}-${i}`}
                   onClick={() => goChat({ type: "fill", mode: r.mode, text: r.prompt })}
-                  className="flex items-center gap-2.5 rounded-xl border border-stone-200/80 bg-white px-4 py-3.5 text-left text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow"
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-xl border border-stone-200/80 bg-white px-4 py-3.5 text-left text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow",
+                    i === shuffleKey % RECENT_USE.length && "border-orange-300 ring-2 ring-orange-100"
+                  )}
                 >
-                  <r.icon className={`h-4.5 w-4.5 h-[18px] w-[18px] shrink-0 ${r.color}`} />
+                  <r.icon className={`h-[18px] w-[18px] shrink-0 ${r.color}`} />
                   <span className="truncate">{r.label}</span>
                 </button>
               ))}
+              <button
+                onClick={() => setShuffleKey((v) => v + 1)}
+                title="随机一个灵感"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 bg-white/60 px-4 py-3.5 text-[13px] text-stone-400 transition hover:border-orange-300 hover:text-orange-600"
+              >
+                <Dices className="h-4 w-4" />
+                随机灵感
+              </button>
             </div>
           </div>
         </div>
@@ -543,6 +564,85 @@ export default function HomePage() {
 
       {/* 设置中心（可从首页顶栏直接打开） */}
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* 首次访问新手引导 */}
+      {onboardStep !== null && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-orange-500">
+                第 {onboardStep + 1} / 3 步
+              </span>
+              <button
+                onClick={() => setOnboardStep(null)}
+                className="rounded-lg p-1 text-stone-400 hover:bg-stone-100"
+                title="跳过"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {onboardStep === 0 && (
+              <div className="mt-3">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-xl font-bold text-white">O</div>
+                <h3 className="text-lg font-semibold text-stone-800">欢迎使用 OpenCanvas</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  一站式 AI 工作空间：对话、深度研究、PPT、图片、文档，聚合国内外主流大模型。
+                </p>
+              </div>
+            )}
+            {onboardStep === 1 && (
+              <div className="mt-3">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100 text-orange-500">
+                  <MessageSquare className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-800">在下方输入任何想法</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  回车发送、Shift+回车换行；还可粘贴图片、添加文档，AI 会基于它们回答。
+                </p>
+              </div>
+            )}
+            {onboardStep === 2 && (
+              <div className="mt-3">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-500">
+                  <PanelRight className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-800">产物实时呈现在右侧画布</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  PPT、文档、代码预览与研究报告都会出现在右侧，可编辑、导出与一键转 PPT。
+                </p>
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-between">
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={cn("h-1.5 w-1.5 rounded-full", i === onboardStep ? "bg-orange-500" : "bg-stone-200")}
+                  />
+                ))}
+              </div>
+              {onboardStep < 2 ? (
+                <button
+                  onClick={() => setOnboardStep((v) => (v ?? 0) + 1)}
+                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+                >
+                  下一步
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    try { localStorage.setItem("oc:onboarded", "1"); } catch {}
+                    setOnboardStep(null);
+                  }}
+                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+                >
+                  开始使用
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

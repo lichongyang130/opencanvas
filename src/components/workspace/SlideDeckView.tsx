@@ -1,19 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Download, Loader2, Palette, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Download, Loader2, Palette, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { THEME_LIST } from "@/lib/slides/themes";
 import type { SlideDeck } from "@/lib/slides/types";
 import { SlideView } from "./SlideView";
 import { useChatStore } from "@/lib/store/chat";
+import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 
 export function SlideDeckView({ deck }: { deck: SlideDeck }) {
-  const { setDeckTheme, patchSlide, exportDeck, send, sending, addSlide, duplicateSlide, deleteSlide } =
+  const { setDeckTheme, patchSlide, exportDeck, send, sending, generateSlideImages, addSlide, duplicateSlide, deleteSlide } =
     useChatStore();
   const [active, setActive] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [imaging, setImaging] = useState(false);
   const idx = Math.min(active, deck.slides.length - 1);
+  const needImg = deck.slides.filter((s) => s.imagePrompt && !s.imageUrl).length;
+
+  const handleImages = async () => {
+    setImaging(true);
+    try {
+      const n = await generateSlideImages();
+      if (n > 0) toast(`已生成 ${n} 张配图`, "success");
+    } finally {
+      setImaging(false);
+    }
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -41,6 +54,16 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
             >
               <RefreshCw className="h-3.5 w-3.5" /> 重新生成
             </button>
+            {needImg > 0 && (
+              <button
+                onClick={() => void handleImages()}
+                disabled={imaging || sending}
+                className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:border-sky-300 disabled:opacity-40"
+              >
+                {imaging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                AI 配图 {needImg}
+              </button>
+            )}
             <button
               onClick={() => void handleExport()}
               disabled={exporting}

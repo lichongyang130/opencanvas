@@ -42,7 +42,7 @@ const QUICK_MODES: { mode: WorkspaceMode; icon: ReactNode; label: string }[] = [
   { mode: "docs", icon: <FileText className="h-[18px] w-[18px]" />, label: "快速文档" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { newConversation, setSettingsOpen } = useChatStore();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [packsOpen, setPacksOpen] = useState(false);
@@ -90,7 +90,7 @@ export function Sidebar() {
           <button
             key={qm.mode}
             title={qm.label}
-            onClick={() => void newConversation(qm.mode)}
+            onClick={() => { void newConversation(qm.mode); onNavigate?.(); }}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-brand-50 hover:text-brand-600"
           >
             {qm.icon}
@@ -119,7 +119,7 @@ export function Sidebar() {
         {/* 设置 */}
         <button
           title="模型设置"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => { setSettingsOpen(true); onNavigate?.(); }}
           className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
         >
           <Settings className="h-[18px] w-[18px]" />

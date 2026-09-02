@@ -10,13 +10,18 @@ import {
   Loader2,
   Mail,
   BookOpen,
+  Mic,
   MonitorPlay,
+  Paperclip,
   Presentation,
+  RefreshCw,
   Search,
   Send,
   Square,
   Video,
+  Volume2,
   Wand2,
+  X,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
 import { extractPageHtml } from "@/lib/code";
@@ -167,6 +172,7 @@ function MessageBubble({ m }: { m: UIMessage }) {
   const [copied, setCopied] = useState(false);
   const [refsOpen, setRefsOpen] = useState(false);
   const { setCodePreview } = useChatStore();
+  const sending = useChatStore((s) => s.sending);
   const copy = () => {
     navigator.clipboard?.writeText(m.content).then(
       () => {
@@ -249,6 +255,29 @@ function MessageBubble({ m }: { m: UIMessage }) {
                 <MonitorPlay className="h-3 w-3" /> 运行预览
               </button>
             )}
+            {!isUser && (
+              <button
+                onClick={() => {
+                  if (speechSynthesis.speaking) { speechSynthesis.cancel(); return; }
+                  const u = new SpeechSynthesisUtterance(m.content);
+                  u.lang = "zh-CN";
+                  speechSynthesis.speak(u);
+                }}
+                title="朗读该回复"
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-stone-100"
+              >
+                <Volume2 className="h-3 w-3" /> 朗读
+              </button>
+            )}
+            {!isUser && !sending && (
+              <button
+                onClick={() => void useChatStore.getState().regenerate()}
+                title="重新生成该回复"
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-stone-100"
+              >
+                <RefreshCw className="h-3 w-3" /> 重生成
+              </button>
+            )}
             <button
               onClick={copy}
               title="复制"
@@ -290,6 +319,10 @@ function SplitComposer({
   setSlashIdx,
   runSlash,
   sendKey,
+  attachments,
+  onAddFiles,
+  onRemoveAttachment,
+  uploading,
 }: {
   sendKey: "enter" | "ctrlEnter";
   input: string;
@@ -309,9 +342,58 @@ function SplitComposer({
   slashIdx: number;
   setSlashIdx: (v: number | ((prev: number) => number)) => void;
   runSlash: (cmd: (typeof SLASH_COMMANDS)[number]) => void;
+  attachments: Attachment[];
+  onAddFiles: (files: File[] | FileList) => void;
+  onRemoveAttachment: (id: string) => void;
+  uploading: boolean;
 }) {
   const [activeCat, setActiveCat] = useState<string>("brand");
+  const [listening, setListening] = useState(false);
   const activeCategory = CAPABILITIES.find((c) => c.id === activeCat) ?? CAPABILITIES[0];
+
+  /** 语音输入（Web Speech API，Chrome/Edge/Android；不支持时提示） */
+  const toggleVoice = () => {
+    type VoiceRecognition = {
+      lang: string;
+      interimResults: boolean;
+      continuous: boolean;
+      start: () => void;
+      stop: () => void;
+      onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+      onend: (() => void) | null;
+      onerror: (() => void) | null;
+    };
+    const w = window as unknown as {
+      SpeechRecognition?: new () => VoiceRecognition;
+      webkitSpeechRecognition?: new () => VoiceRecognition;
+    };
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SR) {
+      toast("当前浏览器不支持语音输入（请用 Chrome/Edge）", "info");
+      return;
+    }
+    if (listening) {
+      setListening(false);
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = "zh-CN";
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.onresult = (e) => {
+        const parts: string[] = [];
+        for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0]?.transcript ?? "");
+        setInput((v) => v + parts.join(""));
+      };
+      rec.onend = () => setListening(false);
+      rec.onerror = () => setListening(false);
+      rec.start();
+      setListening(true);
+    } catch {
+      toast("语音输入启动失败", "error");
+    }
+  };
 
   const handleCapabilityClick = (item: SubCapability) => {
     setInput("");
@@ -320,10 +402,18 @@ function SplitComposer({
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--oc-border-strong)] bg-white shadow-sm overflow-hidden">
+    <div
+      className="rounded-2xl border border-[var(--oc-border-strong)] bg-white shadow-sm overflow-hidden"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const files = Array.from(e.dataTransfer.files ?? []);
+        if (files.length > 0) onAddFiles(files);
+      }}
+    >
       <div className="flex min-h-[160px]">
-        {/* ──── 左侧能力区 (约 38%) ──── */}
-        <div className="flex w-[38%] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-[var(--oc-bg)]">
+        {/* ──── 左侧能力区 (约 38%，窄屏隐藏) ──── */}
+        <div className="hidden w-[38%] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-[var(--oc-bg)] sm:flex">
           {/* 分类标签栏 */}
           <div className="flex items-center gap-0 border-b border-[var(--oc-border-strong)] px-2 py-1.5">
             {CAPABILITIES.map((cat) => (
@@ -459,6 +549,34 @@ function SplitComposer({
             </div>
           )}
 
+          {/* 附件条 */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-b border-stone-100 px-3 py-2">
+              {attachments.map((a) => (
+                <span
+                  key={a.id}
+                  className="flex max-w-[220px] items-center gap-1.5 rounded-lg border border-[var(--oc-border)] bg-[var(--oc-bg)] py-1 pl-1.5 pr-1 text-[11px] text-stone-600"
+                >
+                  {a.kind === "image" && a.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.url} alt={a.name} className="h-7 w-7 rounded object-cover" />
+                  ) : (
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+                  )}
+                  <span className="truncate">{a.name}</span>
+                  <button
+                    onClick={() => onRemoveAttachment(a.id)}
+                    className="rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                    title="移除附件"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              {uploading && <Loader2 className="h-4 w-4 self-center animate-spin text-stone-400" />}
+            </div>
+          )}
+
           {/* 输入框 */}
           <div className="relative flex flex-1 flex-col">
             <textarea
@@ -476,14 +594,27 @@ function SplitComposer({
                   if (isSend) { e.preventDefault(); runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]); return; }
                   if (e.key === "Escape") { e.preventDefault(); setInput(""); return; }
                 }
-                if (isSend) { e.preventDefault(); submit(); }
+                  if (isSend) { e.preventDefault(); submit(); }
+                  // ↑ 键召回上一条用户输入（输入框为空时）
+                  if (e.key === "ArrowUp" && !input && !e.shiftKey) {
+                    const msgs = useChatStore.getState().conversations.find((c) => c.id === useChatStore.getState().activeId)?.messages ?? [];
+                    const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+                    if (lastUser) { e.preventDefault(); setInput(lastUser.content); }
+                  }
+              }}
+              onPaste={(e) => {
+                const files = Array.from(e.clipboardData.files ?? []);
+                if (files.length > 0) {
+                  e.preventDefault();
+                  onAddFiles(files);
+                }
               }}
               rows={3}
               placeholder={
                 mode === "image"
                   ? "描述你想要的画面…"
                   : mode === "chat"
-                    ? "分配任务，或问我任何事…"
+                    ? "分配任务，或问我任何事…（可粘贴图片 / 添加文档）"
                     : `${MODE_LABELS[mode]}：描述你的需求…`
               }
               className="flex-1 min-h-[80px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none placeholder:text-stone-400"
@@ -492,15 +623,50 @@ function SplitComposer({
 
           {/* 底部工具栏 */}
           <div className="flex items-center justify-between border-t border-stone-100 px-3 py-2">
-            <button
-              onClick={() => void enhancePrompt()}
-              disabled={!input.trim() || enhancing}
-              title="优化提示词"
-              className="flex h-7 items-center gap-1 rounded-full border border-stone-200 px-2.5 text-[11px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
-            >
-              {enhancing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-              优化
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => document.getElementById("oc-attach-input")?.click()}
+                disabled={uploading}
+                title="添加附件：图片 / TXT / MD / PDF / DOCX"
+                className="flex h-7 items-center gap-1 rounded-full border border-stone-200 px-2.5 text-[11px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+              >
+                <Paperclip className="h-3 w-3" />
+                附件
+              </button>
+              <input
+                id="oc-attach-input"
+                type="file"
+                multiple
+                accept="image/*,.txt,.md,.csv,.pdf,.docx,.doc,.json,.html,.log,.yml,.yaml"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) onAddFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => void enhancePrompt()}
+                disabled={!input.trim() || enhancing}
+                title="优化提示词"
+                className="flex h-7 items-center gap-1 rounded-full border border-stone-200 px-2.5 text-[11px] text-stone-500 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-30"
+              >
+                {enhancing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                优化
+              </button>
+              <button
+                onClick={toggleVoice}
+                title={listening ? "停止语音输入" : "语音输入（Chrome/Edge）"}
+                className={cn(
+                  "flex h-7 items-center gap-1 rounded-full border px-2.5 text-[11px] transition",
+                  listening
+                    ? "border-rose-300 bg-rose-50 text-rose-600"
+                    : "border-stone-200 text-stone-500 hover:border-brand-300 hover:text-brand-600"
+                )}
+              >
+                {listening ? <Mic className="h-3 w-3 animate-pulse" /> : <Mic className="h-3 w-3" />}
+                {listening ? "聆听中…" : "语音"}
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <ModelSelector
                 value={model}
@@ -536,6 +702,16 @@ function SplitComposer({
   );
 }
 
+/** 对话附件：图片（data URL 展示）或文本/文档（提取正文注入模型） */
+interface Attachment {
+  id: string;
+  name: string;
+  kind: "image" | "text";
+  url?: string;
+  content?: string;
+  size: number;
+}
+
 /* ═══════════════════════════════════════════
  *  主 ChatPanel
  * ═══════════════════════════════════════════ */
@@ -551,6 +727,9 @@ export function ChatPanel() {
   const [showJump, setShowJump] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
   const [slashIdx, setSlashIdx] = useState(0);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -619,12 +798,80 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (sending) scrollToBottom(); }, [sending, messages[messages.length - 1]?.content]);
 
+  /** 添加附件：图片 → data URL；文本/文档 → 上传解析提取正文 */
+  const addFiles = async (files: File[] | FileList) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setUploading(true);
+    try {
+      for (const f of list) {
+        if (f.size > 20 * 1024 * 1024) {
+          toast(`「${f.name}」超过 20MB，已跳过`, "error");
+          continue;
+        }
+        if (f.type.startsWith("image/")) {
+          const url = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result));
+            r.onerror = () => reject(new Error("读取图片失败"));
+            r.readAsDataURL(f);
+          });
+          setAttachments((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), name: f.name, kind: "image", url, size: f.size },
+          ]);
+        } else {
+          const res = await fetch("/api/documents", {
+            method: "POST",
+            body: (() => {
+              const fd = new FormData();
+              fd.append("files", f);
+              return fd;
+            })(),
+          });
+          const data = (await res.json()) as { documents?: { content?: string }[]; errors?: string[] };
+          const doc = data.documents?.[0];
+          if (!res.ok || !doc) throw new Error(data.errors?.[0] ?? "上传失败");
+          if (!doc.content) {
+            toast(`「${f.name}」暂不支持正文解析，已跳过`, "info");
+            continue;
+          }
+          const content = doc.content.slice(0, 8000); // 控制注入长度
+          setAttachments((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), name: f.name, kind: "text", content, size: f.size },
+          ]);
+        }
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "附件处理失败", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const submit = () => {
-    if (!input.trim() || sending) return;
-    const text = input;
+    if (sending || (uploading && attachments.length === 0)) return;
+    const text = input.trim();
+    if (!text && attachments.filter((a) => a.kind !== "image").length === 0) return;
+    let payload = text;
+    // 附件 → 注入模型上下文：文本内容拼接；图片以 markdown 呈现（视觉模型可读）
+    const imgAtts = attachments.filter((a) => a.kind === "image");
+    const txtAtts = attachments.filter((a) => a.kind === "text");
+    if (imgAtts.length > 0) {
+      const imgs = imgAtts.map((a) => `![${a.name}](${a.url})`).join("\n");
+      payload = payload ? `${payload}\n\n${imgs}` : imgs;
+    }
+    if (txtAtts.length > 0) {
+      const blocks = txtAtts
+        .map((a) => `【附件：${a.name}】\n${a.content ?? ""}`)
+        .join("\n\n");
+      payload = payload ? `${payload}\n\n${blocks}` : blocks;
+    }
     setInput("");
-    if (mode === "image") void useChatStore.getState().generateImage(text, imgSize);
-    else void send(text);
+    setAttachments([]);
+    if (mode === "image") void useChatStore.getState().generateImage(payload, imgSize);
+    else void send(payload);
   };
 
   const enhancePrompt = async () => {
@@ -733,6 +980,10 @@ export function ChatPanel() {
                   setSlashIdx={setSlashIdx}
                   runSlash={runSlash}
                   sendKey={sendKey}
+                  attachments={attachments}
+                  onAddFiles={(f) => void addFiles(f)}
+                  onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
+                  uploading={uploading}
                 />
               </div>
               <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行 · 点击左侧能力卡片快速开始</p>
@@ -812,6 +1063,10 @@ export function ChatPanel() {
               setSlashIdx={setSlashIdx}
               runSlash={runSlash}
               sendKey={sendKey}
+              attachments={attachments}
+              onAddFiles={(f) => void addFiles(f)}
+              onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
+              uploading={uploading}
             />
           </div>
         </div>

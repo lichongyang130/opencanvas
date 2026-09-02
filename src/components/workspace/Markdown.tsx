@@ -8,16 +8,46 @@ import React from "react";
  */
 
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
-  // 按 **bold** 和 `code` 切分
+  // 按 **bold**、`code`、![alt](url) 图片、[text](url) 链接切分
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const regex = /(!\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)|\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)|\*\*[^*]+\*\*|`[^`]+`)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;
   while ((m = regex.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     const tok = m[0];
-    if (tok.startsWith("**")) {
+    if (tok.startsWith("![")) {
+      const mm = tok.match(/^!\[([^\]]*)\]\((.+)\)$/);
+      if (mm) {
+        const url = mm[2].trim();
+        const isData = url.startsWith("data:");
+        parts.push(
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={`${keyPrefix}-img${i}`}
+            src={url}
+            alt={mm[1]}
+            className={isData ? "my-1.5 max-h-64 rounded-lg border border-stone-100 object-contain" : "max-h-64 rounded-lg"}
+          />
+        );
+        last = m.index + tok.length;
+        i++;
+        continue;
+      }
+    } else if (tok.startsWith("[")) {
+      const mm = tok.match(/^\[([^\]]*)\]\((.+)\)$/);
+      if (mm) {
+        parts.push(
+          <a key={`${keyPrefix}-a${i}`} href={mm[2]} target="_blank" rel="noreferrer" className="text-brand-600 underline decoration-brand-300 underline-offset-2 hover:text-brand-700">
+            {mm[1]}
+          </a>
+        );
+        last = m.index + tok.length;
+        i++;
+        continue;
+      }
+    } else if (tok.startsWith("**")) {
       parts.push(<strong key={`${keyPrefix}-b${i}`} className="font-semibold">{tok.slice(2, -2)}</strong>);
     } else {
       parts.push(

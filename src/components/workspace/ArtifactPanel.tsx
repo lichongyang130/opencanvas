@@ -7,6 +7,7 @@ import {
   Download,
   ExternalLink,
   FileText as FileTextIcon,
+  History,
   Image as ImageIcon,
   LayoutDashboard,
   Loader2,
@@ -129,6 +130,7 @@ export function ArtifactPanel() {
     <aside
       className={cn(
         "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-stone-200 bg-white",
+        "max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:border-l-0",
         CANVAS_WIDTH[canvasWidth]
       )}
     >
@@ -211,11 +213,37 @@ export function ArtifactPanel() {
           </div>
           <p className="text-sm">在左侧输入 PPT 主题<br />例如「AI 写作助手产品发布会」</p>
         </div>
-      ) : /* 代码沙箱 */
-      mode === "chat" && convo?.codePreview ? (
+      ) : /* 代码沙箱（多产物 Tab：代码预览 ↔ 对话文档） */
+      mode === "chat" && convo?.codePreview && lastAssistant ? (
+        <ChatArtifacts
+          code={
+            <CodePreview
+              html={convo.codePreview.html}
+              lang={convo.codePreview.lang}
+              history={convo.codePreview.history ?? []}
+              onClose={() => setCodePreview(null)}
+            />
+          }
+          doc={
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <article className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-center gap-2 text-xs font-medium text-stone-400">
+                  <FileTextIcon className="h-3.5 w-3.5" />
+                  最新回复
+                </div>
+                <div className="whitespace-pre-wrap text-sm leading-7 text-stone-700">
+                  {lastAssistant.content}
+                  {lastAssistant.streaming && <span className="streaming-cursor" />}
+                </div>
+              </article>
+            </div>
+          }
+        />
+      ) : mode === "chat" && convo?.codePreview ? (
         <CodePreview
           html={convo.codePreview.html}
           lang={convo.codePreview.lang}
+          history={convo.codePreview.history ?? []}
           onClose={() => setCodePreview(null)}
         />
       ) : lastAssistant ? (
@@ -261,12 +289,55 @@ export function ArtifactPanel() {
 
 /* ---------------- 代码沙箱 ---------------- */
 
-function CodePreview({ html, lang, onClose }: { html: string; lang: string; onClose: () => void }) {
+/** 聊天产物多 Tab：代码沙箱预览 ↔ 最新回复文档 */
+function ChatArtifacts({ code, doc }: { code: React.ReactNode; doc: React.ReactNode }) {
+  const [tab, setTab] = useState<"code" | "doc">("code");
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center gap-1 border-b border-stone-100 px-4 py-1.5">
+        <button
+          onClick={() => setTab("code")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium transition",
+            tab === "code" ? "bg-brand-50 text-brand-700" : "text-stone-500 hover:bg-stone-100"
+          )}
+        >
+          <MonitorPlay className="h-3.5 w-3.5" /> 代码预览
+        </button>
+        <button
+          onClick={() => setTab("doc")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium transition",
+            tab === "doc" ? "bg-brand-50 text-brand-700" : "text-stone-500 hover:bg-stone-100"
+          )}
+        >
+          <FileTextIcon className="h-3.5 w-3.5" /> 对话产物
+        </button>
+      </div>
+      {tab === "code" ? code : doc}
+    </div>
+  );
+}
+
+function CodePreview({
+  html,
+  lang,
+  history,
+  onClose,
+}: {
+  html: string;
+  lang: string;
+  history: { html: string; lang: string; createdAt: number }[];
+  onClose: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const [runId, setRunId] = useState(0);
+  const [histOpen, setHistOpen] = useState(false);
+  const [viewing, setViewing] = useState<{ html: string; lang: string; createdAt: number } | null>(null);
+  const current = viewing ?? { html, lang, createdAt: Date.now() }; // 始终展示选中版本
 
   const openInTab = () => {
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const blob = new Blob([current.html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -274,7 +345,7 @@ function CodePreview({ html, lang, onClose }: { html: string; lang: string; onCl
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(html);
+      await navigator.clipboard.writeText(current.html);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -282,7 +353,7 @@ function CodePreview({ html, lang, onClose }: { html: string; lang: string; onCl
     }
   };
 
-  const jsxLike = ["jsx", "react", "tsx"].includes(lang.toLowerCase());
+  const jsxLike = ["jsx", "react", "tsx"].includes(current.lang.toLowerCase());
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -295,6 +366,18 @@ function CodePreview({ html, lang, onClose }: { html: string; lang: string; onCl
           <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 uppercase">{lang}</span>
         </h3>
         <div className="flex items-center gap-1">
+          {history.length > 0 && (
+            <button
+              onClick={() => setHistOpen((v) => !v)}
+              title="版本历史"
+              className={cn(
+                "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] transition hover:bg-stone-100",
+                histOpen ? "bg-stone-100 text-stone-700" : "text-stone-500"
+              )}
+            >
+              <History className="h-3.5 w-3.5" /> 历史 {history.length}
+            </button>
+          )}
           <button
             onClick={() => setRunId((v) => v + 1)}
             title="重新加载预览"
@@ -333,14 +416,71 @@ function CodePreview({ html, lang, onClose }: { html: string; lang: string; onCl
         </p>
       )}
 
+      {history.length > 0 && (
+        <div className="flex items-center gap-1.5 border-b border-stone-100 px-5 py-2">
+          <History className="h-3.5 w-3.5 text-stone-400" />
+          <span className="text-[11px] text-stone-400">版本历史</span>
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              onClick={() => { setViewing(null); setHistOpen(false); }}
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10.5px] transition",
+                !viewing ? "bg-brand-50 font-medium text-brand-700" : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+              )}
+            >
+              当前
+            </button>
+            {history.map((h, i) => (
+              <button
+                key={h.createdAt}
+                onClick={() => { setViewing(h); setHistOpen(false); }}
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10.5px] transition",
+                  viewing?.createdAt === h.createdAt ? "bg-brand-50 font-medium text-brand-700" : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+                )}
+              >
+                v{history.length - i}
+              </button>
+            ))}
+          </div>
+          {viewing && (
+            <button
+              onClick={() => {
+                setViewing(null);
+                setHistOpen(false);
+              }}
+              className="ml-auto rounded-full px-2 py-0.5 text-[10.5px] text-stone-400 hover:text-stone-600"
+            >
+              恢复最新
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 bg-[#f5f2ee] p-3">
-        <iframe
-          key={runId}
-          title="AI 代码沙箱预览"
-          sandbox="allow-scripts allow-modals allow-forms allow-popups"
-          srcDoc={html}
-          className="h-full w-full rounded-xl border border-stone-200 bg-white shadow-inner"
-        />
+        {histOpen ? (
+          <div className="mx-auto max-w-md space-y-1.5 rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
+            <p className="text-[11.5px] font-medium text-stone-500">选择要查看的版本</p>
+            {history.map((h, i) => (
+              <button
+                key={h.createdAt}
+                onClick={() => { setViewing(h); setHistOpen(false); }}
+                className="flex w-full items-center justify-between rounded-lg border border-stone-100 px-3 py-2 text-left transition hover:border-brand-300"
+              >
+                <span className="text-xs text-stone-600">v{history.length - i} · {h.lang}</span>
+                <span className="text-[10.5px] text-stone-400">{new Date(h.createdAt).toLocaleTimeString("zh-CN")}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <iframe
+            key={runId}
+            title="AI 代码沙箱预览"
+            sandbox="allow-scripts allow-modals allow-forms allow-popups"
+            srcDoc={current.html}
+            className="h-full w-full rounded-xl border border-stone-200 bg-white shadow-inner"
+          />
+        )}
       </div>
     </div>
   );
