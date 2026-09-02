@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Database,
   FileText,
   Home,
@@ -32,9 +35,10 @@ const NAV = [
 export function ShellSidebar({ active }: { active: ShellActive }) {
   const router = useRouter();
   const { conversations, selectConversation } = useChatStore();
+  const [collapsed, setCollapsed] = useState(false);
   const recent = conversations.filter((c) => !c.archived).slice(0, 6);
 
-  const go = (route: string) => {
+  const go = (route: string, expand = false) => {
     if (route.startsWith("/agents")) router.push("/agents");
     else if (route.startsWith("/knowledge")) router.push("/knowledge");
     else if (route.startsWith("/docs")) router.push("/docs");
@@ -42,6 +46,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
     else if (route.startsWith("/tools")) router.push("/tools");
     else if (route.startsWith("/apps")) router.push("/apps");
     else router.push(route === "/" ? "/" : "/chat");
+    if (expand) setCollapsed(false);
   };
 
   const openConvo = (id: string) => {
@@ -49,18 +54,91 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
     void selectConversation(id);
   };
 
+  /* ────────── 收起态：仅图标栏 ────────── */
+  if (collapsed) {
+    return (
+      <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[#efe9dd] bg-white py-2">
+        <button
+          onClick={() => router.push("/")}
+          title="AI 对话"
+          className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-sm font-bold text-white shadow-sm"
+        >
+          O
+        </button>
+
+        {/* 展开按钮 */}
+        <button
+          onClick={() => setCollapsed(false)}
+          title="展开菜单"
+          className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+        >
+          <ChevronRight className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+        </button>
+
+        <div className="my-1 h-px w-6 bg-stone-100" />
+
+        {/* 导航图标 */}
+        <nav className="flex flex-col items-center gap-1">
+          {NAV.map((item) => {
+            const isActive = item.route === `/${active}`;
+            return (
+              <button
+                key={item.label}
+                title={item.label}
+                onClick={() => go(item.route, true)}
+                className={
+                  isActive
+                    ? "flex h-10 w-10 items-center justify-center rounded-xl bg-[#fdeee1] text-[#c05f3c]"
+                    : "flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+                }
+              >
+                <item.icon className="h-[18px] w-[18px]" strokeWidth={isActive ? 2.1 : 1.8} />
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex-1" />
+
+        {/* 用户 */}
+        <button
+          title="Alex Chen"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-100"
+        >
+          <Image
+            src="/avatar.png"
+            alt="Alex Chen"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-full object-cover"
+          />
+        </button>
+      </aside>
+    );
+  }
+
+  /* ────────── 展开态：完整侧栏 ────────── */
   return (
     <aside className="flex w-[236px] shrink-0 flex-col border-r border-[#efe9dd] bg-white">
       {/* 顶部 Logo */}
-      <button
-        onClick={() => router.push("/")}
-        className="flex items-center gap-3 px-5 pb-4 pt-5 text-left"
-      >
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-lg font-bold text-white shadow-sm">
-          O
-        </span>
-        <span className="text-lg font-semibold tracking-tight text-stone-800">AI 对话</span>
-      </button>
+      <div className="flex items-center justify-between px-3 py-4 pl-5">
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-3 text-left"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-lg font-bold text-white shadow-sm">
+            O
+          </span>
+          <span className="text-lg font-semibold tracking-tight text-stone-800">AI 对话</span>
+        </button>
+        <button
+          onClick={() => setCollapsed(true)}
+          title="收起菜单"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* 导航 */}
       <nav className="flex flex-col gap-0.5 px-3">
