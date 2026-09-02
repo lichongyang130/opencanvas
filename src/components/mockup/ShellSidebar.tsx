@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useChatStore } from "@/lib/store/chat";
 
-export type ShellActive = "chat" | "agents" | "knowledge" | "docs" | "templates" | "tools";
+export type ShellActive = "chat" | "agents" | "knowledge" | "docs" | "templates" | "tools" | "apps";
 
 const NAV = [
   { label: "首页", icon: Home, route: "/" },
@@ -26,7 +26,7 @@ const NAV = [
   { label: "文档中心", icon: FileText, route: "/docs" },
   { label: "模板中心", icon: LayoutTemplate, route: "/templates" },
   { label: "工具箱", icon: Wrench, route: "/tools" },
-  { label: "更多应用", icon: LayoutGrid, route: "/chat" },
+  { label: "更多应用", icon: LayoutGrid, route: "/apps" },
 ];
 
 export function ShellSidebar({ active }: { active: ShellActive }) {
@@ -40,6 +40,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
     else if (route.startsWith("/docs")) router.push("/docs");
     else if (route.startsWith("/templates")) router.push("/templates");
     else if (route.startsWith("/tools")) router.push("/tools");
+    else if (route.startsWith("/apps")) router.push("/apps");
     else router.push(route === "/" ? "/" : "/chat");
   };
 
