@@ -35,7 +35,7 @@ const NAV = [
 export function ShellSidebar({ active }: { active: ShellActive }) {
   const router = useRouter();
   const { conversations, selectConversation } = useChatStore();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const recent = conversations.filter((c) => !c.archived).slice(0, 6);
 
   const go = (route: string, expand = false) => {
