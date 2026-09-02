@@ -137,51 +137,39 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
 
   return (
     <div ref={ref} className="relative">
-      {/* 深色科技风触发器（保持与「功能」按钮同高 h-[38px]） */}
+      {/* 触发按钮：与「功能」下拉同款浅色胶囊，保持 h-[38px] 对齐 */}
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "group relative flex h-[38px] items-center gap-2 overflow-hidden rounded-full border px-3.5 text-[13px] font-medium text-slate-100 transition-all duration-200",
-          "border-white/10",
-          "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900",
-          "shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_20px_rgba(249,115,22,0.16)]",
+          "group flex h-[38px] items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition",
           open
-            ? "border-orange-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_30px_rgba(249,115,22,0.4)]"
-            : "hover:border-orange-300/40 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_24px_rgba(249,115,22,0.28)]"
+            ? "border-orange-300 bg-orange-50 text-orange-600"
+            : "border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
         )}
       >
-        {/* 顶部高光 */}
-        <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-300/70 to-transparent" />
-        <span className="relative flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-300 via-orange-500 to-red-500 shadow-[0_0_10px_rgba(249,115,22,0.9)]">
-          <Sparkles className="h-2.5 w-2.5 text-white" />
-        </span>
-        <span className="truncate leading-none text-slate-50">{short}</span>
+        <Sparkles className={cn("h-4 w-4 shrink-0", open ? "text-orange-500" : "text-stone-500")} />
+        <span className="truncate leading-none">{short}</span>
         <span
-          className={cn(
-            "relative h-1.5 w-1.5 shrink-0 rounded-full",
-            online
-              ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
-              : "bg-white/20"
-          )}
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", online ? "bg-emerald-500" : "bg-stone-300")}
           title={online ? "可用" : "未配置"}
         />
         <ChevronDown
           className={cn(
-            "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-orange-300",
+            "h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:text-orange-500",
             open && "rotate-180"
           )}
         />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-2 max-h-[70vh] w-[380px] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/95 p-1.5 shadow-2xl shadow-black/50 ring-1 ring-black/40 backdrop-blur-2xl">
-          <div className="flex items-center gap-2.5 border-b border-white/10 px-3 py-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-[0_0_12px_rgba(249,115,22,0.6)]">
+        <div className="absolute right-0 z-30 mt-1.5 max-h-[70vh] w-[300px] overflow-y-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
+          <div className="flex items-center gap-2 border-b border-stone-100 px-3 py-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-red-500 text-white">
               <Zap className="h-3.5 w-3.5" />
             </span>
             <div>
-              <p className="text-[13px] font-semibold text-white">智能模型</p>
-              <p className="text-[11px] text-white/45">配置密钥后即可拉取和使用真实模型</p>
+              <p className="text-[13px] font-semibold text-stone-800">智能模型</p>
+              <p className="text-[11px] text-stone-400">配置密钥后即可拉取和使用真实模型</p>
             </div>
           </div>
 
@@ -209,7 +197,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                       <span
                         className={cn(
                           "h-1.5 w-1.5 rounded-full",
-                          avail ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" : "bg-white/20"
+                          avail ? "bg-emerald-500" : "bg-stone-300"
                         )}
                       />
                     </span>
@@ -218,7 +206,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                     onClick={() => void fetchModels(g.provider)}
                     disabled={!avail || fetching !== null}
                     title={avail ? "从供应商拉取最新模型列表" : "请先配置该供应商密钥"}
-                    className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/55 transition hover:border-orange-400/50 hover:text-orange-300 disabled:opacity-40"
+                    className="flex items-center gap-1 rounded-full border border-stone-200 px-2 py-0.5 text-[11px] text-stone-500 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
                   >
                     {fetching === g.provider ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -248,7 +236,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
           })}
 
           {fetchError && (
-            <div className="mx-3 mt-2 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-xs text-red-300">
+            <div className="mx-3 mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">
               {fetchError}
             </div>
           )}
@@ -258,7 +246,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
               setOpen(false);
               setSettingsOpen(true);
             }}
-            className="sticky bottom-0 mt-2 flex w-full items-center gap-2 rounded-xl border-t border-white/10 bg-white/5 px-3 py-2.5 text-sm font-medium text-orange-300 transition hover:bg-white/10"
+            className="sticky bottom-0 mt-2 flex w-full items-center gap-2 rounded-lg border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"
           >
             <KeyRound className="h-4 w-4" />
             配置模型 API Key…
@@ -270,7 +258,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">{children}</div>;
+  return <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">{children}</div>;
 }
 
 function ModelRow({
@@ -295,21 +283,20 @@ function ModelRow({
       disabled={!available}
       onClick={onClick}
       className={cn(
-        "relative flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left transition",
-        active ? "bg-orange-500/15" : "hover:bg-white/10",
+        "flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition",
+        active ? "bg-orange-50" : "hover:bg-orange-50",
         !available && "cursor-not-allowed opacity-40"
       )}
     >
-      {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-gradient-to-b from-orange-300 to-red-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]" />}
       <div className="min-w-0">
-        <div className={cn("truncate text-[13.5px]", bold && "font-medium text-orange-300", active ? "text-white" : "text-slate-200")}>
+        <div className={cn("truncate text-[13px] text-stone-800", bold && "font-medium text-brand-700", active && "text-orange-700")}>
           {label}
         </div>
-        <div className="mt-0.5 text-[11px] text-white/45">
+        <div className="mt-0.5 text-[11px] text-stone-400">
           <span
             className={cn(
               "mr-1.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-              active ? "bg-orange-500/30 text-orange-200" : "bg-white/10 text-white/55"
+              active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-500"
             )}
           >
             {region}
@@ -318,7 +305,7 @@ function ModelRow({
         </div>
       </div>
       {active && (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.7)]">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white">
           <Check className="h-3.5 w-3.5" />
         </span>
       )}
