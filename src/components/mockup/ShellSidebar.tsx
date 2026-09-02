@@ -16,14 +16,14 @@ import {
 } from "lucide-react";
 import { useChatStore } from "@/lib/store/chat";
 
-export type ShellActive = "chat" | "agents" | "knowledge";
+export type ShellActive = "chat" | "agents" | "knowledge" | "docs";
 
 const NAV = [
   { label: "首页", icon: Home, route: "/" },
   { label: "AI 对话", icon: MessageSquare, route: "/chat" },
   { label: "智能体", icon: Bot, route: "/agents" },
   { label: "知识库", icon: Database, route: "/knowledge" },
-  { label: "文档中心", icon: FileText, route: "/chat" },
+  { label: "文档中心", icon: FileText, route: "/docs" },
   { label: "模板中心", icon: LayoutTemplate, route: "/chat" },
   { label: "工具箱", icon: Wrench, route: "/chat" },
   { label: "更多应用", icon: LayoutGrid, route: "/chat" },
@@ -37,6 +37,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
   const go = (route: string) => {
     if (route.startsWith("/agents")) router.push("/agents");
     else if (route.startsWith("/knowledge")) router.push("/knowledge");
+    else if (route.startsWith("/docs")) router.push("/docs");
     else router.push(route === "/" ? "/" : "/chat");
   };
 
