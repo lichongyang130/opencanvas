@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, KeyRound, Loader2, RefreshCw, Sparkles, Zap } from "lucide-react";
+import { Check, ChevronDown, KeyRound, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
 import { MODELS, inferProvider } from "@/lib/gateway/models";
 import type { ModelInfo, ProviderId as ProviderIdType } from "@/lib/gateway";
 import {
@@ -32,6 +32,13 @@ const PROVIDER_NAME: Record<string, string> = {
   dashscope: "阿里百炼 / 通义",
   demo: "内置",
 };
+const PROVIDER_BG: Record<string, string> = {
+  openai: "bg-gradient-to-br from-teal-400 to-emerald-500",
+  anthropic: "bg-gradient-to-br from-orange-400 to-amber-500",
+  deepseek: "bg-gradient-to-br from-blue-400 to-indigo-500",
+  dashscope: "bg-gradient-to-br from-violet-400 to-purple-500",
+  demo: "bg-gradient-to-br from-stone-300 to-stone-400",
+};
 /** 按钮上显示的简短模型名 */
 function shortLabel(label: string) {
   return label
@@ -50,6 +57,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
   const [dynamic, setDynamic] = useState<Partial<Record<ProviderId, string[]>>>({});
   const [fetching, setFetching] = useState<ProviderId | null>(null);
   const [fetchError, setFetchError] = useState<string>("");
+  const [q, setQ] = useState("");
   const setSettingsOpen = useChatStore((s) => s.setSettingsOpen);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -162,91 +170,89 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1.5 max-h-[70vh] w-[300px] overflow-y-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
-          <div className="flex items-center gap-2 border-b border-stone-100 px-3 py-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-red-500 text-white">
-              <Zap className="h-3.5 w-3.5" />
-            </span>
-            <div>
-              <p className="text-[13px] font-semibold text-stone-800">智能模型</p>
-              <p className="text-[11px] text-stone-400">配置密钥后即可拉取和使用真实模型</p>
+        <div className="absolute right-0 z-30 mt-1.5 w-[320px] overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
+          {/* 面板头 */}
+          <div className="border-b border-stone-100 p-2.5">
+            <div className="flex items-center gap-2 px-0.5 pb-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-red-500 text-white">
+                <Zap className="h-3 w-3" />
+              </span>
+              <span className="text-[13px] font-semibold text-stone-800">智能模型</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg bg-stone-100 px-2.5 py-1.5">
+              <Search className="h-3.5 w-3.5 text-stone-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="搜索模型…"
+                className="w-full bg-transparent text-[12px] text-stone-700 outline-none placeholder:text-stone-400"
+              />
             </div>
           </div>
 
-          {/* 演示模型 */}
-          <GroupLabel>{PROVIDER_NAME.demo}</GroupLabel>
-          <ModelRow
-            label="演示模型（免费）"
-            region="内置"
-            active={value === "demo"}
-            available
-            onClick={() => {
-              onChange("demo");
-              setOpen(false);
-            }}
-          />
+          <div className="max-h-[56vh] overflow-y-auto p-1.5">
+            {/* 演示模型 */}
+            {(!q.trim() || "演示模型".toLowerCase().includes(q.trim().toLowerCase())) && (
+              <>
+                <GroupHeader name={PROVIDER_NAME.demo} available />
+                <ModelRow
+                  label="演示模型"
+                  sub="免费"
+                  accent="bg-gradient-to-br from-stone-300 to-stone-400"
+                  active={value === "demo"}
+                  available
+                  onClick={() => {
+                    onChange("demo");
+                    setOpen(false);
+                  }}
+                />
+              </>
+            )}
 
-          {groups.map((g) => {
-            const avail = providerAvailable(g.provider);
-            return (
-              <div key={g.provider}>
-                <div className="flex items-center justify-between pl-3 pr-1 pt-3">
-                  <GroupLabel>
-                    <span className="flex items-center gap-1.5">
-                      {PROVIDER_NAME[g.provider]}
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full",
-                          avail ? "bg-emerald-500" : "bg-stone-300"
-                        )}
-                      />
-                    </span>
-                  </GroupLabel>
-                  <button
-                    onClick={() => void fetchModels(g.provider)}
-                    disabled={!avail || fetching !== null}
-                    title={avail ? "从供应商拉取最新模型列表" : "请先配置该供应商密钥"}
-                    className="flex items-center gap-1 rounded-full border border-stone-200 px-2 py-0.5 text-[11px] text-stone-500 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
-                  >
-                    {fetching === g.provider ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
-                    )}
-                    获取模型
-                  </button>
-                </div>
-                {g.items.map(({ info, dynamic: isDynamic }) => (
+            {groups.map((g) => {
+              const avail = providerAvailable(g.provider);
+              const qq = q.trim().toLowerCase();
+              const items = qq ? g.items.filter((it) => it.info.label.toLowerCase().includes(qq)) : g.items;
+              if (qq && items.length === 0) return null;
+              return (
+                <div key={g.provider}>
+                  <GroupHeader
+                    name={PROVIDER_NAME[g.provider]}
+                    available={avail}
+                    fetching={fetching === g.provider}
+                    onFetch={avail ? () => void fetchModels(g.provider) : undefined}
+                  />
+                  {items.map(({ info, dynamic: isDynamic }) => (
                     <ModelRow
                       key={info.id}
-                      label={info.label + (isDynamic ? " ·" : "")}
-                      sub={isDynamic ? "动态获取" : undefined}
-                      region={REGION_LABEL[info.region]}
+                      label={info.label}
+                      sub={isDynamic ? "动态" : !avail ? "未配置" : REGION_LABEL[info.region]}
+                      accent={PROVIDER_BG[g.provider]}
                       active={value === info.id}
                       available={avail}
-                      bold={isDynamic}
                       onClick={() => {
                         onChange(info.id, g.provider);
                         setOpen(false);
                       }}
                     />
                   ))}
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
 
-          {fetchError && (
-            <div className="mx-3 mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">
-              {fetchError}
-            </div>
-          )}
+            {fetchError && (
+              <div className="mx-1.5 mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">
+                {fetchError}
+              </div>
+            )}
+          </div>
 
           <button
             onClick={() => {
               setOpen(false);
               setSettingsOpen(true);
             }}
-            className="sticky bottom-0 mt-2 flex w-full items-center gap-2 rounded-lg border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"
+            className="flex w-full items-center gap-2 border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"
           >
             <KeyRound className="h-4 w-4" />
             配置模型 API Key…
@@ -257,25 +263,51 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
   );
 }
 
-function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">{children}</div>;
+function GroupHeader({
+  name,
+  available,
+  fetching,
+  onFetch,
+}: {
+  name: string;
+  available: boolean;
+  fetching?: boolean;
+  onFetch?: () => void;
+}) {
+  return (
+    <div className="mt-1.5 flex items-center justify-between rounded-lg bg-stone-50 px-2.5 py-1.5 first:mt-0">
+      <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-stone-500">
+        <span className={cn("h-1.5 w-1.5 rounded-full", available ? "bg-emerald-500" : "bg-stone-300")} />
+        {name}
+      </span>
+      {onFetch && (
+        <button
+          onClick={onFetch}
+          disabled={fetching}
+          title="从该供应商拉取最新模型列表"
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-white hover:text-orange-600 disabled:opacity-40"
+        >
+          {fetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          获取模型
+        </button>
+      )}
+    </div>
+  );
 }
 
 function ModelRow({
   label,
   sub,
-  region,
+  accent,
   active,
   available,
-  bold,
   onClick,
 }: {
   label: string;
   sub?: string;
-  region: string;
+  accent: string;
   active: boolean;
   available: boolean;
-  bold?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -283,30 +315,32 @@ function ModelRow({
       disabled={!available}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition",
-        active ? "bg-orange-50" : "hover:bg-orange-50",
+        "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition",
+        active ? "bg-orange-50" : "hover:bg-stone-50",
         !available && "cursor-not-allowed opacity-40"
       )}
     >
-      <div className="min-w-0">
-        <div className={cn("truncate text-[13px] text-stone-800", bold && "font-medium text-brand-700", active && "text-orange-700")}>
+      <span className={cn("flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg text-white", accent)}>
+        <Sparkles className="h-3 w-3" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className={cn("truncate text-[13px] font-medium", active ? "text-orange-700" : "text-stone-800")}>
           {label}
         </div>
-        <div className="mt-0.5 text-[11px] text-stone-400">
+        {sub && (
           <span
             className={cn(
-              "mr-1.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-              active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-500"
+              "mt-0.5 inline-block rounded px-1.5 py-px text-[10px] font-medium",
+              active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-400"
             )}
           >
-            {region}
+            {sub}
           </span>
-          {[sub, !available ? "未配置密钥" : null].filter(Boolean).join(" · ")}
-        </div>
+        )}
       </div>
       {active && (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white">
-          <Check className="h-3.5 w-3.5" />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white">
+          <Check className="h-3 w-3" />
         </span>
       )}
     </button>
