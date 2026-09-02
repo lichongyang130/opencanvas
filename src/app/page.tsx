@@ -10,6 +10,7 @@ import {
   Bell,
   Bot,
   BrainCircuit,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -26,6 +27,8 @@ import {
   MessageSquare,
   Presentation,
   Scan,
+  SlidersHorizontal,
+  X,
   Share2,
   Sparkles,
   Wrench,
@@ -33,6 +36,7 @@ import {
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
 import { useChatStore } from "@/lib/store/chat";
+import { cn } from "@/lib/utils";
 
 /* ---------------- 数据 ---------------- */
 
@@ -145,7 +149,21 @@ export default function HomePage() {
   const [input, setInput] = useState("");
   const [greeting, setGreeting] = useState("你好");
   const [recent, setRecent] = useState<RecentConvo[]>([]);
+  const [featureOpen, setFeatureOpen] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const featureRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (featureRef.current && !featureRef.current.contains(e.target as Node)) setFeatureOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -311,25 +329,106 @@ export default function HomePage() {
               placeholder="描述你的需求，或直接 @ 提及文件 / 智能体 / 知识库..."
               className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
             />
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <button className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50">
-                  <BrainCircuit className="h-4 w-4" /> 深度思考
-                  <ChevronDown className="h-3.5 w-3.5 text-stone-400" />
-                </button>
-                <button className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50">
-                  <Globe className="h-4 w-4" /> 联网搜索
-                </button>
-                <button className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50">
-                  <FileUp className="h-4 w-4" /> 上传文件
-                </button>
+            {attachedFile && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg bg-stone-100 px-2.5 py-1.5 text-[13px] text-stone-600">
+                <FileUp className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                <span className="min-w-0 truncate">{attachedFile}</span>
                 <button
-                  onClick={() => goChat()}
-                  className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+                  onClick={() => setAttachedFile(null)}
+                  aria-label="移除附件"
+                  className="ml-auto text-stone-400 transition hover:text-stone-700"
                 >
-                  <Bot className="h-4 w-4" /> 选择智能体
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
+            )}
+            <div className="mt-2 flex items-center justify-between">
+              <div ref={featureRef} className="relative">
+                <button
+                  onClick={() => setFeatureOpen((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-medium transition",
+                    featureOpen
+                      ? "border-orange-300 bg-orange-50 text-orange-600"
+                      : "border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
+                  )}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  功能
+                  <span className="text-stone-400">
+                    {[thinking && "深度", webSearch && "联网"].filter(Boolean).join(" · ") || "未开启"}
+                  </span>
+                  <ChevronDown
+                    className={cn("h-3.5 w-3.5 text-stone-400 transition-transform", featureOpen && "rotate-180")}
+                  />
+                </button>
+
+                {featureOpen && (
+                  <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-[248px] overflow-hidden rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
+                    <button
+                      onClick={() => setThinking((v) => !v)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-orange-50"
+                    >
+                      <BrainCircuit className={cn("h-4 w-4", thinking ? "text-orange-500" : "text-stone-400")} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] text-stone-800">深度思考</span>
+                        <span className="block text-[11px] text-stone-400">慢速逐点推理，更适合复杂问题</span>
+                      </span>
+                      <Toggle on={thinking} />
+                    </button>
+                    <button
+                      onClick={() => setWebSearch((v) => !v)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-orange-50"
+                    >
+                      <Globe className={cn("h-4 w-4", webSearch ? "text-orange-500" : "text-stone-400")} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] text-stone-800">联网搜索</span>
+                        <span className="block text-[11px] text-stone-400">检索互联网最新信息回答</span>
+                      </span>
+                      <Toggle on={webSearch} />
+                    </button>
+
+                    <div className="my-1 border-t border-stone-100" />
+
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-orange-50"
+                    >
+                      <FileUp className="h-4 w-4 text-stone-400" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] text-stone-800">上传文件</span>
+                        <span className="block text-[11px] text-stone-400">PDF / Word / 图片等附件</span>
+                      </span>
+                      <ChevronRight className="h-3.5 w-3.5 text-stone-300" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFeatureOpen(false);
+                        goChat();
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-orange-50"
+                    >
+                      <Bot className="h-4 w-4 text-stone-400" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] text-stone-800">选择智能体</span>
+                        <span className="block text-[11px] text-stone-400">指定擅长某个领域的 AI</span>
+                      </span>
+                      <ChevronRight className="h-3.5 w-3.5 text-stone-300" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setAttachedFile(f.name);
+                  setFeatureOpen(false);
+                  e.currentTarget.value = "";
+                }}
+              />
               <button
                 onClick={submit}
                 aria-label="发送"
@@ -423,5 +522,23 @@ export default function HomePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+function Toggle({ on }: { on: boolean }) {
+  return (
+    <span
+      className={cn(
+        "relative h-5 w-9 shrink-0 rounded-full transition",
+        on ? "bg-orange-500" : "bg-stone-200"
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+          on ? "left-[18px]" : "left-0.5"
+        )}
+      />
+    </span>
   );
 }
