@@ -346,7 +346,7 @@ export default function HomePage() {
                 <button
                   onClick={() => setFeatureOpen((v) => !v)}
                   className={cn(
-                    "flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-medium transition",
+                    "flex h-[38px] items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition",
                     featureOpen
                       ? "border-orange-300 bg-orange-50 text-orange-600"
                       : "border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"

@@ -32,14 +32,6 @@ const PROVIDER_NAME: Record<string, string> = {
   dashscope: "阿里百炼 / 通义",
   demo: "内置",
 };
-const PROVIDER_TAG: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Claude",
-  deepseek: "DeepSeek",
-  dashscope: "通义",
-  demo: "演示",
-};
-
 /** 按钮上显示的简短模型名 */
 function shortLabel(label: string) {
   return label
@@ -141,34 +133,31 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
   };
 
   const short = shortLabel(currentModel.label);
-  const tag = PROVIDER_TAG[currentModel.provider] ?? "模型";
   const online = providerAvailable(currentModel.provider);
 
   return (
     <div ref={ref} className="relative">
-      {/* 胶囊触发器 */}
+      {/* 胶囊触发器：与首页「功能」按钮同尺寸与高度 */}
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "group flex items-center gap-2 rounded-full border py-1.5 pl-2 pr-2.5 shadow-sm transition-all",
+          "group flex h-[38px] items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition",
           open
-            ? "border-orange-300 bg-white shadow-md shadow-orange-100/60"
-            : "border-orange-200/70 bg-white/90 hover:border-orange-300 hover:shadow-md hover:shadow-orange-100/50"
+            ? "border-orange-300 bg-orange-50 text-orange-600"
+            : "border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
         )}
       >
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white">
-          <Sparkles className="h-3 w-3" />
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white">
+          <Sparkles className="h-2.5 w-2.5" />
         </span>
-        <span className="flex flex-col items-start leading-none">
-          <span className="text-[12.5px] font-semibold text-stone-800">{short}</span>
-          <span className="mt-0.5 flex items-center gap-1 text-[9.5px] text-stone-400">
-            <span className={cn("h-1.5 w-1.5 rounded-full", online ? "bg-emerald-500" : "bg-stone-300")} />
-            {tag} · {online ? "可用" : "未配置"}
-          </span>
-        </span>
+        <span className="truncate leading-none">{short}</span>
+        <span
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", online ? "bg-emerald-500" : "bg-stone-300")}
+          title={online ? "可用" : "未配置"}
+        />
         <ChevronDown
           className={cn(
-            "h-3.5 w-3.5 text-stone-400 transition-transform group-hover:text-orange-500",
+            "h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:text-orange-500",
             open && "rotate-180"
           )}
         />
