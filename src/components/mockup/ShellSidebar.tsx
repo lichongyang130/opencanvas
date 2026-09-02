@@ -102,8 +102,9 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
 
         {/* 用户 */}
         <button
-          title="Alex Chen"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-100"
+          title="会员中心"
+          onClick={() => router.push("/membership")}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-100 transition hover:border-[#c05f3c]"
         >
           <Image
             src="/avatar.png"
@@ -194,7 +195,10 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
 
       {/* 用户 */}
       <div className="border-t border-stone-100 p-3">
-        <button className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50">
+        <button
+          onClick={() => router.push("/membership")}
+          className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50"
+        >
           <Image
             src="/avatar.png"
             alt="Alex Chen"

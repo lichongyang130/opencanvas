@@ -258,7 +258,10 @@ export default function HomePage() {
 
         {/* 用户卡片 */}
         <div className="border-t border-stone-100 p-3">
-          <button className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50">
+          <button
+            onClick={() => router.push("/membership")}
+            className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50"
+          >
             <Image
               src="/avatar.png"
               alt="Alex Chen"
