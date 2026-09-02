@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Download, Loader2, Palette, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Copy, Download, FileText, Loader2, Palette, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { THEME_LIST } from "@/lib/slides/themes";
 import type { SlideDeck } from "@/lib/slides/types";
 import { SlideView } from "./SlideView";
@@ -38,7 +38,15 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col print:!hidden">
+      {/* 打印视图（导出 PDF）：隐藏于屏幕，打印时逐页输出 */}
+      <div className="hidden print:block">
+        {deck.slides.map((s, i) => (
+          <div key={i} className="mb-[1.2cm] break-inside-avoid">
+            <SlideView slide={s} themeId={deck.theme} index={i} editable={false} />
+          </div>
+        ))}
+      </div>
       {/* 工具栏 */}
       <div className="border-b border-stone-200 px-4 py-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -64,6 +72,13 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
                 AI 配图 {needImg}
               </button>
             )}
+            <button
+              onClick={() => window.print()}
+              title="导出 PDF（浏览器打印、另存为 PDF）"
+              className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600 hover:border-brand-300"
+            >
+              <FileText className="h-3.5 w-3.5" /> PDF
+            </button>
             <button
               onClick={() => void handleExport()}
               disabled={exporting}

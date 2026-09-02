@@ -206,6 +206,8 @@ interface ChatState {
   send: (text: string) => Promise<void>;
   /** 重新生成最后一条 AI 回复（删除旧回复后重发上一条用户输入） */
   regenerate: () => Promise<void>;
+  /** 编辑重发：删除第 index 条用户消息及其后续回复，内容回填输入框 */
+  editResendFrom: (index: number) => void;
   generateSlides: (topic: string, context?: string) => Promise<void>;
   generateImage: (prompt: string, size: string) => Promise<void>;
   generateDocs: (topic: string, seed?: string) => Promise<void>;
@@ -759,6 +761,24 @@ export const useChatStore = create<ChatState>((set, get) => {
         });
       } catch { /* 忽略：本地已移除 */ }
       await get().send(lastUser);
+    },
+
+    editResendFrom: (index) => {
+      const { activeId } = get();
+      if (!activeId || get().sending) return;
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo) return;
+      const target = convo.messages[index];
+      if (!target || target.role !== "user") return;
+      const removed = convo.messages.slice(index);
+      patchConvo(activeId, { messages: convo.messages.slice(0, index) });
+      try {
+        void api(
+          `/api/messages?conversationId=${encodeURIComponent(activeId)}&ids=${removed.map((m) => encodeURIComponent(m.id)).join(",")}`,
+          { method: "DELETE" }
+        );
+      } catch { /* 本地已移除 */ }
+      set((s) => ({ pendingInput: { text: target.content, nonce: (s.pendingInput?.nonce ?? 0) + 1 } }));
     },
 
     send: async (text) => {

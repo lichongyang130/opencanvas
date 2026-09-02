@@ -25,9 +25,12 @@ export function Workspace() {
     setArtifactOpen,
     newConversation,
     selectConversation,
+    renameConversation,
   } = useChatStore();
 
   const [mobileNav, setMobileNav] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   useEffect(() => {
     void hydrate();
@@ -99,6 +102,12 @@ export function Workspace() {
     void newConversation().then((id) => selectConversation(id));
   };
 
+  const saveTitle = () => {
+    const t = titleDraft.trim();
+    if (t && active) renameConversation(active.id, t);
+    setEditingTitle(false);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* 桌面侧栏 + 历史 */}
@@ -140,11 +149,31 @@ export function Workspace() {
             </button>
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-semibold text-stone-800">智能助手</span>
-              {active && (
-                <span className="max-w-[220px] truncate text-sm text-stone-400">
-                  · {active.title}
-                </span>
-              )}
+              {active &&
+                (editingTitle ? (
+                  <input
+                    autoFocus
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onBlur={saveTitle}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveTitle();
+                      if (e.key === "Escape") setEditingTitle(false);
+                    }}
+                    className="w-[220px] rounded-md border border-orange-200 bg-white px-2 py-0.5 text-sm text-stone-600 outline-none focus:border-orange-300"
+                  />
+                ) : (
+                  <button
+                    onClick={() => {
+                      setTitleDraft(active.title);
+                      setEditingTitle(true);
+                    }}
+                    title="点击重命名当前任务"
+                    className="max-w-[220px] truncate text-sm text-stone-400 transition hover:text-stone-600"
+                  >
+                    · {active.title}
+                  </button>
+                ))}
             </div>
             <button
               onClick={startNew}

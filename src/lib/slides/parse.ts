@@ -1,7 +1,7 @@
 import type { Slide, SlideDeck } from "./types";
 import { themeOrDefault } from "./prompt";
 
-const VALID_LAYOUTS = new Set(["cover", "toc", "content", "twoCol", "stats", "end"]);
+const VALID_LAYOUTS = new Set(["cover", "toc", "content", "twoCol", "stats", "timeline", "compare", "process", "quote", "team", "end"]);
 
 /**
  * 从 LLM 输出中提取并校验幻灯片 JSON。
@@ -40,6 +40,28 @@ export function parseSlideDeck(raw: string, fallbackTitle = "未命名演示"): 
         : undefined,
       imagePrompt: typeof s.imagePrompt === "string" ? s.imagePrompt : undefined,
       note: typeof s.note === "string" ? s.note : undefined,
+      timeline: Array.isArray(s.timeline)
+        ? s.timeline
+            .map((x) => x as Record<string, unknown>)
+            .filter((x) => x && typeof x.time !== "undefined")
+            .map((x) => ({ time: String(x.time), label: String(x.label ?? "") }))
+        : undefined,
+      compareTitle: typeof s.compareTitle === "string" ? s.compareTitle : undefined,
+      compareRows: Array.isArray(s.compareRows)
+        ? s.compareRows
+            .map((x) => x as Record<string, unknown>)
+            .filter((x) => x)
+            .map((x) => ({ left: String(x.left ?? ""), right: String(x.right ?? "") }))
+        : undefined,
+      process: Array.isArray(s.process) ? s.process.map(String) : undefined,
+      quote: typeof s.quote === "string" ? s.quote : undefined,
+      quoteBy: typeof s.quoteBy === "string" ? s.quoteBy : undefined,
+      team: Array.isArray(s.team)
+        ? s.team
+            .map((x) => x as Record<string, unknown>)
+            .filter((x) => x && typeof x.name !== "undefined")
+            .map((x) => ({ name: String(x.name), role: String(x.role ?? ""), emoji: typeof x.emoji === "string" ? x.emoji : undefined }))
+        : undefined,
     }));
 
   if (slides.length === 0) throw new Error("未能从模型输出中解析出有效幻灯片");

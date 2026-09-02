@@ -13,6 +13,7 @@ import {
   Mic,
   MonitorPlay,
   Paperclip,
+  Pencil,
   Presentation,
   RefreshCw,
   Search,
@@ -168,7 +169,7 @@ const HOME_CARDS: {
  *  消息气泡
  * ═══════════════════════════════════════════ */
 
-function MessageBubble({ m }: { m: UIMessage }) {
+function MessageBubble({ m, index }: { m: UIMessage; index: number }) {
   const [copied, setCopied] = useState(false);
   const [refsOpen, setRefsOpen] = useState(false);
   const { setCodePreview } = useChatStore();
@@ -276,6 +277,15 @@ function MessageBubble({ m }: { m: UIMessage }) {
                 className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-stone-100"
               >
                 <RefreshCw className="h-3 w-3" /> 重生成
+              </button>
+            )}
+            {isUser && !sending && (
+              <button
+                onClick={() => useChatStore.getState().editResendFrom(index)}
+                title="编辑并重发（删除此后回复，内容回填输入框）"
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-stone-100"
+              >
+                <Pencil className="h-3 w-3" /> 编辑
               </button>
             )}
             <button
@@ -1014,7 +1024,7 @@ export function ChatPanel() {
                   />
                 </div>
               )}
-              {messages.map((m) => <MessageBubble key={m.id} m={m} />)}
+              {messages.map((m, i) => <MessageBubble key={m.id} m={m} index={i} />)}
             </div>
           )}
         </div>
