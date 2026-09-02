@@ -13,6 +13,10 @@ export interface StoredConversation {
   report: unknown | null;
   doc: unknown | null;
   personaId: string | null;
+  /** 自定义智能体的 system prompt（内置智能体为空，运行时按 personaId 查 personas.ts） */
+  personaSystem: string | null;
+  /** 代码沙箱预览（AI 生成的 HTML） */
+  codePreview: unknown | null;
   archived: boolean;
   pinned: boolean;
   createdAt: number;
@@ -34,6 +38,161 @@ export interface StoredImage {
   model: string;
   url: string; // data: 或 http(s)
   createdAt: number;
+}
+
+export interface StoredTemplate {
+  id: string;
+  label: string;
+  desc: string;
+  category: string;
+  mode: string;
+  prompt: string;
+  author: string;
+  uses: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StoredAgent {
+  id: string;
+  name: string;
+  desc: string;
+  category: string;
+  emoji: string;
+  system: string;
+  starter: string;
+  shared: boolean;
+  shareCode: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StoredKnowledgeBase {
+  id: string;
+  name: string;
+  desc: string;
+  tags: string[];
+  semantic: boolean;
+  qa: boolean;
+  cite: boolean;
+  createdAt: number;
+  updatedAt: number;
+  /** 聚合：关联文档数 */
+  docCount: number;
+  /** 聚合：关联文档总大小（字节） */
+  totalSize: number;
+}
+
+export interface StoredNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  createdAt: number;
+}
+
+function rowToTemplate(r: Record<string, unknown>): StoredTemplate {
+  return {
+    id: r.id as string,
+    label: r.label as string,
+    desc: (r.desc as string) ?? "",
+    category: (r.category as string) ?? "productivity",
+    mode: (r.mode as string) ?? "chat",
+    prompt: (r.prompt as string) ?? "",
+    author: (r.author as string) ?? "我",
+    uses: (r.uses as number) ?? 0,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function rowToAgent(r: Record<string, unknown>): StoredAgent {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    desc: (r.desc as string) ?? "",
+    category: (r.category as string) ?? "自定义",
+    emoji: (r.emoji as string) ?? "🤖",
+    system: (r.system as string) ?? "",
+    starter: (r.starter as string) ?? "",
+    shared: Boolean(r.shared),
+    shareCode: (r.shareCode as string | null) ?? null,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function rowToKnowledgeBase(r: Record<string, unknown>): Omit<StoredKnowledgeBase, "docCount" | "totalSize"> {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    desc: (r.desc as string) ?? "",
+    tags: parseJson<string[]>(r.tags as string | null, []),
+    semantic: Boolean(r.semantic),
+    qa: Boolean(r.qa),
+    cite: Boolean(r.cite),
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function withKbStats(kb: Omit<StoredKnowledgeBase, "docCount" | "totalSize">): StoredKnowledgeBase {
+  const db = getDb();
+  const agg = db
+    .prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(d.size), 0) AS size
+       FROM kb_documents k JOIN documents d ON d.id = k.documentId
+       WHERE k.kbId = ?`
+    )
+    .get(kb.id) as { n: number; size: number };
+  return { ...kb, docCount: agg.n, totalSize: agg.size };
+}
+
+function rowToNotification(r: Record<string, unknown>): StoredNotification {
+  return {
+    id: r.id as string,
+    type: (r.type as string) ?? "info",
+    title: r.title as string,
+    body: (r.body as string) ?? "",
+    link: (r.link as string | null) ?? null,
+    read: Boolean(r.read),
+    createdAt: r.createdAt as number,
+  };
+}
+
+export interface StoredDocument {
+  id: string;
+  name: string;
+  /** text / markdown / pdf / word / excel / ppt / other */
+  type: string;
+  size: number;
+  ext: string;
+  content: string;
+  filePath: string | null;
+  tags: string[];
+  favorite: boolean;
+  deleted: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+function rowToDocument(r: Record<string, unknown>): StoredDocument {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    type: (r.type as string) ?? "text",
+    size: (r.size as number) ?? 0,
+    ext: (r.ext as string) ?? "",
+    content: (r.content as string) ?? "",
+    filePath: (r.filePath as string) ?? null,
+    tags: parseJson<string[]>(r.tags as string | null, []),
+    favorite: Boolean(r.favorite),
+    deleted: Boolean(r.deleted),
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
 }
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => {
@@ -58,6 +217,8 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
     report: parseJson(r.report as string | null, null),
     doc: parseJson(r.doc as string | null, null),
     personaId: (r.personaId as string | null) ?? null,
+    personaSystem: (r.personaSystem as string | null) ?? null,
+    codePreview: parseJson(r.codePreview as string | null, null),
     archived: Boolean(r.archived),
     pinned: Boolean(r.pinned),
     createdAt: r.createdAt as number,
@@ -111,6 +272,8 @@ export const repo = {
     report?: unknown;
     doc?: unknown;
     personaId?: string | null;
+    personaSystem?: string | null;
+    codePreview?: unknown;
     archived?: boolean;
     pinned?: boolean;
   }): void {
@@ -140,6 +303,8 @@ export const repo = {
       if (c.report !== undefined) set("report", c.report === null ? null : JSON.stringify(c.report));
       if (c.doc !== undefined) set("doc", c.doc === null ? null : JSON.stringify(c.doc));
       if (c.personaId !== undefined) set("personaId", c.personaId);
+      if (c.personaSystem !== undefined) set("personaSystem", c.personaSystem);
+      if (c.codePreview !== undefined) set("codePreview", c.codePreview === null ? null : JSON.stringify(c.codePreview));
       if (c.archived !== undefined) set("archived", c.archived ? 1 : 0);
       if (c.pinned !== undefined) set("pinned", c.pinned ? 1 : 0);
 
@@ -150,8 +315,8 @@ export const repo = {
       }
     } else {
       db.prepare(
-        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, archived, pinned, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, personaSystem, codePreview, archived, pinned, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         c.id,
         c.title ?? "新任务",
@@ -164,6 +329,8 @@ export const repo = {
         c.report === undefined || c.report === null ? null : JSON.stringify(c.report),
         c.doc === undefined || c.doc === null ? null : JSON.stringify(c.doc),
         c.personaId ?? null,
+        c.personaSystem ?? null,
+        c.codePreview === undefined || c.codePreview === null ? null : JSON.stringify(c.codePreview),
         c.archived ? 1 : 0,
         c.pinned ? 1 : 0,
         now,
@@ -227,6 +394,434 @@ export const repo = {
       db.prepare("DELETE FROM messages WHERE conversationId = ?").run(id);
       db.prepare("DELETE FROM conversations WHERE id = ?").run(id);
     }
+  },
+
+  /* ─────────────────────────── 文档中心 ─────────────────────────── */
+
+  /** 文档列表（支持关键字搜索；deleted=1 为回收站） */
+  listDocuments(q = "", includeDeleted = false): StoredDocument[] {
+    const db = getDb();
+    const where = includeDeleted ? "" : " AND deleted = 0";
+    const rows = q.trim()
+      ? (db
+          .prepare(
+            `SELECT * FROM documents WHERE (name LIKE ? OR content LIKE ?)${where} ORDER BY updatedAt DESC`
+          )
+          .all(`%${q.trim()}%`, `%${q.trim()}%`) as Record<string, unknown>[])
+      : (db
+          .prepare(`SELECT * FROM documents WHERE 1=1${where} ORDER BY updatedAt DESC`)
+          .all() as Record<string, unknown>[]);
+    return rows.map(rowToDocument);
+  },
+
+  getDocument(id: string): StoredDocument | null {
+    const row = getDb().prepare("SELECT * FROM documents WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToDocument(row) : null;
+  },
+
+  createDocument(d: StoredDocument): void {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO documents (id, name, type, size, ext, content, filePath, tags, favorite, deleted, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      d.id,
+      d.name,
+      d.type,
+      d.size,
+      d.ext,
+      d.content ?? "",
+      d.filePath ?? null,
+      JSON.stringify(d.tags ?? []),
+      d.favorite ? 1 : 0,
+      d.deleted ? 1 : 0,
+      d.createdAt,
+      d.updatedAt
+    );
+  },
+
+  updateDocument(id: string, patch: Partial<StoredDocument>): void {
+    const db = getDb();
+    const row = db.prepare("SELECT * FROM documents WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToDocument(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    db.prepare(
+      `UPDATE documents SET name=?, type=?, size=?, ext=?, content=?, filePath=?, tags=?, favorite=?, deleted=?, updatedAt=? WHERE id=?`
+    ).run(
+      next.name,
+      next.type,
+      next.size,
+      next.ext,
+      next.content ?? "",
+      next.filePath ?? null,
+      JSON.stringify(next.tags ?? []),
+      next.favorite ? 1 : 0,
+      next.deleted ? 1 : 0,
+      next.updatedAt,
+      id
+    );
+  },
+
+  deleteDocument(id: string, hard = false): void {
+    const db = getDb();
+    if (hard) db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+    else db.prepare("UPDATE documents SET deleted = 1, updatedAt = ? WHERE id = ?").run(Date.now(), id);
+  },
+
+  documentStats(): { total: number; favorite: number; size: number } {
+    const db = getDb();
+    const total = (
+      db.prepare("SELECT COUNT(*) AS n FROM documents WHERE deleted = 0").get() as { n: number }
+    ).n;
+    const favorite = (
+      db.prepare("SELECT COUNT(*) AS n FROM documents WHERE deleted = 0 AND favorite = 1").get() as { n: number }
+    ).n;
+    const size = (
+      db.prepare("SELECT COALESCE(SUM(size), 0) AS n FROM documents WHERE deleted = 0").get() as { n: number }
+    ).n;
+    return { total, favorite, size };
+  },
+
+  /* ─────────────────────────── 模板中心 ─────────────────────────── */
+
+  /** 用户提交的模板列表（不含内置） */
+  listTemplates(): StoredTemplate[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM prompt_templates ORDER BY uses DESC, updatedAt DESC")
+      .all() as Record<string, unknown>[];
+    return rows.map(rowToTemplate);
+  },
+
+  getTemplate(id: string): StoredTemplate | null {
+    const row = getDb().prepare("SELECT * FROM prompt_templates WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToTemplate(row) : null;
+  },
+
+  createTemplate(t: StoredTemplate): void {
+    getDb()
+      .prepare(
+        `INSERT INTO prompt_templates (id, label, desc, category, mode, prompt, author, uses, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(t.id, t.label, t.desc, t.category, t.mode, t.prompt, t.author, t.uses ?? 0, t.createdAt, t.updatedAt);
+  },
+
+  updateTemplate(id: string, patch: Partial<StoredTemplate>): void {
+    const row = getDb().prepare("SELECT * FROM prompt_templates WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToTemplate(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    getDb()
+      .prepare(
+        `UPDATE prompt_templates SET label=?, desc=?, category=?, mode=?, prompt=?, author=?, uses=?, updatedAt=? WHERE id=?`
+      )
+      .run(next.label, next.desc, next.category, next.mode, next.prompt, next.author, next.uses, next.updatedAt, id);
+  },
+
+  incrTemplateUses(id: string): void {
+    getDb().prepare("UPDATE prompt_templates SET uses = uses + 1, updatedAt = ? WHERE id = ?").run(Date.now(), id);
+  },
+
+  deleteTemplate(id: string): void {
+    getDb().prepare("DELETE FROM prompt_templates WHERE id = ?").run(id);
+  },
+
+  templateStats(): { total: number; totalUses: number } {
+    const db = getDb();
+    const total = (db.prepare("SELECT COUNT(*) AS n FROM prompt_templates").get() as { n: number }).n;
+    const totalUses = (
+      db.prepare("SELECT COALESCE(SUM(uses), 0) AS n FROM prompt_templates").get() as { n: number }
+    ).n;
+    return { total, totalUses };
+  },
+
+  // ---------------- 智能体 ----------------
+
+  listAgents(): StoredAgent[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM agents ORDER BY updatedAt DESC")
+      .all() as Record<string, unknown>[];
+    return rows.map(rowToAgent);
+  },
+
+  getAgent(id: string): StoredAgent | null {
+    const row = getDb().prepare("SELECT * FROM agents WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToAgent(row) : null;
+  },
+
+  getAgentByShareCode(code: string): StoredAgent | null {
+    const row = getDb().prepare("SELECT * FROM agents WHERE shareCode = ? AND shared = 1").get(code) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToAgent(row) : null;
+  },
+
+  createAgent(a: StoredAgent): void {
+    getDb()
+      .prepare(
+        `INSERT INTO agents (id, name, desc, category, emoji, system, starter, shared, shareCode, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        a.id,
+        a.name,
+        a.desc,
+        a.category,
+        a.emoji,
+        a.system,
+        a.starter,
+        a.shared ? 1 : 0,
+        a.shareCode,
+        a.createdAt,
+        a.updatedAt
+      );
+  },
+
+  updateAgent(id: string, patch: Partial<StoredAgent>): void {
+    const row = getDb().prepare("SELECT * FROM agents WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToAgent(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    getDb()
+      .prepare(
+        `UPDATE agents SET name=?, desc=?, category=?, emoji=?, system=?, starter=?, shared=?, shareCode=?, updatedAt=? WHERE id=?`
+      )
+      .run(
+        next.name,
+        next.desc,
+        next.category,
+        next.emoji,
+        next.system,
+        next.starter,
+        next.shared ? 1 : 0,
+        next.shareCode,
+        next.updatedAt,
+        id
+      );
+  },
+
+  deleteAgent(id: string): void {
+    getDb().prepare("DELETE FROM agents WHERE id = ?").run(id);
+  },
+
+  agentStats(): { total: number; totalUses: number } {
+    const db = getDb();
+    const total = (db.prepare("SELECT COUNT(*) AS n FROM agents").get() as { n: number }).n;
+    const totalUses = (
+      db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE personaId IS NOT NULL").get() as {
+        n: number;
+      }
+    ).n;
+    return { total, totalUses };
+  },
+
+  /** 各角色/智能体的真实使用次数：conversations 里绑定 personaId 的会话数 */
+  personaUseCounts(): Record<string, number> {
+    const rows = getDb()
+      .prepare("SELECT personaId, COUNT(*) AS n FROM conversations WHERE personaId IS NOT NULL GROUP BY personaId")
+      .all() as Array<{ personaId: string; n: number }>;
+    const map: Record<string, number> = {};
+    for (const r of rows) map[r.personaId] = r.n;
+    return map;
+  },
+
+  // ---------------- 知识库 ----------------
+
+  listKnowledgeBases(): StoredKnowledgeBase[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM knowledge_bases ORDER BY updatedAt DESC")
+      .all() as Record<string, unknown>[];
+    return rows.map((r) => withKbStats(rowToKnowledgeBase(r)));
+  },
+
+  getKnowledgeBase(id: string): StoredKnowledgeBase | null {
+    const row = getDb().prepare("SELECT * FROM knowledge_bases WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? withKbStats(rowToKnowledgeBase(row)) : null;
+  },
+
+  createKnowledgeBase(a: {
+    id: string;
+    name: string;
+    desc?: string;
+    tags?: string[];
+    semantic?: boolean;
+    qa?: boolean;
+    cite?: boolean;
+    createdAt: number;
+  }): void {
+    getDb()
+      .prepare(
+        `INSERT INTO knowledge_bases (id, name, desc, tags, semantic, qa, cite, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        a.id,
+        a.name,
+        a.desc ?? "",
+        JSON.stringify(a.tags ?? []),
+        a.semantic === false ? 0 : 1,
+        a.qa === false ? 0 : 1,
+        a.cite === false ? 0 : 1,
+        a.createdAt,
+        a.createdAt
+      );
+  },
+
+  updateKnowledgeBase(
+    id: string,
+    patch: Partial<Pick<StoredKnowledgeBase, "name" | "desc" | "tags" | "semantic" | "qa" | "cite">>
+  ): void {
+    const row = getDb().prepare("SELECT * FROM knowledge_bases WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToKnowledgeBase(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    getDb()
+      .prepare(
+        `UPDATE knowledge_bases SET name=?, desc=?, tags=?, semantic=?, qa=?, cite=?, updatedAt=? WHERE id=?`
+      )
+      .run(
+        next.name,
+        next.desc,
+        JSON.stringify(next.tags),
+        next.semantic ? 1 : 0,
+        next.qa ? 1 : 0,
+        next.cite ? 1 : 0,
+        next.updatedAt,
+        id
+      );
+  },
+
+  deleteKnowledgeBase(id: string): void {
+    const db = getDb();
+    db.prepare("DELETE FROM kb_documents WHERE kbId = ?").run(id);
+    db.prepare("DELETE FROM knowledge_bases WHERE id = ?").run(id);
+  },
+
+  listKbDocuments(kbId: string): StoredDocument[] {
+    const rows = getDb()
+      .prepare(
+        `SELECT d.* FROM kb_documents k JOIN documents d ON d.id = k.documentId
+         WHERE k.kbId = ? ORDER BY k.createdAt DESC`
+      )
+      .all(kbId) as Record<string, unknown>[];
+    return rows.map(rowToDocument);
+  },
+
+  addKbDocument(kbId: string, documentId: string): boolean {
+    const kb = getDb().prepare("SELECT id FROM knowledge_bases WHERE id = ?").get(kbId);
+    const doc = getDb().prepare("SELECT id FROM documents WHERE id = ?").get(documentId);
+    if (!kb || !doc) return false;
+    getDb()
+      .prepare("INSERT OR IGNORE INTO kb_documents (kbId, documentId, createdAt) VALUES (?, ?, ?)")
+      .run(kbId, documentId, Date.now());
+    return true;
+  },
+
+  removeKbDocument(kbId: string, documentId: string): void {
+    getDb().prepare("DELETE FROM kb_documents WHERE kbId = ? AND documentId = ?").run(kbId, documentId);
+  },
+
+  // ---------------- 通知 ----------------
+
+  listNotifications(limit = 30): StoredNotification[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM notifications ORDER BY createdAt DESC LIMIT ?")
+      .all(limit) as Record<string, unknown>[];
+    return rows.map(rowToNotification);
+  },
+
+  addNotification(n: {
+    type?: string;
+    title: string;
+    body?: string;
+    link?: string | null;
+  }): StoredNotification {
+    const rec: StoredNotification = {
+      id: `n-${Date.now()}-${randomUUID().slice(0, 8)}`,
+      type: n.type ?? "info",
+      title: n.title,
+      body: n.body ?? "",
+      link: n.link ?? null,
+      read: false,
+      createdAt: Date.now(),
+    };
+    getDb()
+      .prepare("INSERT INTO notifications (id, type, title, body, link, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(rec.id, rec.type, rec.title, rec.body, rec.link, 0, rec.createdAt);
+    return rec;
+  },
+
+  markNotificationsRead(ids?: string[]): void {
+    const db = getDb();
+    if (!ids || ids.length === 0) {
+      db.prepare("UPDATE notifications SET read = 1 WHERE read = 0").run();
+      return;
+    }
+    const placeholders = ids.map(() => "?").join(",");
+    db.prepare(`UPDATE notifications SET read = 1 WHERE id IN (${placeholders})`).run(...ids);
+  },
+
+  unreadCount(): number {
+    const row = getDb().prepare("SELECT COUNT(*) AS n FROM notifications WHERE read = 0").get() as {
+      n: number;
+    };
+    return row.n;
+  },
+
+  // ---------------- 积分 ----------------
+
+  creditBalance(): number {
+    const row = getDb().prepare("SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger").get() as {
+      n: number;
+    };
+    return row.n;
+  },
+
+  creditLedger(limit = 50): Array<{ id: string; delta: number; reason: string; ref: string | null; createdAt: number }> {
+    const rows = getDb()
+      .prepare("SELECT * FROM credit_ledger ORDER BY createdAt DESC LIMIT ?")
+      .all(limit) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: r.id as string,
+      delta: r.delta as number,
+      reason: (r.reason as string) ?? "",
+      ref: (r.ref as string | null) ?? null,
+      createdAt: r.createdAt as number,
+    }));
+  },
+
+  addCredits(delta: number, reason: string, ref?: string | null): void {
+    if (!delta) return;
+    getDb()
+      .prepare("INSERT INTO credit_ledger (id, delta, reason, ref, createdAt) VALUES (?, ?, ?, ?, ?)")
+      .run(`c-${Date.now()}-${randomUUID().slice(0, 8)}`, delta, reason, ref ?? null, Date.now());
+  },
+
+  /** 今日是否已签到 */
+  checkedInToday(): boolean {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const row = getDb()
+      .prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ?")
+      .get("每日签到", start.getTime()) as { n: number };
+    return row.n > 0;
   },
 };
 

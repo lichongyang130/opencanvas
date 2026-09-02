@@ -2,8 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ================= 主题令牌（浅色） ================= */
 :root {
-  --bg: #fafaf9;
+  /* stone 色板（对应 Tailwind stone 默认值） */
+  --stone-50: 250 250 249;
+  --stone-100: 245 245 244;
+  --stone-200: 231 229 228;
+  --stone-300: 214 211 209;
+  --stone-400: 168 162 158;
+  --stone-500: 120 113 108;
+  --stone-600: 87 83 78;
+  --stone-700: 68 64 60;
+  --stone-800: 41 37 36;
+  --stone-900: 28 25 23;
+  --stone-950: 12 10 9;
+
+  /* brand 色板 */
+  --brand-50: 250 244 238;
+  --brand-100: 244 231 219;
+  --brand-200: 233 207 186;
+  --brand-300: 220 176 146;
+  --brand-400: 207 138 99;
+  --brand-500: 199 117 74;
+  --brand-600: 192 95 60;
+  --brand-700: 169 79 49;
+  --brand-800: 138 64 41;
+  --brand-900: 112 53 36;
+
+  /* 应用语义变量 */
+  --oc-bg: #fbf8f4;
+  --oc-panel: #ffffff;
+  --oc-panel-muted: #fdfaf6;
+  --oc-hover: #fdfaf5;
+  --oc-border: #ece6db;
+  --oc-border-soft: #f0eadf;
+  --oc-border-faint: #f5f0e8;
+  --oc-border-strong: #e3d9cb;
+  --oc-brand: #c05f3c;
+  --oc-brand-bright: #f07a3f;
+  --oc-brand-hover: #fdeee1;
+  --oc-brand-soft: #fdf0e5;
+  --oc-brand-tint: #fbf3ec;
+  --oc-brand-mid: #fbe4d0;
+  --oc-brand-border: #e0b79c;
+  --oc-brand-border-soft: #f0c9a8;
+  --oc-accent: #ff6a3d;
+  --oc-muted-text: #8a7a66;
+  --oc-body-text: #1c1917;
+  --oc-scrollbar: #d6d3d1;
+}
+
+/* ================= 主题令牌（深色） ================= */
+.dark {
+  --stone-50: 24 22 20;
+  --stone-100: 34 30 26;
+  --stone-200: 47 42 37;
+  --stone-300: 82 74 66;
+  --stone-400: 126 118 109;
+  --stone-500: 166 158 149;
+  --stone-600: 190 182 173;
+  --stone-700: 210 203 195;
+  --stone-800: 226 220 212;
+  --stone-900: 240 235 228;
+  --stone-950: 250 246 240;
+
+  --brand-50: 24 20 17;
+  --brand-100: 38 28 22;
+  --brand-200: 66 45 33;
+  --brand-300: 118 78 55;
+  --brand-400: 160 106 76;
+  --brand-500: 197 133 96;
+  --brand-600: 224 148 108;
+  --brand-700: 235 168 128;
+  --brand-800: 244 192 158;
+  --brand-900: 250 214 188;
+
+  --oc-bg: #1a1713;
+  --oc-panel: #201d18;
+  --oc-panel-muted: #262019;
+  --oc-hover: #282219;
+  --oc-border: #37312a;
+  --oc-border-soft: #2e2922;
+  --oc-border-faint: #262119;
+  --oc-border-strong: #3f372e;
+  --oc-brand: #e69a72;
+  --oc-brand-bright: #ff9a60;
+  --oc-brand-hover: #34241a;
+  --oc-brand-soft: #372619;
+  --oc-brand-tint: #2e221a;
+  --oc-brand-mid: #4a3324;
+  --oc-brand-border: #7a5a43;
+  --oc-brand-border-soft: #6b4c37;
+  --oc-accent: #ff8b64;
+  --oc-muted-text: #a89a88;
+  --oc-body-text: #f0ebe3;
+  --oc-scrollbar: #4a443b;
 }
 
 html {
@@ -15,9 +108,29 @@ body {
 }
 
 body {
-  background: var(--bg);
-  color: #1c1917;
+  background: var(--oc-bg);
+  color: var(--oc-body-text);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* 深色下白色面板统一映射（卡片/弹窗等 bg-white 自动换肤） */
+.dark .bg-white {
+  background-color: var(--oc-panel);
+}
+.dark .bg-white\/60 {
+  background-color: rgb(32 29 24 / 0.6);
+}
+.dark .bg-white\/80 {
+  background-color: rgb(32 29 24 / 0.8);
+}
+.dark .hover\:bg-white:hover {
+  background-color: var(--oc-hover);
+}
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* 细滚动条 */
@@ -26,7 +139,7 @@ body {
   height: 6px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
+  background: var(--oc-scrollbar);
   border-radius: 999px;
 }
 *::-webkit-scrollbar-track {
@@ -44,4 +157,9 @@ body {
   50% {
     opacity: 0;
   }
+}
+
+/* 主题切换过渡 */
+.theme-fade {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }

@@ -2,15 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Check,
+  Copy,
   Download,
+  ExternalLink,
   FileText as FileTextIcon,
   Image as ImageIcon,
   LayoutDashboard,
   Loader2,
+  MonitorPlay,
   Search,
   X,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type UIImage } from "@/lib/store/chat";
+import { cn } from "@/lib/utils";
 import { SlideDeckView } from "./SlideDeckView";
 import { ReportView } from "./ReportView";
 import { DocView } from "./DocView";
@@ -31,7 +36,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
 
   return (
     <>
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {[...images].reverse().map((img) => (
           <figure key={img.id} className="group overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
             <button onClick={() => setZoom(img)} className="block w-full">
@@ -76,8 +81,23 @@ function ImageGallery({ images }: { images: UIImage[] }) {
  * 
  * 默认关闭，有产物时自动弹出。
  */
+const CANVAS_WIDTH: Record<string, string> = {
+  narrow: "w-[24rem]",
+  standard: "w-[30rem]",
+  wide: "w-[38rem]",
+};
+
 export function ArtifactPanel() {
-  const { conversations, activeId, sending, artifactOpen, setArtifactOpen } = useChatStore();
+  const {
+    conversations,
+    activeId,
+    sending,
+    artifactOpen,
+    autoOpenArtifact,
+    setArtifactOpen,
+    setCodePreview,
+    canvasWidth,
+  } = useChatStore();
   const convo = conversations.find((c) => c.id === activeId);
   const mode = convo?.mode ?? "chat";
 
@@ -91,14 +111,14 @@ export function ArtifactPanel() {
     (mode === "research" && convo?.report) ||
     (mode === "docs" && convo?.doc) ||
     (mode === "slides" && convo?.deck) ||
-    (mode === "chat" && lastAssistant);
+    (mode === "chat" && (convo?.codePreview || lastAssistant));
 
-  // 有产物时自动弹出
+  // 有产物时自动弹出（可在设置中关闭）
   useEffect(() => {
-    if (hasArtifact && !artifactOpen) {
+    if (autoOpenArtifact && hasArtifact && !artifactOpen) {
       setArtifactOpen(true);
     }
-  }, [hasArtifact, artifactOpen, setArtifactOpen]);
+  }, [autoOpenArtifact, hasArtifact, artifactOpen, setArtifactOpen]);
 
   // 隐藏状态或无产物内容时不渲染
   if (!artifactOpen) {
@@ -106,11 +126,18 @@ export function ArtifactPanel() {
   }
 
   return (
-    <aside className="flex w-[30rem] shrink-0 flex-col border-l border-stone-200 bg-white">
+    <aside
+      className={cn(
+        "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-stone-200 bg-white",
+        CANVAS_WIDTH[canvasWidth]
+      )}
+    >
       {/* 画布标题栏 */}
-      <div className="flex items-center justify-between border-b border-stone-100 px-5 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-stone-100 bg-gradient-to-r from-orange-50/60 to-transparent px-5 py-3">
         <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-800">
-          <LayoutDashboard className="h-4 w-4 text-orange-500" />
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-sm shadow-orange-200">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+          </span>
           AI 创作画布
         </h2>
         <button
@@ -184,8 +211,15 @@ export function ArtifactPanel() {
           </div>
           <p className="text-sm">在左侧输入 PPT 主题<br />例如「AI 写作助手产品发布会」</p>
         </div>
+      ) : /* 代码沙箱 */
+      mode === "chat" && convo?.codePreview ? (
+        <CodePreview
+          html={convo.codePreview.html}
+          lang={convo.codePreview.lang}
+          onClose={() => setCodePreview(null)}
+        />
       ) : lastAssistant ? (
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <article className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center gap-2 text-xs font-medium text-stone-400">
               <FileTextIcon className="h-3.5 w-3.5" />
@@ -198,17 +232,116 @@ export function ArtifactPanel() {
           </article>
         </div>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center text-center text-stone-400">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100">
-            <LayoutDashboard className="h-6 w-6" />
+        <div className="flex flex-1 select-none flex-col items-center justify-center bg-[radial-gradient(70%_60%_at_50%_40%,rgba(255,183,148,0.10),transparent_70%)] px-8 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-rose-100 shadow-inner">
+            <LayoutDashboard className="h-7 w-7 text-orange-400" />
           </div>
-          <p className="text-sm">
-            AI 生成的文档、PPT、图片、视频
+          <p className="text-[15px] font-medium text-stone-600">AI 创作画布已就绪</p>
+          <p className="mt-2 text-[13px] leading-6 text-stone-400">
+            对话生成的文档、PPT、图片与研究报告
             <br />
             会实时呈现在这里
           </p>
+          <div className="mt-6 grid w-full gap-2">
+            {["生成 PPT", "撰写文档", "AI 绘图"].map((t) => (
+              <span
+                key={t}
+                className="rounded-xl border border-stone-200/80 bg-white/80 px-4 py-2.5 text-left text-xs text-stone-500 shadow-sm"
+              >
+                <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-gradient-to-r from-orange-400 to-red-400" />
+                {t}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </aside>
+  );
+}
+
+/* ---------------- 代码沙箱 ---------------- */
+
+function CodePreview({ html, lang, onClose }: { html: string; lang: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [runId, setRunId] = useState(0);
+
+  const openInTab = () => {
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(html);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* 忽略 */
+    }
+  };
+
+  const jsxLike = ["jsx", "react", "tsx"].includes(lang.toLowerCase());
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-stone-100 px-5 py-3">
+        <h3 className="flex items-center gap-2 text-[13.5px] font-semibold text-stone-800">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+            <MonitorPlay className="h-4 w-4" />
+          </span>
+          代码沙箱 · 实时预览
+          <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 uppercase">{lang}</span>
+        </h3>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setRunId((v) => v + 1)}
+            title="重新加载预览"
+            className="rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
+          >
+            重新运行
+          </button>
+          <button
+            onClick={() => void copy()}
+            title="复制源码"
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "已复制" : "复制"}
+          </button>
+          <button
+            onClick={openInTab}
+            title="新窗口打开"
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> 新窗口
+          </button>
+          <button
+            onClick={onClose}
+            title="关闭预览"
+            className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {jsxLike && (
+        <p className="border-b border-amber-100 bg-amber-50 px-5 py-2 text-[11.5px] text-amber-700">
+          JSX/React 源码无法在浏览器直接运行——请在对话中让 AI「输出纯 HTML 版本」即可在这里实时预览。
+        </p>
+      )}
+
+      <div className="min-h-0 flex-1 bg-[#f5f2ee] p-3">
+        <iframe
+          key={runId}
+          title="AI 代码沙箱预览"
+          sandbox="allow-scripts allow-modals allow-forms allow-popups"
+          srcDoc={html}
+          className="h-full w-full rounded-xl border border-stone-200 bg-white shadow-inner"
+        />
+      </div>
+    </div>
   );
 }

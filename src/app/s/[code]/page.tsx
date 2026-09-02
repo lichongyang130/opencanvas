@@ -1,88 +1,162 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { encodeCaseShare } from "@/lib/case-share";
-import type { CaseShareRecord } from "@/lib/db/repo";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, MessageCircle, Sparkles, X } from "lucide-react";
+import { useChatStore } from "@/lib/store/chat";
+import { toast } from "@/lib/store/toast";
+import { Toaster } from "@/components/Toaster";
 
-export default function SharePage() {
-  const { code } = useParams<{ code: string }>();
-  const [rec, setRec] = useState<CaseShareRecord | null>(null);
-  const [err, setErr] = useState("");
-  const [copied, setCopied] = useState(false);
+interface SharedAgent {
+  id: string;
+  name: string;
+  desc: string;
+  category: string;
+  emoji: string;
+  system: string;
+  starter: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export default function ShareAgentPage({ params }: { params: { code: string } }) {
+  const router = useRouter();
+  const { startAgent, hydrated } = useChatStore();
+  const [agent, setAgent] = useState<SharedAgent | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
 
   useEffect(() => {
-    if (!code) return;
-    fetch(`/api/cases/share/${code}`)
+    fetch(`/api/agents/share/${params.code}`)
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "加载失败");
-        setRec((await r.json()) as CaseShareRecord);
+        if (!r.ok) throw new Error("missing");
+        const data = (await r.json()) as { agent?: SharedAgent };
+        if (!data.agent) throw new Error("missing");
+        setAgent(data.agent);
+        setState("ok");
       })
-      .catch((e) => setErr(e instanceof Error ? e.message : "加载失败"));
-  }, [code]);
+      .catch(() => setState("missing"));
+  }, [params.code]);
 
-  if (err)
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-stone-50 p-6 text-stone-500">
-        {err}
-      </main>
-    );
-  if (!rec)
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-stone-50 text-stone-400">
-        加载中…
-      </main>
-    );
-
-  const shareCode = encodeCaseShare({ templateId: rec.templateId, label: rec.label, values: rec.values });
+  const handleUse = async () => {
+    if (!agent) return;
+    await startAgent({
+      id: agent.id,
+      name: agent.name,
+      emoji: agent.emoji,
+      system: agent.system,
+      starter: agent.starter,
+      builtin: false,
+    });
+    toast(`已载入「${agent.name}」，开始对话吧`, "success");
+    router.push("/chat");
+  };
 
   return (
-    <main className="min-h-screen bg-stone-50 px-4 py-10">
-      <div className="mx-auto max-w-2xl space-y-4">
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <p className="mb-1 text-xs text-stone-400">真实案例分享 · {rec.source ?? ""}</p>
-          <h1 className="text-lg font-bold text-stone-800">{rec.label || "提示词案例"}</h1>
+    <div className="flex min-h-screen flex-col bg-[var(--oc-bg)] text-stone-800">
+      {/* 顶栏 */}
+      <header className="flex items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-[17px] text-white shadow-sm">
+            {agent?.emoji ?? "🤖"}
+          </span>
+          <div>
+            <p className="text-[15px] font-semibold text-stone-900">OpenCanvas</p>
+            <p className="text-[11px] text-stone-400">共享智能体</p>
+          </div>
         </div>
+        <button
+          onClick={() => router.push("/agents")}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] text-stone-500 transition hover:bg-white hover:text-stone-700"
+        >
+          <ArrowLeft className="h-4 w-4" /> 返回智能体中心
+        </button>
+      </header>
 
-        {rec.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={rec.image} alt={rec.label} className="w-full rounded-2xl shadow-sm" />
-        ) : (
-          <div className="rounded-2xl bg-stone-900 p-5">
-            <p className="mb-2 text-xs text-stone-400">真实输出（节选）</p>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-100">{rec.output}</p>
+      <main className="flex flex-1 items-start justify-center px-6 py-10">
+        {state === "loading" && (
+          <div className="mt-20 flex flex-col items-center text-stone-400">
+            <Sparkles className="h-6 w-6 animate-pulse text-[var(--oc-brand-border)]" />
+            <p className="mt-3 text-[13px]">正在加载共享智能体…</p>
           </div>
         )}
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <p className="mb-2 text-xs font-medium text-stone-400">对应的真实提示词</p>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-700">{rec.prompt}</p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <p className="mb-2 text-sm font-semibold text-stone-700">做同款</p>
-          <p className="mb-3 text-xs text-stone-500">
-            复制下面的「做同款码」，在 OpenCanvas 提示词库点「导入」粘贴，即可把这套参数填入输入框（不自动发送）。
-          </p>
-          <div className="flex gap-2">
-            <code className="flex-1 truncate rounded-lg bg-stone-100 px-3 py-2 text-xs text-stone-600">{shareCode}</code>
+        {state === "missing" && (
+          <div className="mt-20 flex w-full max-w-md flex-col items-center rounded-2xl border border-[var(--oc-border)] bg-white px-8 py-14 text-center shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 text-stone-400">
+              <X className="h-6 w-6" />
+            </span>
+            <p className="mt-4 text-[15px] font-semibold text-stone-700">分享不存在或已失效</p>
+            <p className="mt-1.5 text-[12.5px] text-stone-400">该智能体可能已被作者删除或取消了分享</p>
             <button
-              onClick={() => {
-                navigator.clipboard?.writeText(shareCode).then(
-                  () => setCopied(true),
-                  () => setCopied(false)
-                );
-              }}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+              onClick={() => router.push("/agents")}
+              className="mt-5 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 px-5 py-2 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105"
             >
-              {copied ? "已复制" : "复制做同款码"}
+              去智能体中心看看
             </button>
           </div>
-          <a href="/" className="mt-3 inline-block text-xs text-brand-600 hover:underline">
-            打开 OpenCanvas →
-          </a>
-        </div>
-      </div>
-    </main>
+        )}
+
+        {state === "ok" && agent && (
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--oc-border)] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+            {/* 头部 */}
+            <div className="relative bg-gradient-to-br from-[var(--oc-brand-tint)] to-[var(--oc-bg)] px-7 pb-6 pt-7">
+              <div className="flex items-center gap-4">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-[34px] shadow-sm">
+                  {agent.emoji}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[17px] font-semibold text-stone-900">{agent.name}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-emerald-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 已共享 · 随时可用
+                  </p>
+                  <span className="mt-1.5 inline-block rounded-md bg-[var(--oc-brand-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--oc-brand)]">
+                    {agent.category}
+                  </span>
+                </div>
+              </div>
+              <p className="mt-4 text-[13px] leading-6 text-stone-600">{agent.desc || "一个被分享的 AI 智能体"}</p>
+            </div>
+
+            {/* 内容 */}
+            <div className="space-y-4 px-7 py-5">
+              {agent.system && (
+                <div>
+                  <p className="text-[12.5px] font-semibold text-stone-700">它如何工作</p>
+                  <p className="mt-1.5 whitespace-pre-wrap rounded-xl border border-[var(--oc-border-soft)] bg-[var(--oc-hover)] px-3.5 py-3 text-[12.5px] leading-5 text-stone-500">
+                    {agent.system}
+                  </p>
+                </div>
+              )}
+              {agent.starter && (
+                <div>
+                  <p className="text-[12.5px] font-semibold text-stone-700">开场白</p>
+                  <p className="mt-1.5 rounded-xl border border-[var(--oc-border-soft)] bg-[var(--oc-hover)] px-3.5 py-3 text-[12.5px] text-stone-600">
+                    “{agent.starter}”
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 底部操作 */}
+            <div className="flex items-center gap-2 border-t border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-7 py-4">
+              <button
+                onClick={() => router.push("/agents")}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--oc-border)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-[var(--oc-brand-border)]"
+              >
+                查看全部智能体
+              </button>
+              <button
+                onClick={() => void handleUse()}
+                disabled={!hydrated}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105 disabled:opacity-60"
+              >
+                <MessageCircle className="h-4 w-4" /> 立即使用
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+      <Toaster />
+    </div>
   );
 }

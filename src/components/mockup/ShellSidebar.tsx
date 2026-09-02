@@ -57,7 +57,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
   /* ────────── 收起态：仅图标栏 ────────── */
   if (collapsed) {
     return (
-      <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[#efe9dd] bg-white py-2">
+      <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-white py-2">
         <button
           onClick={() => router.push("/")}
           title="AI 对话"
@@ -88,7 +88,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
                 onClick={() => go(item.route, true)}
                 className={
                   isActive
-                    ? "flex h-10 w-10 items-center justify-center rounded-xl bg-[#fdeee1] text-[#c05f3c]"
+                    ? "flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--oc-brand-hover)] text-[var(--oc-brand)]"
                     : "flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
                 }
               >
@@ -104,7 +104,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
         <button
           title="会员中心"
           onClick={() => router.push("/membership")}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-100 transition hover:border-[#c05f3c]"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-100 transition hover:border-[var(--oc-brand)]"
         >
           <Image
             src="/avatar.png"
@@ -120,7 +120,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
 
   /* ────────── 展开态：完整侧栏 ────────── */
   return (
-    <aside className="flex w-[236px] shrink-0 flex-col border-r border-[#efe9dd] bg-white">
+    <aside className="flex w-[236px] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-white">
       {/* 顶部 Logo */}
       <div className="flex items-center justify-between px-3 py-4 pl-5">
         <button
@@ -151,7 +151,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
               onClick={() => go(item.route)}
               className={
                 isActive
-                  ? "flex items-center gap-2.5 rounded-xl bg-[#fdeee1] px-3.5 py-2.5 text-[14px] font-medium text-[#c05f3c]"
+                  ? "flex items-center gap-2.5 rounded-xl bg-[var(--oc-brand-hover)] px-3.5 py-2.5 text-[14px] font-medium text-[var(--oc-brand)]"
                   : "flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
               }
             >
@@ -186,7 +186,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
           ))}
           <button
             onClick={() => router.push("/chat")}
-            className="mt-1 flex items-center gap-1 px-2 text-xs text-stone-400 transition hover:text-[#c05f3c]"
+            className="mt-1 flex items-center gap-1 px-2 text-xs text-stone-400 transition hover:text-[var(--oc-brand)]"
           >
             查看全部历史记录 <span aria-hidden>→</span>
           </button>
@@ -208,7 +208,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
           />
           <span className="flex min-w-0 flex-1 flex-col items-start">
             <span className="text-[13.5px] font-medium text-stone-800">Alex Chen</span>
-            <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-[#fdeee1] px-1.5 py-px text-[10px] font-medium text-[#c05f3c]">
+            <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-[var(--oc-brand-hover)] px-1.5 py-px text-[10px] font-medium text-[var(--oc-brand)]">
               <Sparkles className="h-2.5 w-2.5" /> 专业版
             </span>
           </span>

@@ -51,6 +51,14 @@ export async function POST(req: Request) {
         controller.enqueue(
           sse({ type: "usage", credits: result.credits, costUsd: result.costUsd })
         );
+        // 真实计费扣积分（demo 模型 costUsd=0，credits=0，自动跳过）
+        if (result.credits > 0) {
+          try {
+            (await import("@/lib/db/repo")).repo.addCredits(-result.credits, "AI 对话");
+          } catch {
+            /* 数据库不可用时忽略 */
+          }
+        }
       } catch (err) {
         controller.enqueue(
           sse({ type: "error", message: err instanceof Error ? err.message : "未知错误" })

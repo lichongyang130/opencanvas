@@ -24,6 +24,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     report?: unknown;
     doc?: unknown;
     personaId?: string | null;
+    personaSystem?: string | null;
+    codePreview?: unknown;
     archived?: boolean;
     pinned?: boolean;
   };
@@ -50,7 +52,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     body.images !== undefined ||
     body.report !== undefined ||
     body.doc !== undefined ||
-    body.personaId !== undefined
+    body.personaId !== undefined ||
+    body.personaSystem !== undefined ||
+    body.codePreview !== undefined
   ) {
     repo.upsertConversation({
       id: params.id,
@@ -63,6 +67,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       report: body.report,
       doc: body.doc,
       personaId: body.personaId,
+      personaSystem: body.personaSystem,
+      codePreview: body.codePreview,
     });
   }
   return Response.json({ ok: true });

@@ -88,3 +88,10 @@ DASHSCOPE_API_KEY=sk-...
 - 第 2 阶段：Deep Research（LangGraph + 任务队列）、Stripe/微信支付、认证、积分系统落库
 - 第 3 阶段：视频生成、Agent 素材包模板、品牌中心、代码沙箱
 - 第 4 阶段：自定义工作流、团队协作、API 开放平台
+
+## 本轮更新（2026-09-02）：占位清零 · 全站真实化 · 深色模式
+
+- ✅ **P0** 文件上传解析+文档中心；模板中心接真+一键运行；智能体 CRUD+分享
+- ✅ **P1** 知识库本地 RAG（检索命中/引用回答）；工具箱真实执行；通知中心
+- ✅ **P2** 代码沙箱（iframe 运行 AI 生成 HTML）；本地积分中心（真实账本）；全局深色模式
+- 📋 详见 [`docs/REAL_FEATURES.md`](docs/REAL_FEATURES.md)（进度清单）、[`docs/CHANGELOG.md`](docs/CHANGELOG.md)、[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)

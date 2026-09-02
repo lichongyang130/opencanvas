@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   Check,
@@ -9,6 +9,7 @@ import {
   ImageIcon,
   Loader2,
   Mail,
+  MonitorPlay,
   Presentation,
   Search,
   Send,
@@ -17,6 +18,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
+import { extractPageHtml } from "@/lib/code";
 import { Markdown } from "./Markdown";
 import { PersonaPicker } from "./PersonaPicker";
 import { ModelSelector } from "./ModelSelector";
@@ -161,6 +163,7 @@ const HOME_CARDS: {
 
 function MessageBubble({ m }: { m: UIMessage }) {
   const [copied, setCopied] = useState(false);
+  const { setCodePreview } = useChatStore();
   const copy = () => {
     navigator.clipboard?.writeText(m.content).then(
       () => {
@@ -172,6 +175,8 @@ function MessageBubble({ m }: { m: UIMessage }) {
     );
   };
   const isUser = m.role === "user";
+  // 从 AI 回复中提取可运行的 HTML 页面
+  const pageHtml = useMemo(() => (m.role === "assistant" ? extractPageHtml(m.content) : null), [m.content, m.role]);
 
   return (
     <div className={cn("group/msg flex", isUser ? "justify-end" : "justify-start")}>
@@ -199,10 +204,19 @@ function MessageBubble({ m }: { m: UIMessage }) {
         {!m.streaming && m.content && (
           <div
             className={cn(
-              "mt-1.5 flex justify-end opacity-0 transition group-hover/msg:opacity-100",
+              "mt-1.5 flex justify-end gap-1 opacity-0 transition group-hover/msg:opacity-100",
               isUser && "justify-start"
             )}
           >
+            {!isUser && pageHtml && (
+              <button
+                onClick={() => setCodePreview(pageHtml.html, pageHtml.lang)}
+                title="在右侧沙箱中运行预览"
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-emerald-600 transition hover:bg-emerald-50"
+              >
+                <MonitorPlay className="h-3 w-3" /> 运行预览
+              </button>
+            )}
             <button
               onClick={copy}
               title="复制"
@@ -243,7 +257,9 @@ function SplitComposer({
   slashIdx,
   setSlashIdx,
   runSlash,
+  sendKey,
 }: {
+  sendKey: "enter" | "ctrlEnter";
   input: string;
   setInput: (v: string | ((prev: string) => string)) => void;
   inputRef: React.Ref<HTMLTextAreaElement>;
@@ -272,12 +288,12 @@ function SplitComposer({
   };
 
   return (
-    <div className="rounded-2xl border border-[#e8ddca] bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-[var(--oc-border-strong)] bg-white shadow-sm overflow-hidden">
       <div className="flex min-h-[160px]">
         {/* ──── 左侧能力区 (约 38%) ──── */}
-        <div className="flex w-[38%] shrink-0 flex-col border-r border-[#e8ddca] bg-[#faf6ee]">
+        <div className="flex w-[38%] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-[var(--oc-bg)]">
           {/* 分类标签栏 */}
-          <div className="flex items-center gap-0 border-b border-[#e8ddca] px-2 py-1.5">
+          <div className="flex items-center gap-0 border-b border-[var(--oc-border-strong)] px-2 py-1.5">
             {CAPABILITIES.map((cat) => (
               <button
                 key={cat.id}
@@ -418,13 +434,17 @@ function SplitComposer({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
+                const isSend =
+                  sendKey === "ctrlEnter"
+                    ? e.key === "Enter" && !e.shiftKey && (e.ctrlKey || e.metaKey)
+                    : e.key === "Enter" && !e.shiftKey;
                 if (slashMatches && slashMatches.length > 0) {
                   if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx((i) => (i + 1) % slashMatches.length); return; }
                   if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length); return; }
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]); return; }
+                  if (isSend) { e.preventDefault(); runSlash(slashMatches[Math.min(slashIdx, slashMatches.length - 1)]); return; }
                   if (e.key === "Escape") { e.preventDefault(); setInput(""); return; }
                 }
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+                if (isSend) { e.preventDefault(); submit(); }
               }}
               rows={3}
               placeholder={
@@ -491,6 +511,7 @@ function SplitComposer({
 export function ChatPanel() {
   const { conversations, activeId, send, sending, stopGeneration, model, setModel } = useChatStore();
   const pendingInput = useChatStore((s) => s.pendingInput);
+  const sendKey = useChatStore((s) => s.sendKey);
   const convo = conversations.find((c) => c.id === activeId);
   const [input, setInput] = useState("");
   const [imgSize, setImgSize] = useState("1024x1024");
@@ -648,7 +669,7 @@ export function ChatPanel() {
               <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#4a2e1d] md:text-4xl">
                 欢迎回来，今天想做点什么？
               </h1>
-              <p className="mt-2 text-sm text-[#8a7a66]">用 AI 把想法变成现实。</p>
+              <p className="mt-2 text-sm text-[var(--oc-muted-text)]">用 AI 把想法变成现实。</p>
 
               {/* E5 分体式输入舱 */}
               <div className="mx-auto mt-8 max-w-3xl">
@@ -670,12 +691,13 @@ export function ChatPanel() {
                   slashIdx={slashIdx}
                   setSlashIdx={setSlashIdx}
                   runSlash={runSlash}
+                  sendKey={sendKey}
                 />
               </div>
               <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行 · 点击左侧能力卡片快速开始</p>
 
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                <span className="text-sm text-[#8a7a66]">试试：</span>
+                <span className="text-sm text-[var(--oc-muted-text)]">试试：</span>
                 {HOME_CARDS.slice(0, 4).map((q) => (
                   <button
                     key={q.title}
@@ -684,7 +706,7 @@ export function ChatPanel() {
                       setInput(q.prompt);
                       setTimeout(() => inputRef.current?.focus(), 0);
                     }}
-                    className="rounded-full border border-[#e3d8c6] bg-white px-3.5 py-1.5 text-sm text-[#6b5b48] transition hover:border-[#c05f3c] hover:text-[#c05f3c]"
+                    className="rounded-full border border-[var(--oc-border-strong)] bg-white px-3.5 py-1.5 text-sm text-[#6b5b48] transition hover:border-[var(--oc-brand)] hover:text-[var(--oc-brand)]"
                   >
                     {q.title}
                   </button>
@@ -718,7 +740,7 @@ export function ChatPanel() {
 
       {/* 对话中底部的分体式输入舱 */}
       {messages.length > 0 && (
-        <div className="border-t border-[#e8ddca] bg-[#fdfaf3] px-6 py-3">
+        <div className="border-t border-[var(--oc-border-strong)] bg-[var(--oc-bg)] px-6 py-3">
           <div className="mx-auto w-full max-w-3xl">
             <SplitComposer
               input={input}
@@ -738,6 +760,7 @@ export function ChatPanel() {
               slashIdx={slashIdx}
               setSlashIdx={setSlashIdx}
               runSlash={runSlash}
+              sendKey={sendKey}
             />
           </div>
         </div>

@@ -16,11 +16,15 @@ export async function POST(req: Request) {
     model?: string;
     overrides?: ProviderOverrides;
     tavilyKey?: string;
+    depth?: "basic" | "advanced";
+    maxResults?: number;
   };
   const topic = (body.topic ?? "").trim();
   if (!topic) {
     return new Response(JSON.stringify({ error: "topic 不能为空" }), { status: 400 });
   }
+  const depth = body.depth === "basic" ? "basic" : "advanced";
+  const maxResults = body.maxResults === 5 || body.maxResults === 8 ? body.maxResults : 6;
 
   const modelId = body.model ?? "demo";
   const { providerId } = resolveModel(modelId, null);
@@ -41,6 +45,8 @@ export async function POST(req: Request) {
           model: useModel,
           overrides: body.overrides,
           tavilyKey: body.tavilyKey,
+          depth,
+          maxResults,
           onProgress: (message) => send({ type: "status", message }),
         });
         send({ type: "report", report });

@@ -36,7 +36,7 @@ function formatTime(ts: number) {
 
 /** 会话历史面板：搜索 + 列表 + 升级方案（对应 04 三栏工作台左栏） */
 export function HistoryPanel() {
-  const { conversations, activeId, selectConversation, newConversation } = useChatStore();
+  const { conversations, activeId, selectConversation, newConversation, historyLimit } = useChatStore();
   const [query, setQuery] = useState("");
 
   const list = useMemo(() => {
@@ -44,15 +44,15 @@ export function HistoryPanel() {
     return conversations
       .filter((c) => !c.archived)
       .filter((c) => !q || c.title.toLowerCase().includes(q))
-      .slice(0, 50);
-  }, [conversations, query]);
+      .slice(0, historyLimit);
+  }, [conversations, query, historyLimit]);
 
   const startNew = () => {
-    void newConversation("chat").then((id) => selectConversation(id));
+    void newConversation().then((id) => selectConversation(id));
   };
 
   return (
-    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-[#e8ddca] bg-[#fbf7ef] md:flex">
+    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-[var(--oc-bg)] md:flex">
       {/* 标题 */}
       <div className="flex items-center justify-between px-4 pb-1 pt-4">
         <h2 className="text-[15px] font-semibold text-stone-800">对话历史</h2>
@@ -127,7 +127,7 @@ export function HistoryPanel() {
       <div className="border-t border-[#eee4d3] p-3">
         <button
           onClick={() => toast("专业版即将上线，敬请期待", "info")}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e3d8c6] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-brand-600"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oc-border-strong)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-brand-600"
         >
           <Sparkles className="h-4 w-4 text-orange-500" />
           升级方案

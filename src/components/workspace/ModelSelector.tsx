@@ -53,6 +53,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
   const [fetchError, setFetchError] = useState<string>("");
   const [q, setQ] = useState("");
   const setSettingsOpen = useChatStore((s) => s.setSettingsOpen);
+  const setSettingsTab = useChatStore((s) => s.setSettingsTab);
   const ref = useRef<HTMLDivElement>(null);
 
   const reload = () => {
@@ -244,6 +245,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
           <button
             onClick={() => {
               setOpen(false);
+              setSettingsTab("models");
               setSettingsOpen(true);
             }}
             className="flex w-full items-center gap-2 border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"

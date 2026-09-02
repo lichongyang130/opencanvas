@@ -2,13 +2,29 @@
 
 import { create } from "zustand";
 import { MODELS, resolveModel } from "@/lib/gateway/models";
-import { getOverrides, loadTavilyKey, serverProviderStatus } from "@/lib/settings";
+import {
+  getOverrides,
+  loadTavilyKey,
+  loadPrefs,
+  savePrefs,
+  loadDynamicModels,
+  serverProviderStatus,
+  type CanvasWidth,
+  type SendKey,
+  type ResearchDepth,
+  type HistoryLimit,
+  type ResearchMaxResults,
+  type ThemeMode,
+} from "@/lib/settings";
 import { toast } from "./toast";
 import type { SlideDeck, ThemeId } from "@/lib/slides/types";
 import type { ResearchReport } from "@/lib/research/types";
 import { getPersona } from "@/lib/personas";
 
 export type WorkspaceMode = "chat" | "research" | "slides" | "image" | "video" | "docs";
+
+/** 设置中心分页 */
+export type SettingsTab = "general" | "models" | "network" | "data" | "about";
 
 export interface UIMessage {
   id: string;
@@ -52,8 +68,12 @@ export interface Conversation {
   researchMessage?: string;
   archived?: boolean;
   pinned?: boolean;
-  /** 绑定的 AI 角色 id（personas.ts） */
+  /** 绑定的 AI 角色 id（personas.ts；自定义智能体为 custom:<agentId>） */
   personaId?: string;
+  /** 自定义智能体的 system prompt（内置智能体为空，运行时经 personaId 查 personas.ts） */
+  personaSystem?: string;
+  /** 代码沙箱：AI 生成的 HTML 页面预览 */
+  codePreview?: { html: string; lang: string; createdAt: number } | null;
   createdAt: number;
 }
 
@@ -106,6 +126,36 @@ interface ChatState {
   /** 产物画布是否展开 */
   artifactOpen: boolean;
   setArtifactOpen: (v: boolean) => void;
+  /** 设置中心当前分页 */
+  settingsTab: SettingsTab;
+  setSettingsTab: (t: SettingsTab) => void;
+  /** 生成产物后是否自动展开画布 */
+  autoOpenArtifact: boolean;
+  setAutoOpenArtifact: (v: boolean) => void;
+  /** 新建任务默认模式 */
+  defaultMode: WorkspaceMode;
+  setDefaultMode: (m: WorkspaceMode) => void;
+  /** 新建任务默认模型 */
+  defaultModel: string;
+  setDefaultModel: (id: string) => void;
+  /** 右侧产物画布宽度 */
+  canvasWidth: CanvasWidth;
+  setCanvasWidth: (w: CanvasWidth) => void;
+  /** 历史列表显示条数 */
+  historyLimit: HistoryLimit;
+  setHistoryLimit: (n: HistoryLimit) => void;
+  /** 发送消息按键 */
+  sendKey: SendKey;
+  setSendKey: (k: SendKey) => void;
+  /** 深度研究搜索深度 */
+  researchDepth: ResearchDepth;
+  setResearchDepth: (d: ResearchDepth) => void;
+  /** 每次搜索来源数 */
+  researchMaxResults: ResearchMaxResults;
+  setResearchMaxResults: (n: ResearchMaxResults) => void;
+  /** 外观主题（system/light/dark） */
+  theme: ThemeMode;
+  setTheme: (t: ThemeMode) => void;
   stopGeneration: () => void;
   hydrate: () => Promise<void>;
   runTemplate: (t: { mode: WorkspaceMode; prompt: string }) => Promise<void>;
@@ -127,6 +177,15 @@ interface ChatState {
   setMode: (mode: WorkspaceMode) => void;
   /** 为当前会话设置/取消 AI 角色（null = 默认） */
   setPersona: (id: string | null) => void;
+  /** 以自定义/内置智能体开启新对话，回到 /chat 并预填开场白 */
+  startAgent: (a: {
+    id: string;
+    name: string;
+    emoji: string;
+    system: string;
+    starter?: string;
+    builtin?: boolean;
+  }) => Promise<void>;
   send: (text: string) => Promise<void>;
   generateSlides: (topic: string, context?: string) => Promise<void>;
   generateImage: (prompt: string, size: string) => Promise<void>;
@@ -135,6 +194,8 @@ interface ChatState {
   reportToSlides: () => Promise<void>;
   reportToDoc: () => Promise<void>;
   setDoc: (doc: UIDoc) => void;
+  /** 代码沙箱：设置/清除当前会话的 HTML 预览 */
+  setCodePreview: (html: string | null, lang?: string) => void;
   aiDoc: (op: "continue" | "polish" | "shorten" | "expand" | "fix", selection?: string) => Promise<void>;
   docBusy: boolean;
   addImages: (images: UIImage[]) => void;
@@ -214,12 +275,63 @@ export const useChatStore = create<ChatState>((set, get) => {
     sending: false,
     hydrated: false,
     settingsOpen: false,
-    artifactOpen: true,
+    settingsTab: "general",
     docBusy: false,
     pendingInput: null,
+    // 界面偏好不在模块顶层读取（SSR 无 localStorage），hydrate 时再加载
+    artifactOpen: true,
+    autoOpenArtifact: true,
+    defaultMode: "chat",
+    defaultModel: "demo",
+    canvasWidth: "standard",
+    historyLimit: 50,
+    sendKey: "enter",
+    researchDepth: "advanced",
+    researchMaxResults: 6,
+    theme: "system",
 
     setSettingsOpen: (v) => set({ settingsOpen: v }),
-    setArtifactOpen: (v) => set({ artifactOpen: v }),
+    setSettingsTab: (t) => set({ settingsTab: t }),
+    setArtifactOpen: (v) => {
+      set({ artifactOpen: v });
+      savePrefs({ artifactOpen: v });
+    },
+    setAutoOpenArtifact: (v) => {
+      set({ autoOpenArtifact: v });
+      savePrefs({ autoOpenArtifact: v });
+    },
+    setDefaultMode: (m) => {
+      set({ defaultMode: m });
+      savePrefs({ defaultMode: m });
+    },
+    setDefaultModel: (id) => {
+      set({ defaultModel: id });
+      savePrefs({ defaultModel: id });
+    },
+    setCanvasWidth: (w) => {
+      set({ canvasWidth: w });
+      savePrefs({ canvasWidth: w });
+    },
+    setHistoryLimit: (n) => {
+      set({ historyLimit: n });
+      savePrefs({ historyLimit: n });
+    },
+    setSendKey: (k) => {
+      set({ sendKey: k });
+      savePrefs({ sendKey: k });
+    },
+    setResearchDepth: (d) => {
+      set({ researchDepth: d });
+      savePrefs({ researchDepth: d });
+    },
+    setResearchMaxResults: (n) => {
+      set({ researchMaxResults: n });
+      savePrefs({ researchMaxResults: n });
+    },
+    setTheme: (t) => {
+      set({ theme: t });
+      savePrefs({ theme: t });
+    },
 
     stopGeneration: () => {
       activeAbort?.abort();
@@ -278,6 +390,8 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     hydrate: async () => {
       if (get().hydrated) return;
+      // 界面偏好只存在于浏览器，此时再读取（避免 SSR 无 localStorage 崩溃）
+      set(loadPrefs());
       try {
         const data = await api<{ conversations: Array<Record<string, unknown>> }>(
           "/api/conversations?archived=all"
@@ -298,6 +412,8 @@ export const useChatStore = create<ChatState>((set, get) => {
           doc: (c.doc as UIDoc) ?? undefined,
           archived: Boolean(c.archived),
           personaId: (c.personaId as string) ?? undefined,
+          personaSystem: (c.personaSystem as string) ?? undefined,
+          codePreview: (c.codePreview as Conversation["codePreview"]) ?? undefined,
           pinned: Boolean(c.pinned),
           createdAt: (c.createdAt as number) ?? Date.now(),
         }));
@@ -337,8 +453,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    newConversation: async (mode = "chat") => {
-      const convo = createConversation(mode, get().model);
+    newConversation: async (mode: WorkspaceMode = get().defaultMode) => {
+      // 默认模型：设置中指定的 id 生效时使用，否则沿用当前模型
+      const preferred = get().defaultModel;
+      const dynamicIds = Object.values(loadDynamicModels()).flat();
+      const model = MODELS.some((m) => m.id === preferred) || dynamicIds.includes(preferred) ? preferred : get().model;
+      const convo = createConversation(mode, model);
       set((s) => ({ conversations: [convo, ...s.conversations], activeId: convo.id, model: convo.model }));
       await api("/api/conversations", {
         method: "POST",
@@ -473,6 +593,27 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (!activeId) return;
       patchConvo(activeId, { personaId: id || undefined });
       persistConvo(activeId, { personaId: id || null });
+    },
+
+    startAgent: async (a) => {
+      const id = await get().newConversation("chat");
+      await get().selectConversation(id);
+      const personaId = a.builtin ? a.id : `custom:${a.id}`;
+      const patch = {
+        title: a.name,
+        personaId,
+        personaSystem: a.builtin ? undefined : a.system,
+      };
+      patchConvo(id, patch);
+      persistConvo(id, {
+        title: a.name,
+        personaId,
+        personaSystem: a.builtin ? null : a.system,
+      });
+      if (a.starter) {
+        set((s) => ({ pendingInput: { text: a.starter!, nonce: (s.pendingInput?.nonce ?? 0) + 1 } }));
+      }
+      toast(`已创建「${a.name}」智能体对话`, "success");
     },
 
     addImages: (images) => {
@@ -612,8 +753,9 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({ sending: true });
 
       // AI 角色 system prompt（叠加在模式提示词之后）
-      let personaSystem = "";
-      if (current.personaId) {
+      // 自定义智能体直接用会话内保存的 personaSystem；内置智能体按 personaId 查 personas.ts
+      let personaSystem = current.personaSystem ?? "";
+      if (current.personaId && !personaSystem) {
         const persona = getPersona(current.personaId);
         if (persona?.system) personaSystem = persona.system;
       }
@@ -876,6 +1018,8 @@ export const useChatStore = create<ChatState>((set, get) => {
             provider: current.modelProvider ?? undefined,
             overrides: getOverrides(),
             tavilyKey: loadTavilyKey(),
+            depth: get().researchDepth,
+            maxResults: get().researchMaxResults,
           }),
           signal: researchController.signal,
         });
@@ -968,6 +1112,14 @@ export const useChatStore = create<ChatState>((set, get) => {
       patchConvo(activeId, { doc: next });
       if (docPersistTimer) clearTimeout(docPersistTimer);
       docPersistTimer = setTimeout(() => persistConvo(activeId, { doc: next }), 600);
+    },
+
+    setCodePreview: (html, lang = "html") => {
+      const { activeId } = get();
+      if (!activeId) return;
+      const next = html ? { html, lang, createdAt: Date.now() } : null;
+      patchConvo(activeId, { codePreview: next });
+      persistConvo(activeId, { codePreview: next });
     },
 
     reportToDoc: async () => {

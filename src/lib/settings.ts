@@ -1,9 +1,109 @@
 "use client";
 
 import type { ProviderId, ProviderOverrides } from "@/lib/gateway";
+import type { WorkspaceMode } from "@/lib/store/chat";
 
 const STORAGE_KEY = "opencanvas.provider.settings.v1";
 const MODELS_KEY = "opencanvas.dynamic.models.v1";
+const PREFS_KEY = "opencanvas.ui.prefs.v1";
+
+/* ────────────────────────── 界面偏好（本地） ────────────────────────── */
+
+export type CanvasWidth = "narrow" | "standard" | "wide";
+export type SendKey = "enter" | "ctrlEnter";
+export type ResearchDepth = "basic" | "advanced";
+export type HistoryLimit = 20 | 50 | 100;
+export type ResearchMaxResults = 5 | 6 | 8;
+export type ThemeMode = "system" | "light" | "dark";
+
+export interface UIPrefs {
+  /** 进入工作台时默认展开右侧产物画布 */
+  artifactOpen: boolean;
+  /** AI 产出新内容时自动展开右侧画布 */
+  autoOpenArtifact: boolean;
+  /** 新建任务的默认模式 */
+  defaultMode: WorkspaceMode;
+  /** 新建任务的默认模型 id（无效时回退到当前模型） */
+  defaultModel: string;
+  /** 右侧产物画布宽度 */
+  canvasWidth: CanvasWidth;
+  /** 历史列表显示条数 */
+  historyLimit: HistoryLimit;
+  /** 发送消息按键 */
+  sendKey: SendKey;
+  /** 深度研究搜索深度 */
+  researchDepth: ResearchDepth;
+  /** 每次搜索返回来源数 */
+  researchMaxResults: ResearchMaxResults;
+  /** 外观主题 */
+  theme: ThemeMode;
+}
+
+const DEFAULT_PREFS: UIPrefs = {
+  artifactOpen: true,
+  autoOpenArtifact: true,
+  defaultMode: "chat",
+  defaultModel: "demo",
+  canvasWidth: "standard",
+  historyLimit: 50,
+  sendKey: "enter",
+  researchDepth: "advanced",
+  researchMaxResults: 6,
+  theme: "system",
+};
+
+const MODE_IDS: WorkspaceMode[] = ["chat", "research", "slides", "image", "video", "docs"];
+
+export function loadPrefs(): UIPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return { ...DEFAULT_PREFS };
+    const p = JSON.parse(raw) as Partial<UIPrefs>;
+    return {
+      artifactOpen: typeof p.artifactOpen === "boolean" ? p.artifactOpen : DEFAULT_PREFS.artifactOpen,
+      autoOpenArtifact: typeof p.autoOpenArtifact === "boolean" ? p.autoOpenArtifact : DEFAULT_PREFS.autoOpenArtifact,
+      defaultMode: MODE_IDS.includes(p.defaultMode as WorkspaceMode)
+        ? (p.defaultMode as WorkspaceMode)
+        : DEFAULT_PREFS.defaultMode,
+      defaultModel: typeof p.defaultModel === "string" && p.defaultModel ? p.defaultModel : DEFAULT_PREFS.defaultModel,
+      canvasWidth: (["narrow", "standard", "wide"] as CanvasWidth[]).includes(p.canvasWidth as CanvasWidth)
+        ? (p.canvasWidth as CanvasWidth)
+        : DEFAULT_PREFS.canvasWidth,
+      historyLimit: ([20, 50, 100] as number[]).includes(p.historyLimit as number)
+        ? (p.historyLimit as HistoryLimit)
+        : DEFAULT_PREFS.historyLimit,
+      sendKey: (["enter", "ctrlEnter"] as SendKey[]).includes(p.sendKey as SendKey)
+        ? (p.sendKey as SendKey)
+        : DEFAULT_PREFS.sendKey,
+      researchDepth: (["basic", "advanced"] as ResearchDepth[]).includes(p.researchDepth as ResearchDepth)
+        ? (p.researchDepth as ResearchDepth)
+        : DEFAULT_PREFS.researchDepth,
+      researchMaxResults: ([5, 6, 8] as number[]).includes(p.researchMaxResults as number)
+        ? (p.researchMaxResults as ResearchMaxResults)
+        : DEFAULT_PREFS.researchMaxResults,
+      theme: (["system", "light", "dark"] as ThemeMode[]).includes(p.theme as ThemeMode)
+        ? (p.theme as ThemeMode)
+        : DEFAULT_PREFS.theme,
+    };
+  } catch {
+    return { ...DEFAULT_PREFS };
+  }
+}
+
+export function savePrefs(patch: Partial<UIPrefs>): UIPrefs {
+  const next = { ...loadPrefs(), ...patch };
+  localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent("opencanvas:settings-changed"));
+  return next;
+}
+
+/** 清除所有本地配置（密钥、动态模型、界面偏好） */
+export function clearLocalConfig(): void {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(MODELS_KEY);
+  localStorage.removeItem(PREFS_KEY);
+  window.dispatchEvent(new CustomEvent("opencanvas:settings-changed"));
+}
 
 export interface DynamicModel {
   id: string;
