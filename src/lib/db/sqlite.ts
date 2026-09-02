@@ -29,8 +29,23 @@ export function getDb(): DatabaseSync {
       images     TEXT,
       archived   INTEGER NOT NULL DEFAULT 0,
       pinned     INTEGER NOT NULL DEFAULT 0,
+      userId     TEXT,
       createdAt  REAL NOT NULL,
       updatedAt  REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id           TEXT PRIMARY KEY,
+      email        TEXT NOT NULL UNIQUE,
+      name         TEXT NOT NULL DEFAULT '',
+      passwordHash TEXT NOT NULL,
+      createdAt    REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token     TEXT PRIMARY KEY,
+      userId    TEXT NOT NULL,
+      createdAt REAL NOT NULL,
+      expiresAt REAL NOT NULL,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS messages (
       id             TEXT PRIMARY KEY,
@@ -177,6 +192,9 @@ export function getDb(): DatabaseSync {
   }
   if (!cols.some((c) => c.name === "kbId")) {
     db.exec("ALTER TABLE conversations ADD COLUMN kbId TEXT");
+  }
+  if (!cols.some((c) => c.name === "userId")) {
+    db.exec("ALTER TABLE conversations ADD COLUMN userId TEXT");
   }
   const msgCols = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
   if (!msgCols.some((c) => c.name === "refs")) {

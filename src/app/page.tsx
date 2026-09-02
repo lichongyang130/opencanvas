@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import CreditsBadge from "@/components/CreditsBadge";
+import AuthBadge from "@/components/AuthBadge";
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
 import { SettingsModal } from "@/components/workspace/SettingsModal";
@@ -303,6 +304,7 @@ export default function HomePage() {
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
           <NotificationBell />
           <CreditsBadge />
+          <AuthBadge />
           <button
             onClick={() => setSettingsOpen(true)}
             title="设置"

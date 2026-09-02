@@ -19,6 +19,8 @@ export interface StoredConversation {
   codePreview: unknown | null;
   /** 会话绑定的知识库 id（RAG 检索来源） */
   kbId: string | null;
+  /** 归属用户（NULL = 本地/未登录旧会话） */
+  userId: string | null;
   archived: boolean;
   pinned: boolean;
   createdAt: number;
@@ -224,6 +226,7 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
     personaSystem: (r.personaSystem as string | null) ?? null,
     codePreview: parseJson(r.codePreview as string | null, null),
     kbId: (r.kbId as string | null) ?? null,
+    userId: (r.userId as string | null) ?? null,
     archived: Boolean(r.archived),
     pinned: Boolean(r.pinned),
     createdAt: r.createdAt as number,
@@ -233,14 +236,26 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
 
 export const repo = {
   /** archivedFilter: 0=活跃 1=归档 undefined=全部 */
-  listConversations(archivedFilter?: 0 | 1): StoredConversation[] {
-    const where =
-      archivedFilter === undefined ? "" : ` WHERE archived = ${archivedFilter ? 1 : 0}`;
+  /**
+   * 会话列表。
+   * userId 语义：undefined=全部（管理/统计）；null=仅本地 NULL 归属；字符串=该用户 + 本地 NULL（迁移兼容）。
+   */
+  listConversations(archivedFilter?: 0 | 1, userId?: string | null): StoredConversation[] {
+    const conds: string[] = [];
+    const params: (string | number)[] = [];
+    if (archivedFilter !== undefined) {
+      conds.push(`archived = ${archivedFilter ? 1 : 0}`);
+    }
+    if (userId === null) {
+      conds.push("userId IS NULL");
+    } else if (typeof userId === "string") {
+      conds.push("(userId IS NULL OR userId = ?)");
+      params.push(userId);
+    }
+    const where = conds.length > 0 ? ` WHERE ${conds.join(" AND ")}` : "";
     const rows = getDb()
-      .prepare(
-        `SELECT * FROM conversations${where} ORDER BY pinned DESC, updatedAt DESC`
-      )
-      .all() as Record<string, unknown>[];
+      .prepare(`SELECT * FROM conversations${where} ORDER BY pinned DESC, updatedAt DESC`)
+      .all(...params) as Record<string, unknown>[];
     return rows.map(rowToConversation);
   },
 
@@ -281,6 +296,7 @@ export const repo = {
     personaSystem?: string | null;
     codePreview?: unknown;
     kbId?: string | null;
+    userId?: string | null;
     archived?: boolean;
     pinned?: boolean;
   }): void {
@@ -313,6 +329,7 @@ export const repo = {
       if (c.personaSystem !== undefined) set("personaSystem", c.personaSystem);
       if (c.codePreview !== undefined) set("codePreview", c.codePreview === null ? null : JSON.stringify(c.codePreview));
       if (c.kbId !== undefined) set("kbId", c.kbId);
+      if (c.userId !== undefined) set("userId", c.userId);
       if (c.archived !== undefined) set("archived", c.archived ? 1 : 0);
       if (c.pinned !== undefined) set("pinned", c.pinned ? 1 : 0);
 
@@ -323,8 +340,8 @@ export const repo = {
       }
     } else {
       db.prepare(
-        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, personaSystem, codePreview, kbId, archived, pinned, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, personaSystem, codePreview, kbId, userId, archived, pinned, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         c.id,
         c.title ?? "新任务",
@@ -340,6 +357,7 @@ export const repo = {
         c.personaSystem ?? null,
         c.codePreview === undefined || c.codePreview === null ? null : JSON.stringify(c.codePreview),
         c.kbId ?? null,
+        c.userId ?? null,
         c.archived ? 1 : 0,
         c.pinned ? 1 : 0,
         now,
@@ -848,6 +866,68 @@ export const repo = {
       .prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ?")
       .get("每日签到", start.getTime()) as { n: number };
     return row.n > 0;
+  },
+
+  /* ─────────────────────────── 账号（本地版） ─────────────────────────── */
+
+  createUser(u: { id: string; email: string; name: string; passwordHash: string }): void {
+    getDb()
+      .prepare("INSERT INTO users (id, email, name, passwordHash, createdAt) VALUES (?, ?, ?, ?, ?)")
+      .run(u.id, u.email, u.name, u.passwordHash, Date.now());
+  },
+
+  findUserByEmail(email: string): {
+    id: string;
+    email: string;
+    name: string;
+    passwordHash: string;
+    createdAt: number;
+  } | null {
+    const r = getDb().prepare("SELECT * FROM users WHERE email = ?").get(email) as
+      | Record<string, unknown>
+      | undefined;
+    return r
+      ? {
+          id: r.id as string,
+          email: r.email as string,
+          name: r.name as string,
+          passwordHash: r.passwordHash as string,
+          createdAt: r.createdAt as number,
+        }
+      : null;
+  },
+
+  findUserById(id: string): { id: string; email: string; name: string; createdAt: number } | null {
+    const r = getDb().prepare("SELECT id, email, name, createdAt FROM users WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return r
+      ? { id: r.id as string, email: r.email as string, name: r.name as string, createdAt: r.createdAt as number }
+      : null;
+  },
+
+  createSession(token: string, userId: string, expiresAt: number): void {
+    getDb()
+      .prepare("INSERT INTO sessions (token, userId, createdAt, expiresAt) VALUES (?, ?, ?, ?)")
+      .run(token, userId, Date.now(), expiresAt);
+  },
+
+  findSessionUser(token: string): { id: string; email: string; name: string; createdAt: number } | null {
+    const db = getDb();
+    const r = db
+      .prepare("SELECT * FROM sessions WHERE token = ? AND expiresAt > ?")
+      .get(token, Date.now()) as Record<string, unknown> | undefined;
+    if (!r) return null;
+    const u = db
+      .prepare("SELECT id, email, name, createdAt FROM users WHERE id = ?")
+      .get(r.userId as string) as Record<string, unknown> | undefined;
+    return u
+      ? { id: u.id as string, email: u.email as string, name: u.name as string, createdAt: u.createdAt as number }
+      : null;
+  },
+
+  deleteSession(token: string): void {
+    getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
   },
 };
 

@@ -2,6 +2,13 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第四轮：本地账号体系（P2-4-2 本地版）
+
+- users / sessions 表 + conversations.userId（幂等迁移）
+- /api/auth/register|login|logout|me；scrypt 密码哈希 + httpOnly cookie（30 天），零外部依赖
+- AuthBadge：首页/工作台顶栏登录按钮、注册/登录弹窗、头像下拉登出；刷新恢复会话
+- 会话按用户归属：登录后新会话归本人，列表按身份过滤（未登录仅见本地旧会话）
+
 ## 2026-09-03 · 第三轮：TipTap 富文本 + PPT 单页 AI 重写 + 流式重试
 
 - 富文本编辑器：TipTap 所见即所得（标题/粗斜体/删除线/列表/引用/代码块/撤销重做），Markdown 双向转换（marked + turndown），AI 操作与导出链路不变

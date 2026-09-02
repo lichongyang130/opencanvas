@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Home, LayoutDashboard, Loader2, Menu, Plus, Settings, UserRound, X } from "lucide-react";
+import { Home, LayoutDashboard, Loader2, Menu, Plus, Settings, X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { HistoryPanel } from "./HistoryPanel";
 import { ChatPanel } from "./ChatPanel";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { SettingsModal } from "./SettingsModal";
 import { Toaster } from "@/components/Toaster";
+import AuthBadge from "@/components/AuthBadge";
 import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
 
@@ -214,12 +215,7 @@ export function Workspace() {
             >
               <LayoutDashboard className="h-4 w-4" />
             </button>
-            <span
-              title="李明"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-rose-400 text-white shadow-sm"
-            >
-              <UserRound className="h-4 w-4" />
-            </span>
+            <AuthBadge />
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
