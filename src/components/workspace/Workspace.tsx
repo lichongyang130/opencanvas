@@ -2,8 +2,9 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Home, LayoutDashboard, Loader2 } from "lucide-react";
+import { Home, LayoutDashboard, Loader2, Plus, UserRound } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { HistoryPanel } from "./HistoryPanel";
 import { ChatPanel } from "./ChatPanel";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { SettingsModal } from "./SettingsModal";
@@ -22,6 +23,8 @@ export function Workspace() {
     activeId,
     artifactOpen,
     setArtifactOpen,
+    newConversation,
+    selectConversation,
   } = useChatStore();
 
   useEffect(() => {
@@ -78,17 +81,31 @@ export function Workspace() {
 
   const active = conversations.find((c) => c.id === activeId);
 
+  const startNew = () => {
+    void newConversation("chat").then((id) => selectConversation(id));
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
+      <HistoryPanel />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-[#e8ddca] bg-[#faf6ee] px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
-            {active && (
-              <span className="hidden max-w-[220px] truncate text-sm text-stone-400 md:inline">
-                · {active.title}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] font-semibold text-stone-800">智能助手</span>
+              {active && (
+                <span className="max-w-[220px] truncate text-sm text-stone-400">
+                  · {active.title}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={startNew}
+              className="ml-2 flex items-center gap-1.5 rounded-lg border border-orange-200 px-3 py-1.5 text-[12.5px] font-medium text-orange-600 transition hover:border-orange-300 hover:bg-orange-50"
+            >
+              <Plus className="h-3.5 w-3.5" /> 新建对话
+            </button>
           </div>
           <div className="flex items-center gap-2.5">
             {sending && (
@@ -115,6 +132,12 @@ export function Workspace() {
             >
               <LayoutDashboard className="h-4 w-4" />
             </button>
+            <span
+              title="李明"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-rose-400 text-white shadow-sm"
+            >
+              <UserRound className="h-4 w-4" />
+            </span>
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
