@@ -10,11 +10,12 @@ import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 
 export function SlideDeckView({ deck }: { deck: SlideDeck }) {
-  const { setDeckTheme, patchSlide, exportDeck, send, sending, generateSlideImages, addSlide, duplicateSlide, deleteSlide } =
+  const { setDeckTheme, patchSlide, exportDeck, send, sending, generateSlideImages, rewriteSlide, addSlide, duplicateSlide, deleteSlide } =
     useChatStore();
   const [active, setActive] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [imaging, setImaging] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
   const idx = Math.min(active, deck.slides.length - 1);
   const needImg = deck.slides.filter((s) => s.imagePrompt && !s.imageUrl).length;
 
@@ -25,6 +26,15 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
       if (n > 0) toast(`已生成 ${n} 张配图`, "success");
     } finally {
       setImaging(false);
+    }
+  };
+
+  const handleRewrite = async () => {
+    setRewriting(true);
+    try {
+      await rewriteSlide(idx);
+    } finally {
+      setRewriting(false);
     }
   };
 
@@ -174,6 +184,15 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
                 className="flex items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-stone-600 transition hover:border-brand-300 hover:text-brand-600"
               >
                 <Copy className="h-3 w-3" /> 复制本页
+              </button>
+              <button
+                onClick={() => void handleRewrite()}
+                disabled={rewriting || sending}
+                title="AI 用真实模型重写本页（需已配置 API Key）"
+                className="flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-stone-600 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-40"
+              >
+                {rewriting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-sky-500" />}
+                AI 重写本页
               </button>
               <button
                 onClick={() => {

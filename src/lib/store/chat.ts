@@ -17,7 +17,7 @@ import {
   type ThemeMode,
 } from "@/lib/settings";
 import { toast } from "./toast";
-import type { SlideDeck, ThemeId } from "@/lib/slides/types";
+import type { Slide, SlideDeck, ThemeId } from "@/lib/slides/types";
 import type { ResearchReport } from "@/lib/research/types";
 import { getPersona } from "@/lib/personas";
 
@@ -226,6 +226,8 @@ interface ChatState {
   patchSlide: (slideIndex: number, patch: Record<string, unknown>) => void;
   /** PPT 自动配图：slideIdx 不传时批量生成所有缺图页；返回生成数量 */
   generateSlideImages: (slideIdx?: number) => Promise<number>;
+  /** AI 单页重写：调真实模型改写指定页并替换（演示模式保留原页） */
+  rewriteSlide: (index: number) => Promise<void>;
   addSlide: () => void;
   duplicateSlide: (index: number) => void;
   deleteSlide: (index: number) => void;
@@ -877,14 +879,29 @@ export const useChatStore = create<ChatState>((set, get) => {
       ];
 
       const controller = newAbort();
+      // 流式请求失败重试一次（仅 HTTP 阶段失败；已收到流则不重试）
+      const chatFetch = async () => {
+        const call = async () =>
+          fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: apiMessages, overrides: getOverrides(), provider: modelProvider ?? undefined }),
+            signal: controller.signal,
+          });
+        try {
+          const r = await call();
+          if (!r.ok || !r.body) throw new Error(`请求失败 ${r.status}`);
+          return r;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError" || controller.signal.aborted) throw err;
+          const r2 = await call();
+          if (!r2.ok || !r2.body) throw new Error(`请求失败 ${r2.status}`);
+          return r2;
+        }
+      };
       try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model, messages: apiMessages, overrides: getOverrides(), provider: modelProvider ?? undefined }),
-          signal: controller.signal,
-        });
-        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+        const res = await chatFetch();
+        if (!res.body) throw new Error("响应流为空");
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1489,6 +1506,68 @@ export const useChatStore = create<ChatState>((set, get) => {
         if (latest?.deck) persistConvo(convo.id, { deck: latest.deck });
       }
       return done;
+    },
+
+    rewriteSlide: async (index) => {
+      const { activeId } = get();
+      const convo = get().conversations.find((c) => c.id === activeId);
+      const slide = convo?.deck?.slides[index];
+      if (!convo?.deck || !slide || get().sending) return;
+
+      const ov = getOverrides();
+      const hasModel = Object.values(ov).some((p) => p?.apiKey);
+      if (!hasModel) {
+        toast("请先在模型设置中配置 API Key，即可用真实模型重写本页", "info");
+        return;
+      }
+      try {
+        const res = await fetch("/api/slides", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "rewrite",
+            slide,
+            topic: convo.deck.title,
+            model: convo.model,
+            provider: convo.modelProvider ?? undefined,
+            overrides: ov,
+          }),
+        });
+        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+
+        // SSE 读取 slide 事件
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result: { type?: string; slide?: Slide; message?: string } | null = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            try {
+              const evt = JSON.parse(t.slice(5).trim()) as { type?: string; slide?: Slide; message?: string };
+              if (evt.type === "slide") result = evt;
+              if (evt.type === "error") throw new Error(evt.message ?? "重写失败");
+            } catch (err) {
+              if ((err as Error)?.message === "重写失败") throw err;
+              if (err instanceof SyntaxError) continue;
+              throw err;
+            }
+          }
+        }
+        if (!result?.slide) throw new Error("未收到重写结果");
+        // 重写后旧配图作废，可重新生成
+        const cleaned = { ...result.slide, imageUrl: undefined } as unknown as Record<string, unknown>;
+        get().patchSlide(index, cleaned);
+        toast(`已重写第 ${index + 1} 页`, "success");
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "重写失败", "error");
+      }
     },
 
     addSlide: () => {
