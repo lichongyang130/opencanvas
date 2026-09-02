@@ -89,9 +89,18 @@ function ImageGallery({ images }: { images: UIImage[] }) {
         url = data.url;
         src = "remove.bg";
       } else {
-        // 2) 客户端 @imgly（零配置）
+        // 2) 客户端 @imgly（零配置）；外链先取 Blob 再处理（部分 CDN 支持跨域）
         const { removeBackground } = await import("@imgly/background-removal");
-        const blob = (await removeBackground(img.url, {
+        let input: string | Blob = img.url;
+        if (img.url.startsWith("http")) {
+          try {
+            const r = await fetch(img.url);
+            if (r.ok) input = await r.blob();
+          } catch {
+            /* 跨域取图失败时仍尝试原 URL */
+          }
+        }
+        const blob = (await removeBackground(input, {
           progress: () => { /* 需要时显示进度 */ },
         })) as Blob;
         url = await new Promise<string>((resolve, reject) => {

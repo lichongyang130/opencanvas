@@ -47,9 +47,11 @@
   - 一键导出 **.pptx**（pptxgenjs 服务端渲染，可直接用 PowerPoint/WPS 打开）
   - 演示模型零密钥返回完整示例 PPT，进度实时推送
 - ✅ **AI 绘图工作台**
-  - 图像网关：演示模式（本地 SVG 占位图，零密钥）/ DALL·E 3（海外）/ 通义万相 2.7（国内，异步任务轮询）
+  - 图像网关：演示模式（本地 SVG 占位图，零密钥）/ DALL·E 3（海外）/ FLUX.1 Schnell & Dev（fal.ai，海外）/ 通义万相 2.7 / 2.5 & Seedream 同源图生图（国内，异步任务轮询）
   - 三种比例（1:1 / 16:9 / 9:16），右侧画廊展示、点击放大、下载
-  - 图像随会话持久化
+  - **图生图**：上传参考图即生成变体（FLUX Dev / 万相 2.5 i2i 自动选择）
+  - **背景移除**：服务端 remove.bg（可选），未配置时客户端 @imgly WASM 本地 AI（免费）
+  - 绘图模型下拉（自动/FLUX/万相/DALL·E）+ 生成按模型扣积分；图像随会话持久化
 
 ## 快速开始
 
@@ -75,11 +77,13 @@ npm run dev
 
 ```bash
 # 海外
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...        # 对话 + DALL·E 3 绘图
+ANTHROPIC_API_KEY=sk-ant-... # 对话
+FAL_KEY=xxxxxxxx             # FLUX 绘图 / 图生图（可选）
 # 国内
 DEEPSEEK_API_KEY=sk-...
-DASHSCOPE_API_KEY=sk-...
+DASHSCOPE_API_KEY=sk-...     # Qwen 对话 + 万相绘图/图生图
+REMOVE_BG_API_KEY=xxxxxxxx   # 去背景（可选；不配则前端本地 AI）
 ```
 
 ## 路线图

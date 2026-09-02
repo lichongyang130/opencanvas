@@ -10,6 +10,8 @@
 - 图片工作台：参数行「绘图模型」下拉（自动/FLUX/万相/DALL·E）+「参考图（图生图）」按钮，上传图片附件即作为参考图
 - 画布图片新增操作：一键生成「变体」（以该图为参考图）与「去背景」（服务端 remove.bg 优先，未配置时客户端 @imgly/background-removal WASM 本地 AI，免费）
 - demo 适配器支持图生图占位提示；.env.example 新增 FAL_KEY / REMOVE_BG_API_KEY 说明
+- 复查修正：fal 模型列表改用官方 `endpoint_id` 字段；万相按版本分接口（wan2.7/2.5 新版 multimodal、wanx2.5-t2i 旧 text2image、wanx2.1-i2i-turbo 旧 image2image），图生图推荐 wan2.5-i2i-preview 并兼容新旧响应
+- 体验修正：图片模式隐藏对话模型选择器（用绘图模型下拉）、仅传参考图也可提交（默认变体提示词）、本地去背景对外链先取 Blob 再处理
 
 ## 2026-09-03 · 第四轮：本地账号体系（P2-4-2 本地版）
 

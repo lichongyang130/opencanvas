@@ -22,8 +22,8 @@ async function fetchFalModels(apiKey: string) {
     });
     if (res.status === 401 || res.status === 403) throw new Error("API Key 无效或权限不足");
     if (!res.ok) throw new Error(`列表接口返回 ${res.status}`);
-    const data = (await res.json()) as { models?: { id?: string; slug?: string }[] };
-    const ids = (data.models ?? []).map((m) => m.id ?? m.slug ?? "").filter(Boolean);
+    const data = (await res.json()) as { models?: { endpoint_id?: string; id?: string; slug?: string }[] };
+    const ids = (data.models ?? []).map((m) => m.endpoint_id ?? m.id ?? m.slug ?? "").filter(Boolean);
     if (ids.length === 0) return Response.json({ error: "未获取到可用模型" }, { status: 502 });
     return Response.json({ models: [...new Set(ids)].sort((a, b) => a.localeCompare(b)) });
   } catch (err) {

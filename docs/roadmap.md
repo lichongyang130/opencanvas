@@ -45,8 +45,8 @@
 
 ### 7. 图像能力增强（P2）
 - ✅ 接入 FLUX：fal.ai FLUX.1 Schnell（文生图）/ Dev（图生图），设置页可配 FAL_KEY、测试连接并拉取模型列表；/api/images 支持 model 指定与 imageUrl 图生图
-- ✅ 接入 Seedream 同源通义万相：wan2.7-t2i-flash / wanx2.5-t2i（文生图）、wanx2.1-i2i-turbo（图生图）
-- ✅ 图生图：图片工作台「参考图（图生图）」按钮（上传图片附件即作为参考图），画布每张图可一键生成变体（自动选 FLUX dev / 万相 i2i）
+- ✅ 接入 Seedream 同源通义万相：wan2.7-t2i-flash / wanx2.5-t2i（文生图）、wan2.5-i2i-preview（新版图生图，兼容旧 wanx2.1-i2i-turbo）
+- ✅ 图生图：图片工作台「参考图（图生图）」按钮（上传图片附件即作为参考图），画布每张图可一键生成变体（自动选 FLUX dev / 万相 2.5 i2i）
 - ✅ 背景移除：每张图「去背景」按钮，优先服务端 remove.bg（REMOVE_BG_API_KEY），未配置时客户端 @imgly WASM 本地 AI（免费、模型 CDN 加载）
 - ✅ 绘图模型选择器：图片模式参数行可选「自动 / FLUX / 万相 / DALL·E」，生成成功按模型扣积分
 - ⬜ 局部重绘、扩图、Logo/海报/社媒尺寸模板、组图（多视角/多场景）、可灵图像

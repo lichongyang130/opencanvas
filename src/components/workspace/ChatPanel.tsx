@@ -679,14 +679,16 @@ function SplitComposer({
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <ModelSelector
-                value={model}
-                onChange={(id, provider) => {
-                  setModel(id, provider);
-                  const label = MODELS.find((m) => m.id === id)?.label ?? id;
-                  toast(`已切换到 ${label}`, "success");
-                }}
-              />
+              {mode !== "image" && (
+                <ModelSelector
+                  value={model}
+                  onChange={(id, provider) => {
+                    setModel(id, provider);
+                    const label = MODELS.find((m) => m.id === id)?.label ?? id;
+                    toast(`已切换到 ${label}`, "success");
+                  }}
+                />
+              )}
               {sending ? (
                 <button
                   onClick={stopGeneration}
@@ -698,7 +700,7 @@ function SplitComposer({
               ) : (
                 <button
                   onClick={submit}
-                  disabled={!input.trim()}
+                  disabled={!input.trim() && !(mode === "image" && attachments.some((a) => a.kind === "image"))}
                   title="发送"
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:bg-stone-200 disabled:text-stone-400"
                 >
@@ -890,6 +892,10 @@ export function ChatPanel() {
           .map((a) => `【附件：${a.name}】\n${a.content ?? ""}`)
           .join("\n\n");
         payload = payload ? `${payload}\n\n${blocks}` : blocks;
+      }
+      // 只传了参考图没写提示词 → 默认生成风格一致的变体
+      if (!payload.trim() && imgAtts[0]?.url) {
+        payload = "基于参考图生成风格一致的变体";
       }
       const refUrl = imgAtts[0]?.url;
       setInput("");

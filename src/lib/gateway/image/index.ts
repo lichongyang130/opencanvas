@@ -50,7 +50,7 @@ function resolveAutoModel(prompt: string, imageUrl?: string, overrides?: Provide
   const ov = overrides ?? {};
   if (imageUrl) {
     if (falKeyOf(ov) || process.env.FAL_KEY) return "fal-ai/flux/dev";
-    if (ov.dashscope?.apiKey || process.env.DASHSCOPE_API_KEY) return "wanx2.1-i2i-turbo";
+    if (ov.dashscope?.apiKey || process.env.DASHSCOPE_API_KEY) return "wan2.5-i2i-preview";
     return "demo-image";
   }
   if (ov.openai?.apiKey || process.env.OPENAI_API_KEY) return "dall-e-3";
