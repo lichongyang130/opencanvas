@@ -12,6 +12,7 @@ import {
 } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/store/chat";
+import { ProviderLogo } from "./ProviderLogo";
 type ProviderId = ProviderIdType;
 
 interface StatusMap {
@@ -31,13 +32,6 @@ const PROVIDER_NAME: Record<string, string> = {
   deepseek: "DeepSeek",
   dashscope: "阿里百炼 / 通义",
   demo: "内置",
-};
-const PROVIDER_BG: Record<string, string> = {
-  openai: "bg-gradient-to-br from-teal-400 to-emerald-500",
-  anthropic: "bg-gradient-to-br from-orange-400 to-amber-500",
-  deepseek: "bg-gradient-to-br from-blue-400 to-indigo-500",
-  dashscope: "bg-gradient-to-br from-violet-400 to-purple-500",
-  demo: "bg-gradient-to-br from-stone-300 to-stone-400",
 };
 /** 按钮上显示的简短模型名 */
 function shortLabel(label: string) {
@@ -198,7 +192,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                 <ModelRow
                   label="演示模型"
                   sub="免费"
-                  accent="bg-gradient-to-br from-stone-300 to-stone-400"
+                  provider="demo"
                   active={value === "demo"}
                   available
                   onClick={() => {
@@ -227,7 +221,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                       key={info.id}
                       label={info.label}
                       sub={isDynamic ? "动态" : !avail ? "未配置" : REGION_LABEL[info.region]}
-                      accent={PROVIDER_BG[g.provider]}
+                      provider={g.provider}
                       active={value === info.id}
                       available={avail}
                       onClick={() => {
@@ -298,14 +292,14 @@ function GroupHeader({
 function ModelRow({
   label,
   sub,
-  accent,
+  provider,
   active,
   available,
   onClick,
 }: {
   label: string;
   sub?: string;
-  accent: string;
+  provider: string;
   active: boolean;
   available: boolean;
   onClick: () => void;
@@ -315,14 +309,12 @@ function ModelRow({
       disabled={!available}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition",
+        "group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition",
         active ? "bg-orange-50" : "hover:bg-stone-50",
         !available && "cursor-not-allowed opacity-40"
       )}
     >
-      <span className={cn("flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg text-white", accent)}>
-        <Sparkles className="h-3 w-3" />
-      </span>
+      <ProviderLogo provider={provider} className={cn("transition-transform group-hover:scale-105", active && "ring-2 ring-orange-200")} />
       <div className="min-w-0 flex-1">
         <div className={cn("truncate text-[13px] font-medium", active ? "text-orange-700" : "text-stone-800")}>
           {label}
@@ -330,7 +322,7 @@ function ModelRow({
         {sub && (
           <span
             className={cn(
-              "mt-0.5 inline-block rounded px-1.5 py-px text-[10px] font-medium",
+              "mt-1 inline-block rounded-md px-1.5 py-px text-[10px] font-medium",
               active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-400"
             )}
           >
@@ -339,7 +331,7 @@ function ModelRow({
         )}
       </div>
       {active && (
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm shadow-orange-200">
           <Check className="h-3 w-3" />
         </span>
       )}
