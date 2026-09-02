@@ -1,12 +1,46 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/**
- * 供应商品牌 Logo（本地 SVG，避免外链）。
- * 提供辨识度最高的简化标识 + 品牌色底。
- */
+/** 各模型供应商官网公开图标 / favicon（浏览器端加载，真正来自官网） */
+const OFFICIAL_ICON: Record<string, string> = {
+  openai: "https://openai.com/favicon.ico",
+  anthropic: "https://www.anthropic.com/favicon.ico",
+  deepseek: "https://www.deepseek.com/favicon.ico",
+  dashscope: "https://dashscope.aliyun.com/favicon.ico",
+};
 
+/**
+ * 供应商 logo（优先官网图标，失败回退到本地品牌色 SVG）。
+ */
 export function ProviderLogo({ provider, className }: { provider: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  const official = OFFICIAL_ICON[provider];
+
+  if (official && !failed) {
+    return (
+      <span
+        className={cn(
+          "flex h-[26px] w-[26px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm",
+          className
+        )}
+      >
+        <Image
+          src={official}
+          alt=""
+          width={18}
+          height={18}
+          unoptimized
+          onError={() => setFailed(true)}
+          className="h-[18px] w-[18px] object-contain"
+        />
+      </span>
+    );
+  }
+
   const tile =
     provider === "openai"
       ? "bg-gradient-to-br from-slate-700 to-slate-950"
