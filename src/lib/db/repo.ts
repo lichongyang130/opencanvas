@@ -265,3 +265,111 @@ export function getCaseShare(code: string): CaseShareRecord | null {
     return null;
   }
 }
+
+/* ---------------- 会员 & 订单 ---------------- */
+
+export type MembershipPlan = "free" | "pro" | "team";
+
+export interface StoredMembership {
+  id: string;
+  plan: MembershipPlan;
+  autoRenew: boolean;
+  renewAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StoredOrder {
+  id: string;
+  plan: MembershipPlan;
+  amount: number; // 元
+  status: "paid" | "pending" | "cancelled";
+  createdAt: number;
+}
+
+const SELF_ID = "self";
+
+function rowToMembership(r: Record<string, unknown>): StoredMembership {
+  return {
+    id: r.id as string,
+    plan: (r.plan as MembershipPlan) ?? "free",
+    autoRenew: Boolean(r.autoRenew),
+    renewAt: r.renewAt ? (r.renewAt as number) : null,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function rowToOrder(r: Record<string, unknown>): StoredOrder {
+  return {
+    id: r.id as string,
+    plan: (r.plan as MembershipPlan) ?? "free",
+    amount: (r.amount as number) ?? 0,
+    status: (r.status as StoredOrder["status"]) ?? "paid",
+    createdAt: r.createdAt as number,
+  };
+}
+
+export const membershipRepo = {
+  /** 获取当前会员；若无则自动创建默认“专业版”试用会员 */
+  get(): StoredMembership {
+    const db = getDb();
+    const row = db.prepare("SELECT * FROM membership WHERE id = ?").get(SELF_ID) as
+      | Record<string, unknown>
+      | undefined;
+    if (row) return rowToMembership(row);
+
+    const now = Date.now();
+    const renewAt = now + 30 * 24 * 60 * 60 * 1000;
+    db.prepare(
+      "INSERT INTO membership (id, plan, autoRenew, renewAt, createdAt, updatedAt) VALUES (?, 'pro', 1, ?, ?, ?)"
+    ).run(SELF_ID, renewAt, now, now);
+    return membershipRepo.get();
+  },
+
+  upgrade(plan: MembershipPlan, amount: number): { membership: StoredMembership; order: StoredOrder } {
+    const db = getDb();
+    const now = Date.now();
+    const id = randomUUID();
+    db.prepare("INSERT INTO orders (id, plan, amount, status, createdAt) VALUES (?, ?, ?, 'paid', ?)").run(
+      id,
+      plan,
+      amount,
+      now
+    );
+    const renewAt = now + 30 * 24 * 60 * 60 * 1000;
+    db.prepare(
+      "UPDATE membership SET plan = ?, autoRenew = 1, renewAt = ?, updatedAt = ? WHERE id = ?"
+    ).run(plan, renewAt, now, SELF_ID);
+    return {
+      membership: membershipRepo.get(),
+      order: { id, plan, amount, status: "paid", createdAt: now },
+    };
+  },
+
+  cancelAutoRenew(): StoredMembership {
+    const db = getDb();
+    db.prepare("UPDATE membership SET autoRenew = 0, updatedAt = ? WHERE id = ?").run(Date.now(), SELF_ID);
+    return membershipRepo.get();
+  },
+
+  listOrders(): StoredOrder[] {
+    const db = getDb();
+    const rows = db.prepare("SELECT * FROM orders ORDER BY createdAt DESC").all() as Record<string, unknown>[];
+    return rows.map(rowToOrder);
+  },
+
+  stats(): { conversations: number; messages: number; exports: number } {
+    const db = getDb();
+    const conversations = (
+      db.prepare("SELECT COUNT(*) AS n FROM conversations").get() as { n: number }
+    ).n;
+    const messages = (db.prepare("SELECT COUNT(*) AS n FROM messages").get() as { n: number }).n;
+    const exports = (
+      db.prepare(
+        "SELECT COUNT(*) AS n FROM conversations WHERE deck IS NOT NULL OR report IS NOT NULL OR doc IS NOT NULL"
+      ).get() as { n: number }
+    ).n;
+    return { conversations, messages, exports };
+  },
+};

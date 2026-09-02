@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Loader2,
   Search,
+  X,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type UIImage } from "@/lib/store/chat";
 import { SlideDeckView } from "./SlideDeckView";
@@ -106,6 +107,21 @@ export function ArtifactPanel() {
 
   return (
     <aside className="flex w-[30rem] shrink-0 flex-col border-l border-stone-200 bg-white">
+      {/* 画布标题栏 */}
+      <div className="flex items-center justify-between border-b border-stone-100 px-5 py-3">
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-800">
+          <LayoutDashboard className="h-4 w-4 text-orange-500" />
+          AI 创作画布
+        </h2>
+        <button
+          onClick={() => setArtifactOpen(false)}
+          title="关闭画布"
+          className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
       {/* 图像画廊 */}
       {mode === "image" && (convo?.images?.length ?? 0) > 0 ? (
         <ImageGallery images={convo!.images!} />

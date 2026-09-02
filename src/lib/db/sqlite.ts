@@ -46,8 +46,24 @@ export function getDb(): DatabaseSync {
       data      TEXT NOT NULL,
       createdAt REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS membership (
+      id        TEXT PRIMARY KEY,
+      plan      TEXT NOT NULL DEFAULT 'free',
+      autoRenew INTEGER NOT NULL DEFAULT 1,
+      renewAt   REAL,
+      createdAt REAL NOT NULL,
+      updatedAt REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS orders (
+      id        TEXT PRIMARY KEY,
+      plan      TEXT NOT NULL,
+      amount    INTEGER NOT NULL,
+      status    TEXT NOT NULL,
+      createdAt REAL NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_messages_convo ON messages(conversationId);
+    CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(createdAt);
   `);
 
   // 老库自动迁移：补充 pinned / archived / report 列

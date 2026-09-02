@@ -214,7 +214,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     sending: false,
     hydrated: false,
     settingsOpen: false,
-    artifactOpen: false,
+    artifactOpen: true,
     docBusy: false,
     pendingInput: null,
 
