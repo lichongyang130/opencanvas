@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -11,6 +12,7 @@ import {
   Cpu,
   FileText,
   Gauge,
+  Loader2,
   Sparkles,
   Zap,
 } from "lucide-react";
@@ -18,30 +20,56 @@ import { ShellSidebar } from "@/components/mockup/ShellSidebar";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 
-const PLANS = [
+type Plan = "free" | "pro" | "team";
+
+interface Membership {
+  id: string;
+  plan: Plan;
+  autoRenew: boolean;
+  renewAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+interface Order {
+  id: string;
+  plan: Plan;
+  amount: number;
+  status: "paid" | "pending" | "cancelled";
+  createdAt: number;
+}
+interface Stats {
+  conversations: number;
+  messages: number;
+  exports: number;
+}
+
+const PLAN_LABEL: Record<Plan, string> = { free: "免费版", pro: "专业版", team: "团队版" };
+const PLAN_AMOUNT: Record<Plan, number> = { free: 0, pro: 39, team: 99 };
+
+const PLANS: Array<{ id: Plan; name: string; price: string; period: string; highlight: boolean; features: string[] }> = [
   {
+    id: "free",
     name: "免费版",
     price: "¥0",
     period: "永久免费",
     highlight: false,
     features: ["每日 10 次对话", "基础模型", "文档 / PPT 导出带水印", "社区支持"],
-    cta: "当前方案",
   },
   {
+    id: "pro",
     name: "专业版",
     price: "¥39",
     period: "每月",
     highlight: true,
     features: ["无限对话", "全部高级模型", "文档 / PPT 无水印导出", "深度思考 + 联网搜索", "优先体验新功能"],
-    cta: "当前方案",
   },
   {
+    id: "team",
     name: "团队版",
     price: "¥99",
     period: "每月 / 席位",
     highlight: false,
     features: ["包含专业版全部权益", "团队成员协作", "共享知识库", "统一账单与权限管理"],
-    cta: "升级团队版",
   },
 ];
 
@@ -54,8 +82,75 @@ const FEATURES = [
   { icon: Bot, color: "from-amber-400 to-orange-500", title: "智能体生态", desc: "使用全部进阶智能体与工具" },
 ];
 
+function fmtDate(ts: number | null) {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleDateString("zh-CN");
+}
+
 export default function MembershipPage() {
   const router = useRouter();
+  const [membership, setMembership] = useState<Membership | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/membership");
+      const data = (await res.json()) as { membership: Membership; stats: Stats; orders: Order[] };
+      setMembership(data.membership);
+      setStats(data.stats);
+      setOrders(data.orders);
+    } catch {
+      toast("加载会员数据失败", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const upgrade = async (plan: Plan) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/membership", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "操作失败");
+      toast(`已购买 ${PLAN_LABEL[plan]}，订单已生成`, "success");
+      await refresh();
+    } catch (e) {
+      toast(`操作失败：${e instanceof Error ? e.message : ""}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelRenew = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/membership", { method: "DELETE" });
+      if (!res.ok) throw new Error("取消失败");
+      toast("已关闭自动续费", "info");
+      await refresh();
+    } catch (e) {
+      toast(`操作失败：${e instanceof Error ? e.message : ""}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const plan = membership?.plan ?? "pro";
+  const currentPlan = PLANS.find((p) => p.id === plan)!;
+  const upgradeTarget: Plan = plan === "free" ? "pro" : plan === "pro" ? "team" : "pro";
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#fdfaf6] text-stone-800">
@@ -92,27 +187,50 @@ export default function MembershipPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[16px] font-semibold text-stone-800">Alex Chen</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-medium text-white shadow-sm shadow-orange-200">
-                      <BadgeCheck className="h-3 w-3" /> 专业版
-                    </span>
+                    <button
+                      onClick={() => void upgrade(plan === "free" ? "pro" : plan)}
+                      title={plan === "free" ? "升级专业版" : "点击续费 / 升级"}
+                      className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-medium text-white shadow-sm shadow-orange-200 transition hover:bg-orange-600"
+                    >
+                      <BadgeCheck className="h-3 w-3" /> {PLAN_LABEL[plan]}
+                    </button>
                   </div>
-                  <div className="mt-1 text-[12px] text-stone-500">
-                    下次续费：2026-10-02 · 自动续费
+                  <div className="mt-1 flex items-center gap-2 text-[12px] text-stone-500">
+                    到期：{fmtDate(membership?.renewAt ?? null)} · {membership?.autoRenew ? "自动续费" : "已关闭自动续费"}
+                    {membership?.autoRenew && (
+                      <button
+                        onClick={() => void cancelRenew()}
+                        disabled={busy}
+                        className="text-[11px] text-orange-500 transition hover:text-orange-600 disabled:opacity-40"
+                      >
+                        关闭
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => router.push("/chat")}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-orange-200 transition hover:brightness-105"
-              >
-                继续创作 <ArrowRight className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void upgrade(upgradeTarget)}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-orange-200 transition hover:brightness-105 disabled:opacity-60"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                  {plan === "pro" ? "续费专业版" : plan === "free" ? "升级专业版" : "续费团队版"}
+                </button>
+                <button
+                  onClick={() => router.push("/chat")}
+                  className="rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-600 transition hover:bg-orange-50"
+                >
+                  继续创作
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-3 divide-x divide-orange-100 border-t border-orange-100 bg-white/60">
               {[
-                { label: "本月已用额度", value: "128 / 无限", note: "专业版不限量" },
-                { label: "对话次数", value: "1,024 次", note: "本月累计" },
-                { label: "已导出文档", value: "36 份", note: "均无水印" },
+                { label: "当前套餐", value: PLAN_LABEL[plan], note: plan === "free" ? "每日限额" : "不限量" },
+                { label: "对话消息", value: stats ? `${stats.messages.toLocaleString()} 条` : "—", note: "累计" },
+                { label: "已导出文档", value: stats ? `${stats.exports} 份` : "—", note: plan === "free" ? "带水印" : "无水印" },
               ].map((s) => (
                 <div key={s.label} className="px-4 py-3.5 text-center">
                   <div className="text-[15px] font-semibold text-stone-800">{s.value}</div>
@@ -143,54 +261,93 @@ export default function MembershipPage() {
           <div className="mt-10">
             <h2 className="text-[16px] font-semibold text-stone-800">选择你的方案</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              {PLANS.map((p) => (
-                <div
-                  key={p.name}
-                  className={cn(
-                    "relative flex flex-col rounded-2xl border bg-white p-5 shadow-sm",
-                    p.highlight
-                      ? "border-orange-300 shadow-lg shadow-orange-100"
-                      : "border-stone-200/80"
-                  )}
-                >
-                  {p.highlight && (
-                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2.5 py-0.5 text-[10px] font-medium text-white shadow">
-                      最受欢迎
-                    </span>
-                  )}
-                  <div className="text-[13px] font-medium text-stone-500">{p.name}</div>
-                  <div className="mt-2 flex items-end gap-1">
-                    <span className="text-[28px] font-bold text-stone-900">{p.price}</span>
-                    <span className="mb-1 text-[11px] text-stone-400">{p.period}</span>
-                  </div>
-                  <ul className="mt-4 flex-1 space-y-2">
-                    {p.features.map((ft) => (
-                      <li key={ft} className="flex items-center gap-2 text-[12.5px] text-stone-600">
-                        <Check className={cn("h-3.5 w-3.5 shrink-0", p.highlight ? "text-orange-500" : "text-stone-300")} />
-                        {ft}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    disabled={p.name === "专业版"}
-                    onClick={() => toast("升级 / 购买功能即将上线", "info")}
+              {PLANS.map((p) => {
+                const isCurrent = plan === p.id;
+                return (
+                  <div
+                    key={p.id}
                     className={cn(
-                      "mt-5 rounded-xl px-4 py-2.5 text-[12.5px] font-medium transition",
-                      p.highlight
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md shadow-orange-200 hover:brightness-105"
-                        : "border border-stone-200 bg-white text-stone-600 hover:border-orange-300 hover:text-orange-600",
-                      p.name === "专业版" && "cursor-default bg-stone-100 text-stone-400"
+                      "relative flex flex-col rounded-2xl border bg-white p-5 shadow-sm",
+                      p.highlight ? "border-orange-300 shadow-lg shadow-orange-100" : "border-stone-200/80"
                     )}
                   >
-                    {p.cta}
-                  </button>
+                    {p.highlight && (
+                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2.5 py-0.5 text-[10px] font-medium text-white shadow">
+                        最受欢迎
+                      </span>
+                    )}
+                    <div className="text-[13px] font-medium text-stone-500">{p.name}</div>
+                    <div className="mt-2 flex items-end gap-1">
+                      <span className="text-[28px] font-bold text-stone-900">{p.price}</span>
+                      <span className="mb-1 text-[11px] text-stone-400">{p.period}</span>
+                    </div>
+                    <ul className="mt-4 flex-1 space-y-2">
+                      {p.features.map((ft) => (
+                        <li key={ft} className="flex items-center gap-2 text-[12.5px] text-stone-600">
+                          <Check className={cn("h-3.5 w-3.5 shrink-0", p.highlight ? "text-orange-500" : "text-stone-300")} />
+                          {ft}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      disabled={isCurrent || busy}
+                      onClick={() => void upgrade(p.id as Plan)}
+                      className={cn(
+                        "mt-5 rounded-xl px-4 py-2.5 text-[12.5px] font-medium transition",
+                        p.highlight
+                          ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md shadow-orange-200 hover:brightness-105"
+                          : "border border-stone-200 bg-white text-stone-600 hover:border-orange-300 hover:text-orange-600",
+                        isCurrent && "cursor-default bg-stone-100 text-stone-400"
+                      )}
+                    >
+                      {isCurrent ? "当前方案" : `升级 ${p.name}`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 订单记录 */}
+          <div className="mt-10">
+            <h2 className="text-[16px] font-semibold text-stone-800">订单记录</h2>
+            <div className="mt-4 overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm">
+              {orders.length === 0 ? (
+                <div className="px-5 py-8 text-center text-[13px] text-stone-400">
+                  {loading ? "加载中…" : "暂无订单"}
                 </div>
-              ))}
+              ) : (
+                <div className="divide-y divide-stone-100">
+                  {orders.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium text-stone-800">{PLAN_LABEL[o.plan]}</div>
+                        <div className="mt-0.5 truncate text-[11px] text-stone-400">
+                          订单 {o.id.slice(0, 8)} · {fmtDate(o.createdAt)}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-[13px] font-semibold text-stone-700">¥{o.amount}</span>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                            o.status === "paid" && "bg-emerald-50 text-emerald-600",
+                            o.status === "pending" && "bg-amber-50 text-amber-600",
+                            o.status === "cancelled" && "bg-stone-100 text-stone-400"
+                          )}
+                        >
+                          {o.status === "paid" ? "已支付" : o.status === "pending" ? "待支付" : "已取消"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           <p className="mt-10 text-center text-[11px] text-stone-400">
-            本页为会员中心演示，实际购买与账单能力将在后续接入。
+            订单与会员数据已接入本地数据库，实际支付渠道将在上线时接入。
           </p>
         </div>
       </main>
