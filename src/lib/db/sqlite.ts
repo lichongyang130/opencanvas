@@ -38,6 +38,7 @@ export function getDb(): DatabaseSync {
       role           TEXT NOT NULL,
       content        TEXT NOT NULL,
       error          INTEGER NOT NULL DEFAULT 0,
+      refs           TEXT,
       createdAt      REAL NOT NULL,
       FOREIGN KEY (conversationId) REFERENCES conversations(id) ON DELETE CASCADE
     );
@@ -173,6 +174,13 @@ export function getDb(): DatabaseSync {
   }
   if (!cols.some((c) => c.name === "codePreview")) {
     db.exec("ALTER TABLE conversations ADD COLUMN codePreview TEXT");
+  }
+  if (!cols.some((c) => c.name === "kbId")) {
+    db.exec("ALTER TABLE conversations ADD COLUMN kbId TEXT");
+  }
+  const msgCols = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
+  if (!msgCols.some((c) => c.name === "refs")) {
+    db.exec("ALTER TABLE messages ADD COLUMN refs TEXT");
   }
 
   return db;

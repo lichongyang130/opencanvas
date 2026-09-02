@@ -11,6 +11,7 @@ export async function POST(req: Request) {
     role?: string;
     content?: string;
     error?: boolean;
+    refs?: unknown;
   };
   if (!body.id || !body.conversationId || !body.role || body.content === undefined) {
     return Response.json({ error: "参数不完整" }, { status: 400 });
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
     role: body.role,
     content: body.content,
     error: body.error ?? false,
+    refs: body.refs ?? null,
   });
   return Response.json({ ok: true });
 }

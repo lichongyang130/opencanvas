@@ -26,12 +26,22 @@ export type WorkspaceMode = "chat" | "research" | "slides" | "image" | "video" |
 /** 设置中心分页 */
 export type SettingsTab = "general" | "models" | "network" | "data" | "about";
 
+/** 知识库检索命中（与 /api/knowledge/:id/query 返回一致） */
+export interface KbHit {
+  docId: string;
+  docName: string;
+  snippet: string;
+  score: number;
+}
+
 export interface UIMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
   error?: boolean;
+  /** 知识库引用来源 */
+  refs?: KbHit[];
 }
 
 export interface UIImage {
@@ -74,6 +84,8 @@ export interface Conversation {
   personaSystem?: string;
   /** 代码沙箱：AI 生成的 HTML 页面预览 */
   codePreview?: { html: string; lang: string; createdAt: number } | null;
+  /** 绑定的知识库 id（发送时自动 RAG 检索注入上下文） */
+  kbId?: string;
   createdAt: number;
 }
 
@@ -196,6 +208,8 @@ interface ChatState {
   setDoc: (doc: UIDoc) => void;
   /** 代码沙箱：设置/清除当前会话的 HTML 预览 */
   setCodePreview: (html: string | null, lang?: string) => void;
+  /** 绑定/解除会话的知识库（发送时自动 RAG 检索） */
+  setKbId: (id: string | null) => void;
   aiDoc: (op: "continue" | "polish" | "shorten" | "expand" | "fix", selection?: string) => Promise<void>;
   docBusy: boolean;
   addImages: (images: UIImage[]) => void;
@@ -265,6 +279,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         role: m.role,
         content: m.content,
         error: Boolean(m.error),
+        refs: m.refs ?? null,
       }),
     }).catch(() => {});
 
@@ -414,6 +429,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           personaId: (c.personaId as string) ?? undefined,
           personaSystem: (c.personaSystem as string) ?? undefined,
           codePreview: (c.codePreview as Conversation["codePreview"]) ?? undefined,
+          kbId: (c.kbId as string) ?? undefined,
           pinned: Boolean(c.pinned),
           createdAt: (c.createdAt as number) ?? Date.now(),
         }));
@@ -475,7 +491,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (convo.loaded) return;
       try {
         const data = await api<{
-          messages: Array<{ id: string; role: "user" | "assistant"; content: string; error: boolean }>;
+          messages: Array<{
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            error: boolean;
+            refs?: KbHit[] | null;
+          }>;
         }>(`/api/conversations/${id}`);
         patchConvo(id, {
           loaded: true,
@@ -484,6 +506,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             role: m.role,
             content: m.content,
             error: m.error,
+            refs: Array.isArray(m.refs) ? m.refs : undefined,
           })),
         });
       } catch {
@@ -752,6 +775,31 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (title !== current.title) persistConvo(current.id, { title });
       set({ sending: true });
 
+      // 知识库 RAG：会话绑定知识库时，先检索相关片段再注入上下文
+      let kbHits: KbHit[] = [];
+      if (current.kbId) {
+        try {
+          const data = (await fetch(`/api/knowledge/${current.kbId}/query`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: trimmed }),
+          }).then((r) => r.json())) as { hits?: KbHit[] };
+          kbHits = data.hits ?? [];
+        } catch {
+          kbHits = [];
+        }
+        if (kbHits.length > 0) {
+          assistantMsg.refs = kbHits;
+          patchConvo(current.id, {
+            messages: get()
+              .conversations.find((x) => x.id === current.id)!
+              .messages.map((mm) =>
+                mm.id === assistantMsg.id ? { ...mm, refs: kbHits } : mm
+              ),
+          });
+        }
+      }
+
       // AI 角色 system prompt（叠加在模式提示词之后）
       // 自定义智能体直接用会话内保存的 personaSystem；内置智能体按 personaId 查 personas.ts
       let personaSystem = current.personaSystem ?? "";
@@ -759,7 +807,15 @@ export const useChatStore = create<ChatState>((set, get) => {
         const persona = getPersona(current.personaId);
         if (persona?.system) personaSystem = persona.system;
       }
-      const systemContent = [MODE_PROMPTS[current.mode], personaSystem].filter(Boolean).join("\n\n");
+      const kbContext = kbHits
+        .map((h, i) => `【资料${i + 1}｜${h.docName}】\n${h.snippet}`)
+        .join("\n\n");
+      const kbPrompt = kbContext
+        ? `以下是从绑定的知识库检索到的相关资料，请优先依据资料回答；如有引用，请在结尾列出「引用来源：资料编号 · 文档名」。\n\n${kbContext}`
+        : "";
+      const systemContent = [MODE_PROMPTS[current.mode], personaSystem, kbPrompt]
+        .filter(Boolean)
+        .join("\n\n");
 
       const apiMessages = [
         { role: "system" as const, content: systemContent },
@@ -1120,6 +1176,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       const next = html ? { html, lang, createdAt: Date.now() } : null;
       patchConvo(activeId, { codePreview: next });
       persistConvo(activeId, { codePreview: next });
+    },
+
+    setKbId: (id) => {
+      const { activeId } = get();
+      if (!activeId) return;
+      patchConvo(activeId, { kbId: id || undefined });
+      persistConvo(activeId, { kbId: id || null });
     },
 
     reportToDoc: async () => {

@@ -17,6 +17,8 @@ export interface StoredConversation {
   personaSystem: string | null;
   /** 代码沙箱预览（AI 生成的 HTML） */
   codePreview: unknown | null;
+  /** 会话绑定的知识库 id（RAG 检索来源） */
+  kbId: string | null;
   archived: boolean;
   pinned: boolean;
   createdAt: number;
@@ -29,6 +31,8 @@ export interface StoredMessage {
   role: "user" | "assistant";
   content: string;
   error: boolean;
+  /** 引用来源（知识库 RAG 命中，JSON） */
+  refs: unknown | null;
   createdAt: number;
 }
 
@@ -219,6 +223,7 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
     personaId: (r.personaId as string | null) ?? null,
     personaSystem: (r.personaSystem as string | null) ?? null,
     codePreview: parseJson(r.codePreview as string | null, null),
+    kbId: (r.kbId as string | null) ?? null,
     archived: Boolean(r.archived),
     pinned: Boolean(r.pinned),
     createdAt: r.createdAt as number,
@@ -256,6 +261,7 @@ export const repo = {
       role: r.role as "user" | "assistant",
       content: r.content as string,
       error: Boolean(r.error),
+      refs: parseJson(r.refs as string | null, null),
       createdAt: r.createdAt as number,
     }));
   },
@@ -274,6 +280,7 @@ export const repo = {
     personaId?: string | null;
     personaSystem?: string | null;
     codePreview?: unknown;
+    kbId?: string | null;
     archived?: boolean;
     pinned?: boolean;
   }): void {
@@ -305,6 +312,7 @@ export const repo = {
       if (c.personaId !== undefined) set("personaId", c.personaId);
       if (c.personaSystem !== undefined) set("personaSystem", c.personaSystem);
       if (c.codePreview !== undefined) set("codePreview", c.codePreview === null ? null : JSON.stringify(c.codePreview));
+      if (c.kbId !== undefined) set("kbId", c.kbId);
       if (c.archived !== undefined) set("archived", c.archived ? 1 : 0);
       if (c.pinned !== undefined) set("pinned", c.pinned ? 1 : 0);
 
@@ -315,8 +323,8 @@ export const repo = {
       }
     } else {
       db.prepare(
-        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, personaSystem, codePreview, archived, pinned, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, personaSystem, codePreview, kbId, archived, pinned, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         c.id,
         c.title ?? "新任务",
@@ -331,6 +339,7 @@ export const repo = {
         c.personaId ?? null,
         c.personaSystem ?? null,
         c.codePreview === undefined || c.codePreview === null ? null : JSON.stringify(c.codePreview),
+        c.kbId ?? null,
         c.archived ? 1 : 0,
         c.pinned ? 1 : 0,
         now,
@@ -345,12 +354,21 @@ export const repo = {
     role: string;
     content: string;
     error?: boolean;
+    refs?: unknown;
   }): void {
     getDb()
       .prepare(
-        "INSERT INTO messages (id, conversationId, role, content, error, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO messages (id, conversationId, role, content, error, refs, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
       )
-      .run(m.id, m.conversationId, m.role, m.content, m.error ? 1 : 0, Date.now());
+      .run(
+        m.id,
+        m.conversationId,
+        m.role,
+        m.content,
+        m.error ? 1 : 0,
+        m.refs === undefined || m.refs === null ? null : JSON.stringify(m.refs),
+        Date.now()
+      );
     getDb().prepare("UPDATE conversations SET updatedAt = ? WHERE id = ?").run(Date.now(), m.conversationId);
   },
 

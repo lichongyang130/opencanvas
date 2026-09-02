@@ -9,6 +9,7 @@ import {
   ImageIcon,
   Loader2,
   Mail,
+  BookOpen,
   MonitorPlay,
   Presentation,
   Search,
@@ -21,6 +22,7 @@ import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@
 import { extractPageHtml } from "@/lib/code";
 import { Markdown } from "./Markdown";
 import { PersonaPicker } from "./PersonaPicker";
+import KbPicker from "./KbPicker";
 import { ModelSelector } from "./ModelSelector";
 import { MODELS } from "@/lib/gateway/models";
 import { toast } from "@/lib/store/toast";
@@ -163,6 +165,7 @@ const HOME_CARDS: {
 
 function MessageBubble({ m }: { m: UIMessage }) {
   const [copied, setCopied] = useState(false);
+  const [refsOpen, setRefsOpen] = useState(false);
   const { setCodePreview } = useChatStore();
   const copy = () => {
     navigator.clipboard?.writeText(m.content).then(
@@ -201,6 +204,35 @@ function MessageBubble({ m }: { m: UIMessage }) {
             {m.streaming && <span className="streaming-cursor" />}
           </div>
         )}
+        {/* 知识库引用来源 */}
+        {!isUser && (m.refs?.length ?? 0) > 0 && (
+          <div className="mt-2 border-t border-stone-100 pt-2">
+            <button
+              onClick={() => setRefsOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11px] font-medium text-[#c05f3c] transition hover:bg-[#fbf3ec]"
+            >
+              <BookOpen className="h-3 w-3" />
+              引用来源 {m.refs!.length} 条
+              <span className="text-[9px] opacity-60">{refsOpen ? "▲" : "▼"}</span>
+            </button>
+            {refsOpen && (
+              <div className="mt-1.5 space-y-1.5">
+                {m.refs!.map((r, i) => (
+                  <div key={`${r.docId}-${i}`} className="rounded-lg border border-stone-100 bg-[#fdfaf6] px-2.5 py-2">
+                    <p className="text-[10.5px] font-medium text-stone-500">
+                      资料{i + 1} · {r.docName}
+                      <span className="ml-2 rounded bg-[#fbf3ec] px-1.5 py-0.5 text-[9.5px] text-[#c05f3c]">
+                        相关度 {r.score}
+                      </span>
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-stone-400">{r.snippet}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {!m.streaming && m.content && (
           <div
             className={cn(
@@ -512,6 +544,7 @@ export function ChatPanel() {
   const { conversations, activeId, send, sending, stopGeneration, model, setModel } = useChatStore();
   const pendingInput = useChatStore((s) => s.pendingInput);
   const sendKey = useChatStore((s) => s.sendKey);
+  const setKbId = useChatStore((s) => s.setKbId);
   const convo = conversations.find((c) => c.id === activeId);
   const [input, setInput] = useState("");
   const [imgSize, setImgSize] = useState("1024x1024");
@@ -673,6 +706,14 @@ export function ChatPanel() {
 
               {/* E5 分体式输入舱 */}
               <div className="mx-auto mt-8 max-w-3xl">
+                <div className="mb-2 flex items-center justify-between">
+                  <KbPicker value={convo?.kbId} onChange={setKbId} />
+                  {convo?.kbId && (
+                    <span className="text-[11px] text-[var(--oc-muted-text)]">
+                      已启用知识库检索 · 回答将带引用来源
+                    </span>
+                  )}
+                </div>
                 <SplitComposer
                   input={input}
                   setInput={setInput}
@@ -742,6 +783,16 @@ export function ChatPanel() {
       {messages.length > 0 && (
         <div className="border-t border-[var(--oc-border-strong)] bg-[var(--oc-bg)] px-6 py-3">
           <div className="mx-auto w-full max-w-3xl">
+            {mode === "chat" && (
+              <div className="mb-2 flex items-center justify-between">
+                <KbPicker value={convo?.kbId} onChange={setKbId} />
+                {convo?.kbId && (
+                  <span className="text-[11px] text-[var(--oc-muted-text)]">
+                    已启用知识库检索 · 回答将带引用来源
+                  </span>
+                )}
+              </div>
+            )}
             <SplitComposer
               input={input}
               setInput={setInput}
