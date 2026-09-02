@@ -111,16 +111,16 @@ export interface DynamicModel {
 }
 
 /** 读取各供应商动态获取的模型列表 */
-export function loadDynamicModels(): Partial<Record<ProviderId, string[]>> {
+export function loadDynamicModels(): Partial<Record<SettingsProviderId, string[]>> {
   try {
     const raw = localStorage.getItem(MODELS_KEY);
-    return raw ? (JSON.parse(raw) as Partial<Record<ProviderId, string[]>>) : {};
+    return raw ? (JSON.parse(raw) as Partial<Record<SettingsProviderId, string[]>>) : {};
   } catch {
     return {};
   }
 }
 
-export function saveDynamicModels(m: Partial<Record<ProviderId, string[]>>): void {
+export function saveDynamicModels(m: Partial<Record<SettingsProviderId, string[]>>): void {
   localStorage.setItem(MODELS_KEY, JSON.stringify(m));
   window.dispatchEvent(new CustomEvent("opencanvas:settings-changed"));
 }
@@ -129,7 +129,14 @@ export interface ProviderSetting {
   apiKey: string;
   baseUrl: string;
 }
-export type ProviderSettings = Partial<Record<ProviderId, ProviderSetting>>;
+
+/** 设置页可配置的供应商 = 聊天供应商 + 图像专用（fal.ai） */
+export type SettingsProviderId = ProviderId | "fal";
+
+/** 图像请求携带的供应商覆盖（含 fal，供 /api/images 使用） */
+export type ImageOverrides = ProviderOverrides & { fal?: { apiKey: string; baseUrl?: string } };
+
+export type ProviderSettings = Partial<Record<SettingsProviderId, ProviderSetting>>;
 
 export const TAVILY_KEY = "tavily";
 
@@ -146,7 +153,7 @@ export function loadTavilyKey(): string {
 }
 
 export const PROVIDER_META: {
-  id: ProviderId;
+  id: SettingsProviderId;
   label: string;
   region: string;
   defaultBaseUrl: string;
@@ -185,6 +192,14 @@ export const PROVIDER_META: {
     models: "Qwen 对话 + 通义万相绘图",
     note: "用 OpenAI 兼容模式 Base URL",
   },
+  {
+    id: "fal",
+    label: "fal.ai（FLUX.1 图像）",
+    region: "海外",
+    defaultBaseUrl: "https://fal.run",
+    models: "FLUX Schnell / Dev 绘图 + 图生图",
+    note: "仅图像生成；用控制台 API Key（Key 前缀会自动处理）",
+  },
 ];
 
 export function loadSettings(): ProviderSettings {
@@ -195,7 +210,7 @@ export function loadSettings(): ProviderSettings {
     const out: ProviderSettings = {};
     for (const [k, v] of Object.entries(parsed)) {
       if (v && typeof v === "object") {
-        out[k as ProviderId] = {
+        out[k as SettingsProviderId] = {
           apiKey: typeof v.apiKey === "string" ? v.apiKey.trim() : "",
           baseUrl: typeof v.baseUrl === "string" ? v.baseUrl.trim() : "",
         };
@@ -212,18 +227,22 @@ export function saveSettings(s: ProviderSettings): void {
   window.dispatchEvent(new CustomEvent("opencanvas:settings-changed"));
 }
 
-/** 转成请求体里的 overrides（只含有 key 的供应商） */
-export function toOverrides(s: ProviderSettings): ProviderOverrides {
-  const out: ProviderOverrides = {};
+/** 转成请求体里的 overrides（只含有 key 的供应商；包含图像专用 fal） */
+export function toOverrides(s: ProviderSettings): ImageOverrides {
+  const out: ImageOverrides = {};
   for (const [id, v] of Object.entries(s)) {
     if (v?.apiKey) {
-      out[id as ProviderId] = { apiKey: v.apiKey, baseUrl: v.baseUrl || undefined };
+      if (id === "fal") {
+        out.fal = { apiKey: v.apiKey, baseUrl: v.baseUrl || undefined };
+      } else {
+        out[id as ProviderId] = { apiKey: v.apiKey, baseUrl: v.baseUrl || undefined };
+      }
     }
   }
   return out;
 }
 
-export function getOverrides(): ProviderOverrides {
+export function getOverrides(): ImageOverrides {
   return toOverrides(loadSettings());
 }
 

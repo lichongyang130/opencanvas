@@ -3,10 +3,17 @@ import type { ImageAdapter, ImageResult } from "./types";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * 阿里云百炼 通义万相 文生图（国内）。
+ * 阿里云百炼 图像（国内）。
+ * - 文生图：wan2.7-t2i-flash / wanx2.5-t2i（Seedream 同源）/ wanx2.1-t2i-turbo
+ * - 图生图：wanx2.1-i2i-turbo（传 imageUrl 时自动走图生图接口）
  * 流程：创建异步任务 → 轮询状态 → 返回结果图 URL。
- * 参考百炼 multimodal-generation 接口。
  */
+const T2I: Record<string, string> = {
+  "wan2.7-t2i-flash": "wan2.7-t2i-flash",
+  "wanx2.5-t2i": "wanx2.5-t2i",
+};
+const I2I = "wanx2.1-i2i-turbo";
+
 export function createDashScopeImageAdapter(apiKey?: string, baseUrl?: string): ImageAdapter {
   const root = (baseUrl || "https://dashscope.aliyuncs.com").replace(/\/+$/, "");
   return {
@@ -17,12 +24,18 @@ export function createDashScopeImageAdapter(apiKey?: string, baseUrl?: string): 
     async generate(prompt, opts): Promise<ImageResult> {
       if (!apiKey) throw new Error("dashscope image: 未配置 DASHSCOPE_API_KEY");
 
+      const modelId = opts.model ?? "wan2.7-t2i-flash";
+      const isI2I = Boolean(opts.imageUrl);
+      const model = isI2I ? I2I : (T2I[modelId] ?? "wan2.7-t2i-flash");
       const size =
         opts.size === "1024x1792"
-          ? "720*1280"
+          ? isI2I ? "720*1280" : "720*1280"
           : opts.size === "1792x1024"
             ? "1280*720"
             : "1024*1024";
+
+      const content: Record<string, unknown>[] = [{ text: prompt }];
+      if (opts.imageUrl) content.push({ image: opts.imageUrl });
 
       const create = await fetch(
         `${root}/api/v1/services/aigc/multimodal-generation/generation`,
@@ -34,8 +47,8 @@ export function createDashScopeImageAdapter(apiKey?: string, baseUrl?: string): 
             "X-DashScope-Async": "enable",
           },
           body: JSON.stringify({
-            model: "wan2.7-t2i-flash",
-            input: { messages: [{ role: "user", content: [{ text: prompt }] }] },
+            model,
+            input: { messages: [{ role: "user", content }] },
             parameters: { size, n: 1 },
           }),
           signal: opts.signal,
@@ -56,7 +69,6 @@ export function createDashScopeImageAdapter(apiKey?: string, baseUrl?: string): 
           headers: { Authorization: `Bearer ${apiKey}` },
           signal: opts.signal,
         });
-        // 轮询请求也要校验状态，避免密钥失效/限流被吞成「超时」
         if (!r.ok) {
           const t = await r.text().catch(() => "");
           throw new Error(`万相轮询失败 ${r.status}: ${t.slice(0, 200)}`);
@@ -72,7 +84,7 @@ export function createDashScopeImageAdapter(apiKey?: string, baseUrl?: string): 
         if (status === "SUCCEEDED") {
           const url = data.output?.results?.[0]?.url;
           if (!url) throw new Error("万相任务完成但无图片 URL");
-          return { url, model: "wan2.7-t2i-flash" };
+          return { url, model: isI2I ? I2I : model };
         }
         if (status === "FAILED") {
           throw new Error(`万相生成失败: ${data.output?.message ?? ""}`);

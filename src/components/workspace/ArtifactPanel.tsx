@@ -12,10 +12,14 @@ import {
   LayoutDashboard,
   Loader2,
   MonitorPlay,
+  Scissors,
   Search,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type UIImage } from "@/lib/store/chat";
+import { getOverrides } from "@/lib/settings";
+import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 import { SlideDeckView } from "./SlideDeckView";
 import { ReportView } from "./ReportView";
@@ -23,7 +27,9 @@ import { DocView } from "./DocView";
 
 function ImageGallery({ images }: { images: UIImage[] }) {
   const [zoom, setZoom] = useState<UIImage | null>(null);
+  const [busy, setBusy] = useState<string | null>(null); // 正在处理的图 id
   const downloadRef = useRef<HTMLAnchorElement>(null);
+  const { addImages } = useChatStore();
 
   const download = (img: UIImage) => {
     const a = downloadRef.current ?? document.createElement("a");
@@ -33,6 +39,83 @@ function ImageGallery({ images }: { images: UIImage[] }) {
     a.download = `ai-image-${img.id}.png`;
     if (img.url.startsWith("data:")) a.click();
     else window.open(img.url, "_blank", "noopener");
+  };
+
+  /** 图生图：以该图为参考生成变体（自动选模型：FLUX dev / 万相 i2i） */
+  const createVariant = async (img: UIImage) => {
+    const style = window.prompt("描述变体风格（留空 = 保持原图风格微调）", "");
+    if (style === null) return;
+    const prompt = style.trim() || `基于参考图生成风格一致的变体`;
+    setBusy(img.id);
+    try {
+      const ov = getOverrides();
+      const res = await fetch("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "auto", prompt, size: "1024x1024", imageUrl: img.url, overrides: ov }),
+      });
+      const data = (await res.json()) as { url?: string; model?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "变体生成失败");
+      const next: UIImage = {
+        id: crypto.randomUUID(),
+        prompt: `变体：${prompt}`,
+        model: data.model ?? "auto",
+        url: data.url,
+        createdAt: Date.now(),
+      };
+      addImages([next]);
+      toast(`已生成变体（${data.model}）`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "变体生成失败", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** 背景移除：优先服务端 remove.bg（需 KEY），否则本地 @imgly WASM（免费、模型从 CDN 加载） */
+  const removeBg = async (img: UIImage) => {
+    setBusy(img.id);
+    try {
+      let url: string | null = null;
+      let src = "本地 AI";
+      // 1) 服务端 remove.bg
+      const res = await fetch("/api/images/remove-bg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: img.url }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (res.ok && data.url) {
+        url = data.url;
+        src = "remove.bg";
+      } else {
+        // 2) 客户端 @imgly（零配置）
+        const { removeBackground } = await import("@imgly/background-removal");
+        const blob = (await removeBackground(img.url, {
+          progress: () => { /* 需要时显示进度 */ },
+        })) as Blob;
+        url = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = () => reject(new Error("读取结果失败"));
+          r.readAsDataURL(blob);
+        });
+        src = "本地 AI";
+      }
+      const next: UIImage = {
+        id: crypto.randomUUID(),
+        prompt: `${img.prompt}（去背景）`,
+        model: "remove-bg",
+        url,
+        createdAt: Date.now(),
+      };
+      addImages([next]);
+      toast(`背景已移除（${src}）`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "背景移除失败", "error");
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -49,13 +132,31 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                 <p className="truncate text-xs text-stone-600">{img.prompt}</p>
                 <p className="mt-0.5 text-[10px] text-stone-400">{img.model}</p>
               </div>
-              <button
-                onClick={() => download(img)}
-                title="下载/打开"
-                className="shrink-0 rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => void createVariant(img)}
+                  disabled={busy === img.id}
+                  title="以该图为参考生成变体（FLUX dev / 万相 i2i）"
+                  className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-sky-300 hover:text-sky-600 disabled:opacity-40"
+                >
+                  {busy === img.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                </button>
+                <button
+                  onClick={() => void removeBg(img)}
+                  disabled={busy === img.id}
+                  title="去除背景（remove.bg 或本地 AI）"
+                  className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-violet-300 hover:text-violet-600 disabled:opacity-40"
+                >
+                  <Scissors className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => download(img)}
+                  title="下载/打开"
+                  className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </figcaption>
           </figure>
         ))}

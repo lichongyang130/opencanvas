@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
+import { IMAGE_MODELS } from "@/lib/gateway/image/models";
 import { extractPageHtml } from "@/lib/code";
 import { Markdown } from "./Markdown";
 import { PersonaPicker } from "./PersonaPicker";
@@ -734,6 +735,8 @@ export function ChatPanel() {
   const convo = conversations.find((c) => c.id === activeId);
   const [input, setInput] = useState("");
   const [imgSize, setImgSize] = useState("1024x1024");
+  const [picModel, setPicModel] = useState("auto");
+  const [picConfigured, setPicConfigured] = useState<Record<string, boolean>>({});
   const [showJump, setShowJump] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
   const [slashIdx, setSlashIdx] = useState(0);
@@ -745,6 +748,18 @@ export function ChatPanel() {
 
   const slashMatches = matchSlash(input);
   useEffect(() => setSlashIdx(0), [input]);
+
+  // 图像模型配置状态（用于图片模式下拉提示「未配置密钥」）
+  useEffect(() => {
+    let live = true;
+    fetch("/api/models")
+      .then((r) => r.json())
+      .then((d: { imageStatus?: Record<string, boolean> }) => {
+        if (live) setPicConfigured(d.imageStatus ?? {});
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     if (pendingInput) {
@@ -868,6 +883,23 @@ export function ChatPanel() {
     // 附件 → 注入模型上下文：文本内容拼接；图片以 markdown 呈现（视觉模型可读）
     const imgAtts = attachments.filter((a) => a.kind === "image");
     const txtAtts = attachments.filter((a) => a.kind === "text");
+    // 图片模式：图片附件作为「参考图（图生图）」单独传参，不拼进提示词
+    if (mode === "image") {
+      if (txtAtts.length > 0) {
+        const blocks = txtAtts
+          .map((a) => `【附件：${a.name}】\n${a.content ?? ""}`)
+          .join("\n\n");
+        payload = payload ? `${payload}\n\n${blocks}` : blocks;
+      }
+      const refUrl = imgAtts[0]?.url;
+      setInput("");
+      setAttachments([]);
+      void useChatStore.getState().generateImage(payload, imgSize, {
+        model: picModel,
+        imageUrl: refUrl,
+      });
+      return;
+    }
     if (imgAtts.length > 0) {
       const imgs = imgAtts.map((a) => `![${a.name}](${a.url})`).join("\n");
       payload = payload ? `${payload}\n\n${imgs}` : imgs;
@@ -880,8 +912,7 @@ export function ChatPanel() {
     }
     setInput("");
     setAttachments([]);
-    if (mode === "image") void useChatStore.getState().generateImage(payload, imgSize);
-    else void send(payload);
+    void send(payload);
   };
 
   const enhancePrompt = async () => {

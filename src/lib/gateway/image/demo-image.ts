@@ -9,10 +9,11 @@ export const demoImageAdapter: ImageAdapter = {
   isConfigured() {
     return true;
   },
-  async generate(prompt: string): Promise<ImageResult> {
+  async generate(prompt: string, opts?: { imageUrl?: string }): Promise<ImageResult> {
     // 由提示词字符散列出两组色相，保证每张图不同
+    const seedText = (opts?.imageUrl?.slice(0, 60) ?? "") + prompt;
     let h = 0;
-    for (let i = 0; i < prompt.length; i++) h = (h * 31 + prompt.charCodeAt(i)) % 360;
+    for (let i = 0; i < seedText.length; i++) h = (h * 31 + seedText.charCodeAt(i)) % 360;
     const h2 = (h + 60) % 360;
     const safe = prompt.replace(/[<>&]/g, (c) =>
       c === "<" ? "＜" : c === ">" ? "＞" : "＆"
@@ -38,7 +39,7 @@ export const demoImageAdapter: ImageAdapter = {
   <text x="64" y="480" font-family="sans-serif" font-size="46" font-weight="bold" fill="#fff">${lines
     .map((l, i) => `<tspan x="64" dy="${i === 0 ? 0 : 64}">${l}</tspan>`)
     .join("")}</text>
-  <text x="64" y="940" font-family="sans-serif" font-size="26" fill="rgba(255,255,255,0.75)">配置 OPENAI_API_KEY / DASHSCOPE_API_KEY 后生成真实图像</text>
+  <text x="64" y="940" font-family="sans-serif" font-size="26" fill="rgba(255,255,255,0.75)">配置 OPENAI / DASHSCOPE / FAL 密钥后生成真实图像${opts?.imageUrl ? "（参考图模式）" : ""}</text>
 </svg>`;
 
     return {

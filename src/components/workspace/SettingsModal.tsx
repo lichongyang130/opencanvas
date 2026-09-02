@@ -61,6 +61,7 @@ import {
   type WorkspaceMode,
 } from "@/lib/store/chat";
 import type { ProviderId } from "@/lib/gateway";
+import type { SettingsProviderId } from "@/lib/settings";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 import { ProviderLogo } from "./ProviderLogo";
@@ -81,6 +82,7 @@ const PROVIDER_CAPS: Record<string, string[]> = {
   anthropic: ["对话"],
   deepseek: ["对话"],
   dashscope: ["对话", "图像生成"],
+  fal: ["图像生成", "图生图"],
 };
 
 const MODE_OPTIONS: Array<{ id: WorkspaceMode; icon: LucideIcon; desc: string }> = [
@@ -300,7 +302,7 @@ function ProviderCard({
   meta: (typeof PROVIDER_META)[number];
   setting: { apiKey: string; baseUrl: string };
   serverConfigured: boolean;
-  testState: TestState[ProviderId];
+  testState: TestState[SettingsProviderId];
   /** 已保存的动态模型列表 */
   models: string[];
   fetchingModels: boolean;
@@ -516,8 +518,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setSettings((s) => ({
       ...s,
       [id]: {
-        apiKey: (s[id as ProviderId]?.apiKey) ?? "",
-        baseUrl: (s[id as ProviderId]?.baseUrl) ?? "",
+        apiKey: (s[id as SettingsProviderId]?.apiKey) ?? "",
+        baseUrl: (s[id as SettingsProviderId]?.baseUrl) ?? "",
         [field]: value,
       },
     }));
@@ -525,7 +527,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setSaved(false);
   };
 
-  const clearProvider = (id: ProviderId) => {
+  const clearProvider = (id: SettingsProviderId) => {
     setSettings((s) => {
       const next = { ...s };
       delete next[id];
@@ -541,7 +543,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     toast(`已清除 ${PROVIDER_META.find((p) => p.id === id)?.label ?? id} 本地配置`, "info");
   };
 
-  const testConnection = async (id: ProviderId) => {
+  const testConnection = async (id: SettingsProviderId) => {
     const cur = settings[id];
     if (!cur?.apiKey) {
       toast("请先填写 API Key", "error");
@@ -573,7 +575,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   };
 
   /** 拉取该供应商实际可用的模型列表并保存（支持服务端密钥） */
-  const fetchModels = async (id: ProviderId) => {
+  const fetchModels = async (id: SettingsProviderId) => {
     const cur: { apiKey: string; baseUrl: string } | undefined = settings[id];
     const hasLocalKey = Boolean(cur?.apiKey);
     if (!hasLocalKey && !serverStatus[id]) {
@@ -633,7 +635,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     toast("本地配置已清空", "success");
   };
 
-  const tavily = settings[TAVILY_KEY as ProviderId]?.apiKey ?? "";
+  const tavily = settings[TAVILY_KEY as SettingsProviderId]?.apiKey ?? "";
   const configuredCount = PROVIDER_META.filter((p) => Boolean(settings[p.id]?.apiKey) || serverStatus[p.id]).length;
   const serverCount = PROVIDER_META.filter((p) => serverStatus[p.id]).length;
   const localCount = PROVIDER_META.filter((p) => Boolean(settings[p.id]?.apiKey)).length;

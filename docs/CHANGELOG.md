@@ -2,6 +2,15 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第五轮：AI 绘图增强（FLUX / Seedream / 背景移除）
+
+- 新增 fal.ai 图像适配器：FLUX.1 Schnell（文生图）/ Dev（图生图，image_url），queue 轮询 60s，支持 base64 data URI；设置页可配 FAL_KEY、测试连接、获取模型列表（fal /v1/models）
+- 通义万相图像适配器扩展：wan2.7-t2i-flash / wanx2.5-t2i（Seedream 同源）文生图，wanx2.1-i2i-turbo 图生图（image_url）
+- /api/images 支持 model 指定与 imageUrl 图生图，按模型自动扣积分（失败不扣）；模型表含价格/积分/图生图能力，/api/models 自动下发
+- 图片工作台：参数行「绘图模型」下拉（自动/FLUX/万相/DALL·E）+「参考图（图生图）」按钮，上传图片附件即作为参考图
+- 画布图片新增操作：一键生成「变体」（以该图为参考图）与「去背景」（服务端 remove.bg 优先，未配置时客户端 @imgly/background-removal WASM 本地 AI，免费）
+- demo 适配器支持图生图占位提示；.env.example 新增 FAL_KEY / REMOVE_BG_API_KEY 说明
+
 ## 2026-09-03 · 第四轮：本地账号体系（P2-4-2 本地版）
 
 - users / sessions 表 + conversations.userId（幂等迁移）

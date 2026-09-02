@@ -1,6 +1,7 @@
+"use client";
 /** 图像生成 —— 统一类型 */
 
-export type ImageProviderId = "demo" | "openai" | "dashscope";
+export type ImageProviderId = "demo" | "openai" | "dashscope" | "fal";
 
 export interface ImageModelInfo {
   id: string;
@@ -12,6 +13,8 @@ export interface ImageModelInfo {
   pricePerImage: number;
   /** 单张扣积分 */
   creditsPerImage: number;
+  /** 是否支持图生图（imageUrl 输入） */
+  imageToImage?: boolean;
 }
 
 export interface ImageResult {
@@ -20,8 +23,17 @@ export interface ImageResult {
   revisedPrompt?: string;
 }
 
+export interface ImageGenerateOptions {
+  size: string;
+  /** 图生图：参考图 URL / data URI */
+  imageUrl?: string;
+  /** 实际使用的模型 id（adapter 内部按模型走不同接口） */
+  model?: string;
+  signal?: AbortSignal;
+}
+
 export interface ImageAdapter {
   id: ImageProviderId;
   isConfigured(): boolean;
-  generate(prompt: string, opts: { size: string; signal?: AbortSignal }): Promise<ImageResult>;
+  generate(prompt: string, opts: ImageGenerateOptions): Promise<ImageResult>;
 }

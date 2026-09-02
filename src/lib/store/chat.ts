@@ -209,7 +209,7 @@ interface ChatState {
   /** 编辑重发：删除第 index 条用户消息及其后续回复，内容回填输入框 */
   editResendFrom: (index: number) => void;
   generateSlides: (topic: string, context?: string) => Promise<void>;
-  generateImage: (prompt: string, size: string) => Promise<void>;
+  generateImage: (prompt: string, size: string, opts?: { model?: string; imageUrl?: string }) => Promise<void>;
   generateDocs: (topic: string, seed?: string) => Promise<void>;
   runResearch: (topic: string) => Promise<void>;
   reportToSlides: () => Promise<void>;
@@ -661,7 +661,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       persistConvo(activeId, { images: next });
     },
 
-    generateImage: async (prompt, size) => {
+    generateImage: async (prompt, size, opts) => {
       const p = prompt.trim();
       if (!p || get().sending) return;
 
@@ -692,20 +692,19 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({ sending: true });
 
       const ov = getOverrides();
-      let imageModel = "demo-image";
-      if (ov.dashscope?.apiKey && current.model.startsWith("qwen")) imageModel = "wan2.7-t2i-flash";
-      else if (ov.openai?.apiKey) imageModel = "dall-e-3";
-      else if (ov.dashscope?.apiKey) imageModel = "wan2.7-t2i-flash";
+      const imageUrl = opts?.imageUrl?.trim() || undefined;
+      // 用户显式选了绘图模型则直接使用；否则 "auto" 由服务端按已配置密钥自动选
+      const imageModel = opts?.model && opts.model !== "auto" ? opts.model : "auto";
 
       const controller = newAbort();
       try {
         const res = await fetch("/api/images", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model: imageModel, prompt: p, size, overrides: ov }),
+          body: JSON.stringify({ model: imageModel, prompt: p, size, imageUrl, overrides: ov }),
           signal: controller.signal,
         });
-        const data = (await res.json()) as { url?: string; model?: string; error?: string };
+        const data = (await res.json()) as { url?: string; model?: string; error?: string; credits?: number };
         if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
 
         const img: UIImage = {
@@ -716,7 +715,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           createdAt: Date.now(),
         };
         get().addImages([img]);
-        const note = `✅ 图像已生成（${data.model}）。可在右侧画布查看、下载。`;
+        const note =
+          (data.credits && data.credits > 0
+            ? `✅ 图像已生成（${data.model}），消耗 ${data.credits} 积分。可在右侧画布查看、下载或去背景。`
+            : `✅ 图像已生成（${data.model}）。可在右侧画布查看、下载。`);
         patchConvo(current.id, {
           messages: get()
             .conversations.find((x) => x.id === current.id)!

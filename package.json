@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
     "@prisma/client": "^5.20.0",
     "@tiptap/pm": "^3.31.0",
     "@tiptap/react": "^3.31.0",
