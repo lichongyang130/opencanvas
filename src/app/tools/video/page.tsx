@@ -31,6 +31,8 @@ interface VideoResult {
   error?: string;
 }
 
+type VideoProviderStatus = Record<string, boolean>;
+
 interface VideoModelInfo {
   id: string;
   label: string;
@@ -57,14 +59,17 @@ export default function VideoStudioPage() {
   const [result, setResult] = useState<VideoResult | null>(null);
   const [error, setError] = useState("");
   const [models, setModels] = useState<VideoModelInfo[]>([]);
+  const [providers, setProviders] = useState<VideoProviderStatus>({});
+  const [selected, setSelected] = useState("demo-video");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/video/status");
       if (res.ok) {
-        const data = (await res.json()) as { models: VideoModelInfo[] };
+        const data = (await res.json()) as { models: VideoModelInfo[]; providers: VideoProviderStatus };
         setModels(data.models ?? []);
+        setProviders(data.providers ?? {});
       }
     } catch {
       /* 状态加载失败不阻塞使用 */
@@ -101,17 +106,22 @@ export default function VideoStudioPage() {
       setProgress((v) => Math.min(92, v + 2 + Math.random() * 6));
     }, 160);
 
+    const model = models.find((m) => m.id === selected);
     try {
       const res = await fetch("/api/video", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt: p, model: "demo-video" }),
+        body: JSON.stringify({ prompt: p, model: selected }),
       });
       const data = (await res.json()) as VideoResult;
       if (!res.ok || data.error) throw new Error(data.error || tt("生成失败"));
       setProgress(100);
       setResult(data);
-      toast(tt("视频生成完成（演示模式，免费）"), "success");
+      if (data.mock) {
+        toast(tt("视频生成完成（演示模式，免费）"), "success");
+      } else {
+        toast(tt("视频生成完成，已扣除 {n} 积分", { n: model?.creditsPerVideo ?? 0 }), "success");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : tt("生成失败"));
       toast(e instanceof Error ? e.message : tt("生成失败"), "error");
@@ -123,23 +133,27 @@ export default function VideoStudioPage() {
 
   const download = async () => {
     if (!result) return;
+    const ext = result.mock ? "gif" : "mp4";
     try {
       const blobRes = await fetch(result.url);
       const blob = await blobRes.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `opencanvas-${result.model}-${Date.now()}.gif`;
+      a.download = `opencanvas-${result.model}-${Date.now()}.${ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(a.href);
-      toast(tt("已开始下载 GIF"), "success");
+      toast(result.mock ? tt("已开始下载 GIF") : tt("已开始下载 MP4"), "success");
     } catch {
-      toast(tt("下载失败"), "error");
+      // 供应商 CDN 可能未开放 CORS：新窗口打开，用户可直接右键保存
+      window.open(result.url, "_blank", "noopener");
+      toast(tt("已在新窗口打开，可右键保存"), "info");
     }
   };
 
   const mockModel = models.find((m) => m.id === "demo-video");
+  const selectedModel = models.find((m) => m.id === selected) ?? mockModel;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--oc-bg)] text-stone-800">
@@ -161,7 +175,7 @@ export default function VideoStudioPage() {
                 {tt("AI 视频生成")}
               </h1>
               <p className="mt-0.5 text-[12.5px] text-stone-400">
-                {tt("输入描述生成 3 秒可循环短片；当前为内置演示引擎（零密钥可用），真实模型接入后可切换")}
+                {tt("输入描述生成短视频；内置演示引擎零密钥可用，配置 FAL / 万相 Key 后自动启用真实模型")}
               </p>
             </div>
           </div>
@@ -216,6 +230,10 @@ export default function VideoStudioPage() {
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" /> 生成中 {Math.round(progress)}%
                     </>
+                  ) : selectedModel && (selectedModel.creditsPerVideo ?? 0) > 0 ? (
+                    <>
+                      <Sparkles className="h-4 w-4" /> {tt("生成视频（-{n} 积分）", { n: selectedModel.creditsPerVideo })}
+                    </>
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" /> {tt("生成视频（免费演示）")}
@@ -238,35 +256,50 @@ export default function VideoStudioPage() {
                   <Film className="h-4 w-4 text-stone-400" /> {tt("生成引擎")}
                 </h2>
                 <ul className="mt-3 space-y-2">
-                  {models.map((m) => (
-                    <li
-                      key={m.id}
-                      className="flex items-center justify-between rounded-xl border border-[var(--oc-border-soft)] px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[12.5px] font-medium text-stone-700">{m.label}</p>
-                        <p className="text-[11px] text-stone-400">
-                          {m.providerLabel}
-                          {m.creditsPerVideo > 0 ? ` · ${m.creditsPerVideo} 积分/次` : ` · ${tt("免费")}`}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          m.provider === "demo"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-stone-100 text-stone-400"
-                        }`}
-                      >
-                        {m.provider === "demo" ? tt("可用") : tt("待接入")}
-                      </span>
-                    </li>
-                  ))}
+                  {models.map((m) => {
+                    const enabled = m.provider === "demo" || (providers[m.provider] ?? false);
+                    const active = selected === m.id;
+                    return (
+                      <li key={m.id}>
+                        <button
+                          onClick={() => setSelected(m.id)}
+                          className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition ${
+                            active
+                              ? "border-[var(--oc-brand-border)] bg-[var(--oc-brand-hover)]"
+                              : "border-[var(--oc-border-soft)] bg-white hover:border-[var(--oc-brand-border-soft)]"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-[12.5px] font-medium text-stone-700">
+                              <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${active ? "bg-[var(--oc-brand)]" : "bg-stone-300"}`} />
+                              {tt(m.label)}
+                            </p>
+                            <p className="text-[11px] text-stone-400">
+                              {tt(m.providerLabel)}
+                              {m.creditsPerVideo > 0 ? ` · ${m.creditsPerVideo} 积分/次` : ` · ${tt("免费")}`}
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              m.provider === "demo"
+                                ? "bg-emerald-50 text-emerald-600"
+                                : enabled
+                                  ? "bg-sky-50 text-sky-600"
+                                  : "bg-stone-100 text-stone-400"
+                            }`}
+                          >
+                            {m.provider === "demo" ? tt("可用") : enabled ? tt("已启用") : tt("待配置 Key")}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
                   {models.length === 0 && (
                     <li className="text-[12px] text-stone-400">{tt("引擎状态加载中…")}</li>
                   )}
                 </ul>
                 <p className="mt-3 text-[11px] leading-5 text-stone-400">
-                  {tt("演示引擎在本机合成程序化动画，无需任何外部 Key；FAL / 万相视频将复用同一前端与计费通道。")}
+                  {tt("演示引擎在本机合成程序化动画；配置 FAL_KEY / DASHSCOPE_API_KEY 后，Kling 与万相模型自动启用并按标价扣除积分。")}
                 </p>
               </section>
             </div>
@@ -286,7 +319,11 @@ export default function VideoStudioPage() {
                 {loading && (
                   <div className="text-center text-stone-500">
                     <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                    <p className="mt-3 text-[12.5px]">{tt("正在合成动画帧…")}</p>
+                    <p className="mt-3 text-[12.5px]">
+                      {selectedModel && (selectedModel.creditsPerVideo ?? 0) > 0
+                        ? tt("正在生成视频（约 1-3 分钟）…")
+                        : tt("正在合成动画帧…")}
+                    </p>
                   </div>
                 )}
                 {!loading && !result && !error && (
@@ -300,15 +337,26 @@ export default function VideoStudioPage() {
                 )}
                 {!loading && result && (
                   <div className="w-full">
-                    <img
-                      src={result.url}
-                      alt={prompt}
-                      className="mx-auto max-h-[440px] w-auto max-w-full rounded-lg shadow-2xl"
-                      style={{ imageRendering: "auto" }}
-                    />
+                    {result.mock ? (
+                      <img
+                        src={result.url}
+                        alt={prompt}
+                        className="mx-auto max-h-[440px] w-auto max-w-full rounded-lg shadow-2xl"
+                        style={{ imageRendering: "auto" }}
+                      />
+                    ) : (
+                      <video
+                        src={result.url}
+                        controls
+                        autoPlay
+                        loop
+                        playsInline
+                        className="mx-auto max-h-[440px] w-auto max-w-full rounded-lg shadow-2xl"
+                      />
+                    )}
                     <p className="mt-3 text-center text-[11.5px] text-stone-400">
-                      自动循环播放 · {result.width}×{result.height} · {result.durationSec}s ·{" "}
-                      {result.model}
+                      {result.mock ? tt("自动循环播放") : tt("可拖动进度条")} · {result.width}×{result.height} · {result.durationSec}s ·{" "}
+                      {tt(models.find((m) => m.id === result.model)?.label ?? result.model)}
                     </p>
                     <div className="mt-3 flex justify-center gap-2">
                       <button
@@ -321,7 +369,7 @@ export default function VideoStudioPage() {
                         onClick={download}
                         className="flex items-center gap-1.5 rounded-xl bg-[var(--oc-brand)] px-4 py-2 text-[12.5px] font-semibold text-white transition hover:opacity-90"
                       >
-                        <Download className="h-3.5 w-3.5" /> {tt("下载 GIF")}
+                        <Download className="h-3.5 w-3.5" /> {result.mock ? tt("下载 GIF") : tt("下载 MP4")}
                       </button>
                     </div>
                   </div>
@@ -336,7 +384,7 @@ export default function VideoStudioPage() {
               )}
 
               <p className="mt-4 text-[11px] leading-5 text-stone-400">
-                {tt("演示模式为程序化动画（GIF），无外部生成成本；真实视频模型接入后将在此展示 MP4 并扣除对应积分。")}
+                {tt("演示模式为程序化动画（GIF），免费；真实模型产出的 MP4 在此播放并按标价扣除积分。")}
               </p>
             </section>
           </div>

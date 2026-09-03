@@ -79,10 +79,10 @@ npm run dev
 # 海外
 OPENAI_API_KEY=sk-...        # 对话 + DALL·E 3 绘图
 ANTHROPIC_API_KEY=sk-ant-... # 对话
-FAL_KEY=xxxxxxxx             # FLUX 绘图 / 图生图（可选）
+FAL_KEY=xxxxxxxx             # FLUX 绘图 / 图生图 + Kling 视频（可选）
 # 国内
 DEEPSEEK_API_KEY=sk-...
-DASHSCOPE_API_KEY=sk-...     # Qwen 对话 + 万相绘图/图生图
+DASHSCOPE_API_KEY=sk-...     # Qwen 对话 + 万相绘图/图生图/文生视频
 REMOVE_BG_API_KEY=xxxxxxxx   # 去背景（可选；不配则前端本地 AI）
 # 第三方登录（可选）：Google / GitHub OAuth 凭据，回调地址见 .env.example
 GOOGLE_CLIENT_ID=...

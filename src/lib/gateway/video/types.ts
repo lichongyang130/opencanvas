@@ -34,6 +34,8 @@ export interface VideoResult {
 export interface VideoGenerateOptions {
   size?: "16:9" | "9:16" | "1:1";
   durationSec?: number;
+  /** 供应商模型 id（真实适配器按此路由，如 fal-ai/kling-video/... 或 wanx2.1-t2v-turbo） */
+  model?: string;
   signal?: AbortSignal;
 }
 

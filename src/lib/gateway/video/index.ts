@@ -1,14 +1,16 @@
 import type { ProviderOverrides } from "../types";
 import { demoVideoAdapter } from "./demo-video";
+import { createFalVideoAdapter } from "./fal-video";
+import { createDashScopeVideoAdapter } from "./dashscope-video";
 import type { VideoAdapter, VideoModelInfo, VideoProviderId, VideoResult } from "./types";
 
 /**
- * AI 视频网关：demo（零密钥演示）→ 真实供应商（FAL / 万相视频，配置 Key 后启用）。
+ * AI 视频网关：demo（零密钥演示）→ FAL（Kling）→ 万相（wanx2.1-t2v-turbo）。
  *
- * 真实供应商接入点（当前仅列出模型信息与适配器骨架，需要 Key 后实现）：
- *  - FAL（全球）：fal.run 的 kling / minimax / veo 等，POST /api/videos 拿 request_id，轮询 queue 结果
- *  - DashScope 万相（国内）：wanx2.1-t2v-turbo（异步任务，POST /api/v1/services/aigc/video-generation/video-synthesis）
- *  完成 adapter 后注册到 ADAPTERS 即可（generateVideo 自动按模型选择）。
+ * 真实供应商启用条件（配置对应环境变量后自动生效，无需改代码）：
+ *  - FAL_KEY：Kling 1.6 Pro 文生视频（fal-ai/kling-video/v1.6/pro/text-to-video，queue 轮询）
+ *  - DASHSCOPE_API_KEY：通义万相 wanx2.1-t2v-turbo（异步任务轮询）
+ * 生成的 MP4 直链由前端 <video> 播放，并按模型标价扣除积分（见 /api/video）。
  */
 
 export const VIDEO_MODELS: VideoModelInfo[] = [
@@ -44,37 +46,71 @@ export const VIDEO_MODELS: VideoModelInfo[] = [
   },
 ];
 
-const ADAPTERS: Partial<Record<VideoProviderId, VideoAdapter>> = {
-  demo: demoVideoAdapter,
-  // fal / dashscope：实现后在此注册
+const ENV_KEY: Record<"fal" | "dashscope", string | undefined> = {
+  fal: process.env.FAL_KEY,
+  dashscope: process.env.DASHSCOPE_API_KEY,
 };
+
+function keyOf(id: "fal" | "dashscope", overrides?: ProviderOverrides): string | undefined {
+  const ov = (overrides as { fal?: { apiKey?: string }; dashscope?: { apiKey?: string } } | undefined);
+  return ov?.[id]?.apiKey || ENV_KEY[id];
+}
+
+function buildAdapters(overrides?: ProviderOverrides): Record<VideoProviderId, VideoAdapter> {
+  return {
+    demo: demoVideoAdapter,
+    fal: createFalVideoAdapter(keyOf("fal", overrides)),
+    dashscope: createDashScopeVideoAdapter(
+      keyOf("dashscope", overrides),
+      (overrides as { dashscope?: { baseUrl?: string } } | undefined)?.dashscope?.baseUrl
+    ),
+  };
+}
+
+/** 默认按 env 构建（BYOK 覆盖在 generateVideo 内按调用构建） */
+let cache: Record<VideoProviderId, VideoAdapter> | null = null;
+function getAdapters(): Record<VideoProviderId, VideoAdapter> {
+  if (!cache) cache = buildAdapters();
+  return cache;
+}
 
 export function getVideoModel(id: string): VideoModelInfo {
   return VIDEO_MODELS.find((m) => m.id === id) ?? VIDEO_MODELS[0];
 }
 
 export function getVideoProviderStatus(): Record<VideoProviderId, boolean> {
+  const a = getAdapters();
   return {
     demo: true,
-    fal: false, // 待 FAL_KEY
-    dashscope: false, // 待 DASHSCOPE_API_KEY（万相视频任务）
+    fal: a.fal.isConfigured(),
+    dashscope: a.dashscope.isConfigured(),
   };
 }
 
-/** 生成视频：demo 恒可用；真实模型需完成供应商 adapter（当前仅 demo） */
+/** 生成视频：demo 恒可用；真实模型需 FAL_KEY / DASHSCOPE_API_KEY（自动启用） */
 export async function generateVideo(
   prompt: string,
   modelId?: string,
-  _overrides?: ProviderOverrides
+  opts?: {
+    size?: "16:9" | "9:16" | "1:1";
+    durationSec?: number;
+    overrides?: ProviderOverrides;
+  }
 ): Promise<VideoResult> {
   const model = getVideoModel(modelId ?? "demo-video");
-  const adapter = ADAPTERS[model.provider] ?? ADAPTERS.demo;
+  const overrides = opts?.overrides;
+  const adapters = overrides ? buildAdapters(overrides) : getAdapters();
+  const adapter = adapters[model.provider];
   if (!adapter || !adapter.isConfigured()) {
     throw new Error(
       model.provider === "demo"
         ? "演示视频初始化失败"
-        : `「${model.label}」需要真实供应商 Key，当前版本提供演示视频（demo-video）`
+        : `「${model.label}」未配置密钥：请设置 ${model.provider === "fal" ? "FAL_KEY" : "DASHSCOPE_API_KEY"} 后使用（演示视频 demo-video 始终可用）`
     );
   }
-  return adapter.generate(prompt, { durationSec: Math.min(4, model.maxDurationSec) });
+  return adapter.generate(prompt, {
+    model: model.id,
+    durationSec: Math.min(opts?.durationSec ?? model.maxDurationSec, 10),
+    size: opts?.size ?? "16:9",
+  });
 }
