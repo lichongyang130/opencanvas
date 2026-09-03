@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   Bookmark,
+  Copy,
   BookmarkCheck,
   Bot,
   Clock,
@@ -348,19 +349,38 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
                           {isMine && (
-                            <button
-                              title="复制分享码"
-                              onClick={() => {
-                                const { id: _i, builtin: _b, ...rest } = t as Template & { builtin?: boolean };
-                                navigator.clipboard?.writeText(encodePrompts([rest])).then(
-                                  () => toast("分享码已复制，发给好友即可导入", "success"),
-                                  () => toast("复制失败", "error")
-                                );
-                              }}
-                              className="text-stone-300 transition hover:text-brand-500"
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </button>
+                            <>
+                              <button
+                                title="生成独立分享链接（公开只读页，可打开 /s/ 地址）"
+                                onClick={async () => {
+                                  try {
+                                    const r = await fetch(`/api/templates/${t.id}/share`, { method: "POST" });
+                                    const j = (await r.json()) as { url?: string; error?: string };
+                                    if (!j.url) throw new Error(j.error || "生成失败");
+                                    await navigator.clipboard?.writeText(`${location.origin}${j.url}`);
+                                    toast("独立分享链接已复制", "success");
+                                  } catch (err) {
+                                    toast(err instanceof Error ? err.message : "分享失败，请重试", "error");
+                                  }
+                                }}
+                                className="text-stone-300 transition hover:text-brand-500"
+                              >
+                                <Share2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                title="复制分享码（可离线导入）"
+                                onClick={() => {
+                                  const { id: _i, builtin: _b, ...rest } = t as Template & { builtin?: boolean };
+                                  navigator.clipboard?.writeText(encodePrompts([rest])).then(
+                                    () => toast("分享码已复制，发给好友即可导入", "success"),
+                                    () => toast("复制失败", "error")
+                                  );
+                                }}
+                                className="text-stone-300 transition hover:text-brand-500"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                            </>
                           )}
                           <button
                             title={fav ? "取消收藏" : "收藏"}

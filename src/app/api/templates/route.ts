@@ -35,6 +35,8 @@ export async function POST(req: Request) {
     prompt,
     author: "我",
     uses: 0,
+    shared: false,
+    shareCode: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

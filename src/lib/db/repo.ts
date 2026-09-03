@@ -55,6 +55,8 @@ export interface StoredTemplate {
   prompt: string;
   author: string;
   uses: number;
+  shared: boolean;
+  shareCode: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -109,6 +111,8 @@ function rowToTemplate(r: Record<string, unknown>): StoredTemplate {
     prompt: (r.prompt as string) ?? "",
     author: (r.author as string) ?? "我",
     uses: (r.uses as number) ?? 0,
+    shared: Boolean(r.shared),
+    shareCode: (r.shareCode as string | null) ?? null,
     createdAt: r.createdAt as number,
     updatedAt: r.updatedAt as number,
   };
@@ -551,10 +555,13 @@ export const repo = {
   createTemplate(t: StoredTemplate): void {
     getDb()
       .prepare(
-        `INSERT INTO prompt_templates (id, label, desc, category, mode, prompt, author, uses, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO prompt_templates (id, label, desc, category, mode, prompt, author, uses, shared, shareCode, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(t.id, t.label, t.desc, t.category, t.mode, t.prompt, t.author, t.uses ?? 0, t.createdAt, t.updatedAt);
+      .run(
+        t.id, t.label, t.desc, t.category, t.mode, t.prompt, t.author, t.uses ?? 0,
+        t.shared ? 1 : 0, t.shareCode ?? null, t.createdAt, t.updatedAt
+      );
   },
 
   updateTemplate(id: string, patch: Partial<StoredTemplate>): void {
@@ -566,9 +573,12 @@ export const repo = {
     const next = { ...cur, ...patch, updatedAt: Date.now() };
     getDb()
       .prepare(
-        `UPDATE prompt_templates SET label=?, desc=?, category=?, mode=?, prompt=?, author=?, uses=?, updatedAt=? WHERE id=?`
+        `UPDATE prompt_templates SET label=?, desc=?, category=?, mode=?, prompt=?, author=?, uses=?, shared=?, shareCode=?, updatedAt=? WHERE id=?`
       )
-      .run(next.label, next.desc, next.category, next.mode, next.prompt, next.author, next.uses, next.updatedAt, id);
+      .run(
+        next.label, next.desc, next.category, next.mode, next.prompt, next.author, next.uses,
+        next.shared ? 1 : 0, next.shareCode ?? null, next.updatedAt, id
+      );
   },
 
   incrTemplateUses(id: string): void {
@@ -577,6 +587,37 @@ export const repo = {
 
   deleteTemplate(id: string): void {
     getDb().prepare("DELETE FROM prompt_templates WHERE id = ?").run(id);
+  },
+
+  /** 生成/复用模板分享码（shared=1），返回分享码 */
+  shareTemplate(id: string): string | null {
+    const db = getDb();
+    const row = db.prepare("SELECT shareCode FROM prompt_templates WHERE id = ?").get(id) as
+      | { shareCode: string | null }
+      | undefined;
+    if (!row) return null;
+    let code = row.shareCode;
+    if (!code) {
+      code = randomUUID().replace(/-/g, "").slice(0, 12);
+      db.prepare("UPDATE prompt_templates SET shared = 1, shareCode = ?, updatedAt = ? WHERE id = ?")
+        .run(code, Date.now(), id);
+    } else {
+      db.prepare("UPDATE prompt_templates SET shared = 1, updatedAt = ? WHERE id = ?").run(Date.now(), id);
+    }
+    return code;
+  },
+
+  unshareTemplate(id: string): void {
+    getDb()
+      .prepare("UPDATE prompt_templates SET shared = 0, shareCode = NULL, updatedAt = ? WHERE id = ?")
+      .run(Date.now(), id);
+  },
+
+  getTemplateByShareCode(code: string): StoredTemplate | null {
+    const row = getDb()
+      .prepare("SELECT * FROM prompt_templates WHERE shareCode = ? AND shared = 1")
+      .get(code) as Record<string, unknown> | undefined;
+    return row ? rowToTemplate(row) : null;
   },
 
   templateStats(): { total: number; totalUses: number } {
@@ -996,6 +1037,41 @@ export function createCaseShare(rec: Omit<CaseShareRecord, "code">): string {
     Date.now()
   );
   return code;
+}
+
+/** 产物分享（只读公开页：PPT / 文档 / 图片 / 研究报告） */
+export type ArtifactShareKind = "slides" | "docs" | "image" | "report";
+
+export interface ArtifactShareRecord {
+  code: string;
+  kind: ArtifactShareKind;
+  data: Record<string, unknown>;
+  createdAt: number;
+}
+
+export function createArtifactShare(kind: ArtifactShareKind, data: Record<string, unknown>): string {
+  const db = getDb();
+  const code = randomUUID().replace(/-/g, "").slice(0, 12);
+  db.prepare("INSERT INTO artifact_shares (code, kind, data, createdAt) VALUES (?, ?, ?, ?)").run(
+    code,
+    kind,
+    JSON.stringify(data),
+    Date.now()
+  );
+  return code;
+}
+
+export function getArtifactShare(code: string): ArtifactShareRecord | null {
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM artifact_shares WHERE code = ?").get(code) as
+    | { kind: string; data: string; createdAt: number }
+    | undefined;
+  if (!row) return null;
+  try {
+    return { code, kind: row.kind as ArtifactShareKind, data: JSON.parse(row.data) as Record<string, unknown>, createdAt: row.createdAt };
+  } catch {
+    return null;
+  }
 }
 
 export function getCaseShare(code: string): CaseShareRecord | null {

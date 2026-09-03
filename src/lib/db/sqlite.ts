@@ -62,6 +62,12 @@ export function getDb(): DatabaseSync {
       data      TEXT NOT NULL,
       createdAt REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS artifact_shares (
+      code      TEXT PRIMARY KEY,
+      kind      TEXT NOT NULL,
+      data      TEXT NOT NULL,
+      createdAt REAL NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS membership (
       id        TEXT PRIMARY KEY,
       plan      TEXT NOT NULL DEFAULT 'free',
@@ -100,6 +106,8 @@ export function getDb(): DatabaseSync {
       prompt    TEXT NOT NULL,
       author    TEXT NOT NULL DEFAULT '我',
       uses      INTEGER NOT NULL DEFAULT 0,
+      shared    INTEGER NOT NULL DEFAULT 0,
+      shareCode TEXT,
       createdAt REAL NOT NULL,
       updatedAt REAL NOT NULL
     );
@@ -157,6 +165,7 @@ export function getDb(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_agents_updated ON agents(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_agents_share ON agents(shareCode);
     CREATE INDEX IF NOT EXISTS idx_prompt_templates_updated ON prompt_templates(updatedAt);
+    CREATE INDEX IF NOT EXISTS idx_artifact_shares_created ON artifact_shares(createdAt);
     CREATE INDEX IF NOT EXISTS idx_documents_updated ON documents(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_documents_name ON documents(name);
     CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updatedAt);
@@ -195,6 +204,14 @@ export function getDb(): DatabaseSync {
   }
   if (!cols.some((c) => c.name === "userId")) {
     db.exec("ALTER TABLE conversations ADD COLUMN userId TEXT");
+  }
+  const tplCols = db.prepare("PRAGMA table_info(prompt_templates)").all() as { name: string }[];
+  if (!tplCols.some((c) => c.name === "shared")) {
+    db.exec("ALTER TABLE prompt_templates ADD COLUMN shared INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!tplCols.some((c) => c.name === "shareCode")) {
+    db.exec("ALTER TABLE prompt_templates ADD COLUMN shareCode TEXT");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_prompt_templates_share ON prompt_templates(shareCode)");
   }
   const msgCols = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
   if (!msgCols.some((c) => c.name === "refs")) {

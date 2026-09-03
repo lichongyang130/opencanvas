@@ -18,6 +18,7 @@ import {
   Pencil,
   Scissors,
   Search,
+  Share2,
   Sparkles,
   X,
 } from "lucide-react";
@@ -28,6 +29,23 @@ import { cn } from "@/lib/utils";
 import { SlideDeckView } from "./SlideDeckView";
 import { ReportView } from "./ReportView";
 import { DocView } from "./DocView";
+
+/** 产物分享：生成公开只读链接并复制 */
+async function shareArtifact(kind: "slides" | "docs" | "image" | "report", payload: Record<string, unknown>) {
+  try {
+    const r = await fetch("/api/shares", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, data: payload }),
+    });
+    const j = (await r.json()) as { url?: string; error?: string };
+    if (!j.url) throw new Error(j.error || "生成失败");
+    await navigator.clipboard?.writeText(`${location.origin}${j.url}`);
+    toast("分享链接已复制，任何人可查看（只读）", "success");
+  } catch (err) {
+    toast(err instanceof Error ? err.message : "分享失败，请重试", "error");
+  }
+}
 
 function ImageGallery({ images }: { images: UIImage[] }) {
   const [zoom, setZoom] = useState<UIImage | null>(null);
@@ -387,13 +405,38 @@ export function ArtifactPanel() {
           </span>
           AI 创作画布
         </h2>
-        <button
-          onClick={() => setArtifactOpen(false)}
-          title="关闭画布"
-          className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {convo &&
+            ((mode === "image" && (convo.images?.length ?? 0) > 0) ||
+              (mode === "slides" && convo.deck) ||
+              (mode === "docs" && convo.doc) ||
+              (mode === "research" && convo.report)) && (
+              <button
+                onClick={() => {
+                  if (mode === "slides" && convo?.deck) {
+                    void shareArtifact("slides", { deck: convo.deck, title: convo.deck.title });
+                  } else if (mode === "docs" && convo?.doc) {
+                    void shareArtifact("docs", { doc: convo.doc, title: convo.doc.title });
+                  } else if (mode === "image" && convo?.images) {
+                    void shareArtifact("image", { images: convo.images, title: convo.title });
+                  } else if (mode === "research" && convo?.report) {
+                    void shareArtifact("report", { report: convo.report, title: convo.report.topic });
+                  }
+                }}
+                title="生成公开只读链接（复制后可分享给任何人）"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100 hover:text-brand-600"
+              >
+                <Share2 className="h-3.5 w-3.5" /> 分享
+              </button>
+            )}
+          <button
+            onClick={() => setArtifactOpen(false)}
+            title="关闭画布"
+            className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* 图像画廊 */}
