@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Presentation,
   Scan,
+  Settings,
   SlidersHorizontal,
   X,
   Share2,
@@ -313,6 +314,19 @@ export default function HomePage() {
             <ChevronDown className="h-4 w-4 text-stone-400" />
           </button>
         </div>
+
+        {/* 设置入口 */}
+        <div className="px-3 pb-3">
+          <button
+            onClick={() => router.push("/settings")}
+            title="设置中心"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+          >
+            <Settings className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            设置
+            <span className="ml-auto text-[11px] text-stone-300">模型 / 备份</span>
+          </button>
+        </div>
       </aside>
 
       {/* ============ 主区域 ============ */}
@@ -322,6 +336,13 @@ export default function HomePage() {
 
         {/* 顶栏 */}
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
+          <button
+            onClick={() => router.push("/settings")}
+            title="设置中心"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
+          >
+            <Settings className="h-[18px] w-[18px]" />
+          </button>
           <button
             onClick={() => toast("演示版暂未接入通知中心", "info")}
             title="通知"

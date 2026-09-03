@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ShellSidebar } from "./ShellSidebar";
 import { Markdown } from "@/components/workspace/Markdown";
@@ -11,7 +12,6 @@ import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
 import {
   ArrowUp,
-  Bell,
   Bot,
   BrainCircuit,
   ChevronDown,
@@ -23,13 +23,13 @@ import {
   LayoutGrid,
   LayoutTemplate,
   MessageSquare,
-  Paperclip,
   RefreshCw,
   Share2,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
   Wrench,
+  Settings,
 } from "lucide-react";
 
 /* ────────────────────────────────────────────────
@@ -129,6 +129,7 @@ function AIBubble({ msg }: { msg: UIMessage }) {
 }
 
 export default function WorkspaceMockChat() {
+  const router = useRouter();
   const {
     hydrated,
     hydrate,
@@ -197,10 +198,18 @@ export default function WorkspaceMockChat() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
-              <Bell className="h-[18px] w-[18px]" />
+            <button
+              onClick={() => router.push("/settings")}
+              title="设置中心"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
+              <Settings className="h-[18px] w-[18px]" />
             </button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
+            <button
+              onClick={() => router.push("/apps")}
+              title="更多应用"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
               <LayoutGrid className="h-[18px] w-[18px]" />
             </button>
             <button
@@ -297,11 +306,11 @@ export default function WorkspaceMockChat() {
                     onChange={(id, provider) => setModel(id, provider)}
                   />
                   <button
-                    onClick={() => setSettingsOpen(true)}
-                    title="配置模型 API Key"
+                    onClick={() => router.push("/settings")}
+                    title="设置中心（模型密钥 / 备份）"
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100"
                   >
-                    <Paperclip className="h-[18px] w-[18px]" />
+                    <Settings className="h-[18px] w-[18px]" />
                   </button>
                   {sending ? (
                     <button

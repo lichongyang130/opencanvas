@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, KeyRound, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
 import { MODELS, inferProvider } from "@/lib/gateway/models";
@@ -52,7 +53,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
   const [fetching, setFetching] = useState<ProviderId | null>(null);
   const [fetchError, setFetchError] = useState<string>("");
   const [q, setQ] = useState("");
-  const setSettingsOpen = useChatStore((s) => s.setSettingsOpen);
+  const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
 
   const reload = () => {
@@ -244,7 +245,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
           <button
             onClick={() => {
               setOpen(false);
-              setSettingsOpen(true);
+              router.push("/settings");
             }}
             className="flex w-full items-center gap-2 border-t border-stone-100 bg-stone-50 px-3 py-2.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"
           >

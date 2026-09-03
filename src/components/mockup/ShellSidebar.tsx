@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   LayoutTemplate,
   MessageSquare,
+  Settings,
   Sparkles,
   Wrench,
 } from "lucide-react";
@@ -27,7 +28,8 @@ export type ShellActive =
   | "templates"
   | "tools"
   | "apps"
-  | "membership";
+  | "membership"
+  | "settings";
 
 const NAV = [
   { label: "首页", icon: Home, route: "/" },
@@ -107,6 +109,19 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
         </nav>
 
         <div className="flex-1" />
+
+        {/* 设置 */}
+        <button
+          title="设置"
+          onClick={() => router.push("/settings")}
+          className={
+            active === "settings"
+              ? "mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[#fdeee1] text-[#c05f3c]"
+              : "mb-2 flex h-10 w-10 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          }
+        >
+          <Settings className="h-[18px] w-[18px]" strokeWidth={active === "settings" ? 2.1 : 1.8} />
+        </button>
 
         {/* 用户 */}
         <button
@@ -199,6 +214,22 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
             查看全部历史记录 <span aria-hidden>→</span>
           </button>
         </div>
+      </div>
+
+      {/* 设置 */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={() => router.push("/settings")}
+          className={
+            active === "settings"
+              ? "flex w-full items-center gap-2.5 rounded-xl bg-[#fdeee1] px-3.5 py-2.5 text-[14px] font-medium text-[#c05f3c]"
+              : "flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+          }
+        >
+          <Settings className="h-[18px] w-[18px]" strokeWidth={active === "settings" ? 2.1 : 1.8} />
+          设置
+          <span className="ml-auto text-[11px] text-stone-300">模型 / 备份</span>
+        </button>
       </div>
 
       {/* 用户 */}
