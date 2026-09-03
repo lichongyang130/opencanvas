@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode, type UIMessage } from "@/lib/store/chat";
 import { IMAGE_MODELS } from "@/lib/gateway/image/models";
-import { extractPageHtml } from "@/lib/code";
+import { extractPageHtml, toFullDocument } from "@/lib/code";
 import { Markdown } from "./Markdown";
 import { PersonaPicker } from "./PersonaPicker";
 import KbPicker from "./KbPicker";
@@ -255,11 +255,11 @@ function MessageBubble({ m, index }: { m: UIMessage; index: number }) {
           >
             {!isUser && pageHtml && (
               <button
-                onClick={() => setCodePreview(pageHtml.html, pageHtml.lang)}
+                onClick={() => setCodePreview(toFullDocument(pageHtml.html), pageHtml.lang)}
                 title={tt("在右侧沙箱中运行预览")}
                 className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-emerald-600 transition hover:bg-emerald-50"
               >
-                <MonitorPlay className="h-3 w-3" /> 运行预览
+                <MonitorPlay className="h-3 w-3" /> {tt("运行预览")}
               </button>
             )}
             {!isUser && (

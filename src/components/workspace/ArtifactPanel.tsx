@@ -655,7 +655,7 @@ function CodePreview({
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
             <MonitorPlay className="h-4 w-4" />
           </span>
-          代码沙箱 · 实时预览
+          {tt("代码沙箱 · 实时预览")}
           <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 uppercase">{lang}</span>
         </h3>
         <div className="flex items-center gap-1">
@@ -668,7 +668,7 @@ function CodePreview({
                 histOpen ? "bg-stone-100 text-stone-700" : "text-stone-500"
               )}
             >
-              <History className="h-3.5 w-3.5" /> 历史 {history.length}
+              <History className="h-3.5 w-3.5" /> {tt("历史")} {history.length}
             </button>
           )}
           <button
@@ -676,7 +676,7 @@ function CodePreview({
             title={tt("重新加载预览")}
             className="rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
           >
-            重新运行
+            {tt("重新运行")}
           </button>
           <button
             onClick={() => void copy()}
@@ -691,7 +691,7 @@ function CodePreview({
             title={tt("新窗口打开")}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
           >
-            <ExternalLink className="h-3.5 w-3.5" /> 新窗口
+            <ExternalLink className="h-3.5 w-3.5" /> {tt("新窗口")}
           </button>
           <button
             onClick={onClose}
@@ -705,7 +705,7 @@ function CodePreview({
 
       {jsxLike && (
         <p className="border-b border-amber-100 bg-amber-50 px-5 py-2 text-[11.5px] text-amber-700">
-          JSX/React 源码无法在浏览器直接运行——请在对话中让 AI「输出纯 HTML 版本」即可在这里实时预览。
+          {tt("JSX/React 源码无法在浏览器直接运行——请在对话中让 AI「输出纯 HTML 版本」即可在这里实时预览。")}
         </p>
       )}
 
@@ -721,7 +721,7 @@ function CodePreview({
                 !viewing ? "bg-brand-50 font-medium text-brand-700" : "bg-stone-100 text-stone-500 hover:bg-stone-200"
               )}
             >
-              当前
+              {tt("当前")}
             </button>
             {history.map((h, i) => (
               <button
@@ -744,7 +744,7 @@ function CodePreview({
               }}
               className="ml-auto rounded-full px-2 py-0.5 text-[10.5px] text-stone-400 hover:text-stone-600"
             >
-              恢复最新
+              {tt("恢复最新")}
             </button>
           )}
         </div>
@@ -769,7 +769,7 @@ function CodePreview({
           <iframe
             key={runId}
             title={tt("AI 代码沙箱预览")}
-            sandbox="allow-scripts allow-modals allow-forms allow-popups"
+            sandbox="allow-scripts allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox"
             srcDoc={current.html}
             className="h-full w-full rounded-xl border border-stone-200 bg-white shadow-inner"
           />

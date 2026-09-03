@@ -1485,4 +1485,12 @@ export const uiEn: Record<string, string> = {
   "通义万相 2.1 Turbo": "Tongyi Wanxiang 2.1 Turbo",
   "FAL": "FAL",
   "阿里云百炼": "Alibaba Cloud Bailian",
+  "运行预览": "Run preview",
+  "代码沙箱 · 实时预览": "Code Sandbox · Live Preview",
+  "历史": "History",
+  "重新运行": "Re-run",
+  "新窗口": "New tab",
+  "当前": "Current",
+  "恢复最新": "Restore latest",
+  "JSX/React 源码无法在浏览器直接运行——请在对话中让 AI「输出纯 HTML 版本」即可在这里实时预览。": "JSX/React source can't run directly in the browser — ask the AI to output a plain HTML version to preview it here.",
 };
