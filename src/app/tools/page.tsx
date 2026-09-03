@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   ArrowUpRight,
   FileImage,
@@ -104,6 +105,7 @@ function ToolGrid({ title, tools, onUse }: { title: string; tools: Tool[]; onUse
 }
 
 export default function ToolsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { fillTemplate } = useChatStore();
   const [kw, setKw] = useState("");
@@ -145,7 +147,7 @@ export default function ToolsPage() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">工具箱</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.tools")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">
               能真实执行的工具已接真；「规划中」为需要专业后端能力的项目
             </p>

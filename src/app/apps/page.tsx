@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   Bell,
   BellDot,
@@ -93,6 +94,7 @@ function Calc({ className }: { className?: string }) {
 }
 
 export default function AppsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { runTemplate } = useChatStore();
 
@@ -112,7 +114,7 @@ export default function AppsPage() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">更多应用</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.apps")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">发现更多实用应用，扩展你的工作能力</p>
           </div>
           <div className="flex items-center gap-2">

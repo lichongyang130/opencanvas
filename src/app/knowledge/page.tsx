@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   ArrowUpRight,
   BookOpen,
@@ -69,6 +70,7 @@ function fmtTime(ts: number): string {
 }
 
 export default function KnowledgePage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [bases, setBases] = useState<Kb[]>([]);
   const [totalSize, setTotalSize] = useState(0);
@@ -159,7 +161,7 @@ export default function KnowledgePage() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">知识库</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.knowledge")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">
               添加文档后即可让 AI 基于真实内容检索与回答（本地 RAG）
             </p>

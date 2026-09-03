@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   Bell,
   BookOpen,
@@ -46,6 +47,7 @@ function timeAgo(ts: number): string {
 /** 顶栏通知铃铛：真实通知列表 / 未读角标 / 点击跳转 / 全部已读
  *  面板经 React Portal 挂到 body + fixed + 最高层级，保证永远显示在最外层。 */
 export default function NotificationBell() {
+  const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotiItem[]>([]);
@@ -135,7 +137,7 @@ export default function NotificationBell() {
         <button
           onClick={() => setOpen((v) => !v)}
           className="relative flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
-          title="通知"
+          title={t("badge.notifications")}
         >
           <Bell className="h-[18px] w-[18px]" />
           {unread > 0 && (
@@ -163,9 +165,9 @@ export default function NotificationBell() {
                     <Bell className="h-4 w-4" />
                   </span>
                   <div>
-                    <p className="text-[13.5px] font-semibold text-stone-800">通知</p>
+                    <p className="text-[13.5px] font-semibold text-stone-800">{t("badge.notifications")}</p>
                     <p className="text-[10.5px] text-stone-400">
-                      {unread > 0 ? `${unread} 条未读` : "全部已读"}
+                      {unread > 0 ? t("badge.unread", { n: unread }) : t("badge.markAllRead")}
                     </p>
                   </div>
                 </div>
@@ -175,7 +177,7 @@ export default function NotificationBell() {
                     disabled={unread === 0}
                     className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-stone-400 transition hover:bg-[var(--oc-hover)] hover:text-[var(--oc-brand)] disabled:opacity-40 disabled:hover:bg-transparent"
                   >
-                    <CheckCheck className="h-3.5 w-3.5" /> 全部已读
+                    <CheckCheck className="h-3.5 w-3.5" /> {t("badge.markAllRead")}
                   </button>
                   <button
                     onClick={() => setOpen(false)}
@@ -196,7 +198,7 @@ export default function NotificationBell() {
                     <span className="absolute inset-0 rounded-2xl bg-gradient-to-br from-orange-400/10 to-red-500/10 blur-md" />
                     <Bell className="relative h-6 w-6 text-[#f08a4b]" />
                   </div>
-                  <p className="mt-3 text-[13px] font-medium text-stone-500">暂无通知</p>
+                  <p className="mt-3 text-[13px] font-medium text-stone-500">{t("badge.empty")}</p>
                   <p className="mt-1 text-[11.5px] text-stone-300">上传文档、创建智能体、提交模板后这里会实时提醒</p>
                 </div>
               )}

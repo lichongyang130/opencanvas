@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import { useChatStore } from "@/lib/store/chat";
 import { PERSONAS } from "@/lib/personas";
 import {
@@ -74,6 +75,7 @@ function fmtTime(ts: number): string {
 }
 
 export default function AgentsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { startAgent } = useChatStore();
 
@@ -215,7 +217,7 @@ export default function AgentsPage() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">智能体</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.agents")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">创建、管理和使用你的 AI 智能体团队</p>
           </div>
           <div className="flex items-center gap-2">

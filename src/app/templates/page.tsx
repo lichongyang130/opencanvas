@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   ChevronDown,
   ChevronRight,
@@ -352,6 +353,7 @@ function SubmitTemplateModal({
 }
 
 export default function TemplatesPage() {
+  const { t } = useI18n();
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -413,7 +415,7 @@ export default function TemplatesPage() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">模板中心</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.templates")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">精选各类专业模板，助你高效完成各类工作</p>
           </div>
           <div className="flex items-center gap-2">

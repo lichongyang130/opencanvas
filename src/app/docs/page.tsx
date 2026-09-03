@@ -29,6 +29,7 @@ import {
 import NotificationBell from "@/components/NotificationBell";
 import CreditsBadge from "@/components/CreditsBadge";
 import { ShellSidebar } from "@/components/mockup/ShellSidebar";
+import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
 
@@ -92,6 +93,7 @@ function DocIcon({ type }: { type: DocType }) {
 }
 
 export default function DocsPage() {
+  const { t } = useI18n();
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -247,7 +249,7 @@ export default function DocsPage() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">文档中心</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.docs")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">上传、预览与管理你的文档（支持 PDF / Word / Markdown / TXT）</p>
           </div>
           <div className="flex items-center gap-2">

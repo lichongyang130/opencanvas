@@ -14,6 +14,7 @@ import {
   Share2,
   X,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/store/toast";
 
 /** 到账弹跳动效 */
@@ -63,6 +64,7 @@ const TASK_TINT = {
 /** 顶栏积分徽章：真实余额（AI 调用扣减、任务奖励入账）
  *  面板经 React Portal 挂到 body + fixed + 最高层级，保证永远显示在最外层。 */
 export default function CreditsBadge() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
@@ -132,7 +134,7 @@ export default function CreditsBadge() {
         toast(r.error ?? "签到失败", "error");
         return;
       }
-      toast("签到成功 +10 积分", "success");
+      toast(t("badge.credits") + " +10", "success");
       await load();
     } catch {
       toast("签到失败，请重试", "error");
@@ -144,7 +146,7 @@ export default function CreditsBadge() {
       <div className="relative" ref={btnRef}>
         <button
           onClick={() => setOpen((v) => !v)}
-          title="积分中心"
+          title={t("badge.credits")}
           className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-stone-500 transition hover:bg-white hover:text-stone-700"
         >
           <Coins className="h-[17px] w-[17px] text-amber-500" />
@@ -171,7 +173,7 @@ export default function CreditsBadge() {
 
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-[13.5px] font-semibold text-white">积分中心</p>
+                  <p className="text-[13.5px] font-semibold text-white">{t("badge.credits")}</p>
                   <p className="mt-0.5 text-[11px] text-orange-50/85">AI 调用按真实用量扣减，任务赚取积分</p>
                 </div>
                 <button
@@ -185,7 +187,7 @@ export default function CreditsBadge() {
 
               <div className="relative mt-4 flex items-end justify-between">
                 <div>
-                  <p className="text-[11px] font-medium tracking-wide text-orange-50/80">可用积分</p>
+                  <p className="text-[11px] font-medium tracking-wide text-orange-50/80">{t("badge.balance")}</p>
                   <p className="mt-0.5 flex items-baseline gap-1.5">
                     <span className="text-[30px] font-bold leading-none text-white">
                       {balance === null ? "—" : balance.toLocaleString("zh-CN")}
@@ -279,7 +281,7 @@ export default function CreditsBadge() {
                 {ledger.length === 0 && (
                   <div className="flex flex-col items-center py-6 text-stone-300">
                     <Coins className="h-5 w-5" />
-                    <p className="mt-1.5 text-[11.5px]">还没有积分记录</p>
+                    <p className="mt-1.5 text-[11.5px]">{t("common.empty")}</p>
                   </div>
                 )}
                 {ledger.slice(0, 12).map((l) => {

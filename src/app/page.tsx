@@ -39,6 +39,8 @@ import {
 import NotificationBell from "@/components/NotificationBell";
 import CreditsBadge from "@/components/CreditsBadge";
 import AuthBadge from "@/components/AuthBadge";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n";
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
 import { SettingsModal } from "@/components/workspace/SettingsModal";
@@ -152,9 +154,10 @@ interface RecentConvo {
 
 export default function HomePage() {
   const router = useRouter();
+  const { t } = useI18n();
   const { model, setModel, settingsOpen, setSettingsOpen } = useChatStore();
   const [input, setInput] = useState("");
-  const [greeting, setGreeting] = useState("你好");
+  const [greeting, setGreeting] = useState<"night" | "morning" | "afternoon" | "evening">("morning");
   const [shuffleKey, setShuffleKey] = useState(0); // 随机灵感：每次点击换一个提示
   const [recent, setRecent] = useState<RecentConvo[]>([]);
   const [featureOpen, setFeatureOpen] = useState(false);
@@ -183,7 +186,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const h = new Date().getHours();
-    setGreeting(h < 6 ? "夜深了" : h < 12 ? "上午好" : h < 18 ? "下午好" : "晚上好");
+    setGreeting(h < 6 ? "night" : h < 12 ? "morning" : h < 18 ? "afternoon" : "evening");
     // 拉取最近对话
     fetch("/api/conversations")
       .then((r) => r.json())
@@ -285,17 +288,18 @@ export default function HomePage() {
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
           <NotificationBell />
           <CreditsBadge />
+          <LanguageSwitcher />
           <AuthBadge />
           <button
             onClick={() => setSettingsOpen(true)}
-            title="设置"
+            title={t("common.settings")}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
           >
             <Settings className="h-[18px] w-[18px]" />
           </button>
           <button
             onClick={() => goChat({ type: "preview" })}
-            title="开启右侧预览"
+            title={t("home.openPreview")}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
           >
             <PanelRight className="h-[18px] w-[18px]" />
@@ -304,7 +308,7 @@ export default function HomePage() {
             onClick={() => goChat({ type: "new" })}
             className="ml-2 rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-600 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
           >
-            新建对话
+            {t("home.newChat")}
           </button>
         </header>
 
@@ -312,13 +316,13 @@ export default function HomePage() {
           {/* 问候 */}
           <div className="mt-10 text-center">
             <h1 className="text-[40px] font-bold leading-tight tracking-tight text-stone-900">
-              {greeting}，Alex 👋
+              {t(`home.greeting${greeting[0].toUpperCase()}${greeting.slice(1)}`)}，Alex 👋
             </h1>
             <p className="mt-1 bg-gradient-to-r from-orange-500 via-pink-500 to-violet-500 bg-clip-text text-[34px] font-bold tracking-tight text-transparent">
-              今天想创造点什么？
+              {t("home.ctaIdea")}
             </p>
             <p className="mt-3 text-[15px] text-stone-500">
-              用 AI 把想法变成现实，探索<span className="font-medium text-stone-700">无限可能</span>
+              {t("home.ideaSub")}<span className="font-medium text-stone-700">{t("home.ideaSubHighlight")}</span>
             </p>
           </div>
 
@@ -335,7 +339,7 @@ export default function HomePage() {
                 }
               }}
               rows={3}
-              placeholder="描述你的需求，或直接 @ 提及文件 / 智能体 / 知识库..."
+              placeholder={t("home.inputPlaceholder")}
               className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
             />
             {attachedFile && (
@@ -538,7 +542,7 @@ export default function HomePage() {
                 className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 bg-white/60 px-4 py-3.5 text-[13px] text-stone-400 transition hover:border-orange-300 hover:text-orange-600"
               >
                 <Dices className="h-4 w-4" />
-                随机灵感
+                {t("home.randomIdea")}
               </button>
             </div>
           </div>
@@ -551,9 +555,9 @@ export default function HomePage() {
       {/* 页脚：合规链接 */}
       <footer className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 border-t border-stone-100 bg-white/70 py-2 text-[11px] text-stone-400 backdrop-blur">
         <span>© 2026 OpenCanvas</span>
-        <Link href="/privacy" className="transition hover:text-stone-600">隐私政策</Link>
-        <Link href="/terms" className="transition hover:text-stone-600">用户协议</Link>
-        <Link href="/api/export" className="transition hover:text-stone-600">导出我的数据</Link>
+        <Link href="/privacy" className="transition hover:text-stone-600">{t("home.privacy")}</Link>
+        <Link href="/terms" className="transition hover:text-stone-600">{t("home.terms")}</Link>
+        <Link href="/api/export" className="transition hover:text-stone-600">{t("home.exportData")}</Link>
       </footer>
 
       {/* 首次访问新手引导 */}
@@ -567,7 +571,7 @@ export default function HomePage() {
               <button
                 onClick={() => setOnboardStep(null)}
                 className="rounded-lg p-1 text-stone-400 hover:bg-stone-100"
-                title="跳过"
+                title={t("home.skip")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -575,9 +579,9 @@ export default function HomePage() {
             {onboardStep === 0 && (
               <div className="mt-3">
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-xl font-bold text-white">O</div>
-                <h3 className="text-lg font-semibold text-stone-800">欢迎使用 OpenCanvas</h3>
+                <h3 className="text-lg font-semibold text-stone-800">{t("home.onboardWelcome")}</h3>
                 <p className="mt-2 text-sm leading-6 text-stone-500">
-                  一站式 AI 工作空间：对话、深度研究、PPT、图片、文档，聚合国内外主流大模型。
+                                    {t("home.onboardDesc")}
                 </p>
               </div>
             )}
@@ -586,7 +590,7 @@ export default function HomePage() {
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100 text-orange-500">
                   <MessageSquare className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-semibold text-stone-800">在下方输入任何想法</h3>
+                <h3 className="text-lg font-semibold text-stone-800">{t("home.onboardIdea")}</h3>
                 <p className="mt-2 text-sm leading-6 text-stone-500">
                   回车发送、Shift+回车换行；还可粘贴图片、添加文档，AI 会基于它们回答。
                 </p>

@@ -2,6 +2,21 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第十八轮：多语言 i18n（中/英，C 类）
+
+**轻量自研 i18n（无路由段、无 next-intl 依赖）**
+- `src/lib/i18n/dicts.ts`：中英同构字典（en 由 Dict 类型约束，缺 key 编译报错）
+- `src/lib/i18n/index.tsx`：客户端 LocaleProvider + useI18n（t(key, params) 插值）；cookie `oc_lang` + localStorage 持久化
+- `src/lib/i18n/server.ts`：服务端 getLocale/getDict（cookie 驱动，SSR 直接双语渲染）
+- `src/lib/i18n/legal.ts`：隐私政策/用户协议完整中英结构化内容
+- `src/components/LanguageSwitcher.tsx` + Sidebar 图标轨「中/EN」切换按钮
+
+**已覆盖**：首页（问候/CTA/输入舱/新建对话/随机灵感/新手引导/footer）、登录注册弹窗与账号菜单、
+工作台侧栏图标提示、顶栏积分/通知徽章、设置中心标题与分页、文档/知识库/模板/工具/智能体/应用页 H1、
+隐私/条款整页双语、`<html lang>`/metadata 随 cookie 切换（generateMetadata 按请求读取）。
+
+**说明**：API 服务端错误信息保持中文（渐进迁移）；未覆盖的长尾文案（设置内部各卡、业务数据）仍为中文。
+
 ## 2026-09-03 · 第十七轮：生产化存储与队列（R2/S3 + Redis，C 类）
 
 **文件存储抽象（本地默认 / S3 兼容切换）**

@@ -65,6 +65,7 @@ import {
 import type { ProviderId } from "@/lib/gateway";
 import { useAuthStore } from "@/lib/store/auth";
 import type { SettingsProviderId } from "@/lib/settings";
+import { useI18n } from "@/lib/i18n";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 import { ProviderLogo } from "./ProviderLogo";
@@ -83,12 +84,12 @@ function GoogleIcon({ className }: { className?: string }) {
 
 type TestState = Record<string, "idle" | "testing" | "ok" | "fail">;
 
-const TABS: Array<{ id: SettingsTab; label: string; desc: string; icon: LucideIcon }> = [
-  { id: "general", label: "通用", desc: "界面与发送行为", icon: Settings2 },
-  { id: "models", label: "模型设置", desc: "API Key / 中转地址", icon: Cpu },
-  { id: "network", label: "联网搜索", desc: "深度研究来源", icon: Globe },
-  { id: "data", label: "数据管理", desc: "统计 / 导出 / 清理", icon: Database },
-  { id: "about", label: "关于", desc: "版本、日志与帮助", icon: Info },
+const TABS: Array<{ id: SettingsTab; labelKey: string; desc: string; icon: LucideIcon }> = [
+  { id: "general", labelKey: "general", desc: "界面与发送行为", icon: Settings2 },
+  { id: "models", labelKey: "model", desc: "API Key / 中转地址", icon: Cpu },
+  { id: "network", labelKey: "search", desc: "深度研究来源", icon: Globe },
+  { id: "data", labelKey: "data", desc: "统计 / 导出 / 清理", icon: Database },
+  { id: "about", labelKey: "about", desc: "版本、日志与帮助", icon: Info },
 ];
 
 /** 供应商能力标签（用于设置页分组展示） */
@@ -483,6 +484,7 @@ function ProviderCard({
 /* ─────────────────────────── 主组件 ─────────────────────────── */
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useI18n();
   const { settingsTab, setSettingsTab } = useChatStore();
   const [settings, setSettings] = useState<ProviderSettings>({});
   const [baseline, setBaseline] = useState("");
@@ -677,19 +679,19 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               <Sparkles className="h-[18px] w-[18px]" />
             </span>
             <div>
-              <div className="text-[15px] font-semibold text-stone-800">设置中心</div>
+              <div className="text-[15px] font-semibold text-stone-800">{t("settings.title")}</div>
               <div className="text-[11px] text-stone-400">OpenCanvas AI</div>
             </div>
           </div>
 
           <nav className="flex flex-col gap-1">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const active = settingsTab === t.id;
+            {TABS.map((tb) => {
+              const Icon = tb.icon;
+              const active = settingsTab === tb.id;
               return (
                 <button
-                  key={t.id}
-                  onClick={() => setSettingsTab(t.id)}
+                  key={tb.id}
+                  onClick={() => setSettingsTab(tb.id)}
                   className={cn(
                     "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition",
                     active ? "bg-orange-50" : "hover:bg-stone-50"
@@ -708,9 +710,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   </span>
                   <span className="min-w-0">
                     <span className={cn("block text-[13px] font-medium", active ? "text-orange-700" : "text-stone-700")}>
-                      {t.label}
+                      {t(`settings.${tb.labelKey}`)}
                     </span>
-                    <span className={cn("block text-[11px]", active ? "text-orange-400" : "text-stone-400")}>{t.desc}</span>
+                    <span className={cn("block text-[11px]", active ? "text-orange-400" : "text-stone-400")}>{tb.desc}</span>
                   </span>
                 </button>
               );
@@ -732,7 +734,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-stone-100 bg-white/85 px-5 py-3.5 backdrop-blur sm:px-6">
             <div className="min-w-0">
-              <h2 className="text-[15px] font-semibold text-stone-800">{currentTab.label}</h2>
+              <h2 className="text-[15px] font-semibold text-stone-800">{t(`settings.${currentTab.labelKey}`)}</h2>
               <p className="mt-0.5 truncate text-xs text-stone-400">{currentTab.desc}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -760,13 +762,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
           {/* 移动端分页切换 */}
           <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-stone-100 bg-white px-4 py-2.5 md:hidden">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const active = settingsTab === t.id;
+            {TABS.map((tb) => {
+              const Icon = tb.icon;
+              const active = settingsTab === tb.id;
               return (
                 <button
-                  key={t.id}
-                  onClick={() => setSettingsTab(t.id)}
+                  key={tb.id}
+                  onClick={() => setSettingsTab(tb.id)}
                   className={cn(
                     "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition",
                     active
@@ -775,7 +777,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {t.label}
+                  {t(`settings.${tb.labelKey}`)}
                 </button>
               );
             })}
