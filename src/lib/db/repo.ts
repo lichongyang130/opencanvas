@@ -1432,6 +1432,57 @@ export function getCaseShare(code: string): CaseShareRecord | null {
   }
 }
 
+/** 分享访问统计 / 评论 */
+export interface ShareCommentRow {
+  id: string;
+  code: string;
+  nickname: string;
+  content: string;
+  createdAt: number;
+}
+
+export function trackShareView(code: string, kind: string): number {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO share_views (code, kind, views, lastViewedAt) VALUES (?, ?, 1, ?)
+     ON CONFLICT(code) DO UPDATE SET views = views + 1, kind = excluded.kind, lastViewedAt = excluded.lastViewedAt`
+  ).run(code, kind, Date.now());
+  const row = db.prepare("SELECT views FROM share_views WHERE code = ?").get(code) as
+    | { views: number }
+    | undefined;
+  return row?.views ?? 1;
+}
+
+export function getShareViews(code: string): number {
+  const db = getDb();
+  const row = db.prepare("SELECT views FROM share_views WHERE code = ?").get(code) as
+    | { views: number }
+    | undefined;
+  return row?.views ?? 0;
+}
+
+export function addShareComment(code: string, nickname: string, content: string): ShareCommentRow {
+  const db = getDb();
+  const row: ShareCommentRow = {
+    id: `cm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    code,
+    nickname,
+    content,
+    createdAt: Date.now(),
+  };
+  db.prepare("INSERT INTO share_comments (id, code, nickname, content, createdAt) VALUES (?, ?, ?, ?, ?)").run(
+    row.id, row.code, row.nickname, row.content, row.createdAt
+  );
+  return row;
+}
+
+export function getShareComments(code: string): ShareCommentRow[] {
+  const db = getDb();
+  return db
+    .prepare("SELECT id, code, nickname, content, createdAt FROM share_comments WHERE code = ? ORDER BY createdAt ASC LIMIT 200")
+    .all(code) as unknown as ShareCommentRow[];
+}
+
 /** 全部公开分享码（SEO sitemap 用）：产物 / 案例 / 共享智能体 / 共享模板 */
 export function listShareCodes(): { code: string; kind: string; updatedAt: number }[] {
   const db = getDb();

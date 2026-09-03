@@ -68,6 +68,19 @@ export function getDb(): DatabaseSync {
       data      TEXT NOT NULL,
       createdAt REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS share_views (
+      code         TEXT PRIMARY KEY,
+      kind         TEXT NOT NULL DEFAULT '',
+      views        INTEGER NOT NULL DEFAULT 0,
+      lastViewedAt REAL
+    );
+    CREATE TABLE IF NOT EXISTS share_comments (
+      id        TEXT PRIMARY KEY,
+      code      TEXT NOT NULL,
+      nickname  TEXT NOT NULL DEFAULT '',
+      content   TEXT NOT NULL,
+      createdAt REAL NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS membership (
       id        TEXT PRIMARY KEY,
       plan      TEXT NOT NULL DEFAULT 'free',
@@ -200,6 +213,7 @@ export function getDb(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_agents_share ON agents(shareCode);
     CREATE INDEX IF NOT EXISTS idx_prompt_templates_updated ON prompt_templates(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_artifact_shares_created ON artifact_shares(createdAt);
+    CREATE INDEX IF NOT EXISTS idx_share_comments_code ON share_comments(code, createdAt);
     CREATE INDEX IF NOT EXISTS idx_documents_updated ON documents(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_documents_name ON documents(name);
     CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(userId, updatedAt);

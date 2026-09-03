@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Copy,
   Download,
+  Eye,
   FileText as FileTextIcon,
   Image as ImageIcon,
   LayoutDashboard,
@@ -186,25 +187,57 @@ function DeckReadonly({ deck }: { deck: SlideDeck }) {
   );
 }
 
+type ShareComment = { id: string; code: string; nickname: string; content: string; createdAt: number };
+
 export default function ShareView({ code, initial }: { code: string; initial: SharePayload | null }) {
-  const { tt } = useI18n();
+  const { tt, locale } = useI18n();
   const router = useRouter();
   const { startAgent, runTemplate, fillTemplate, hydrated } = useChatStore();
   const [data, setData] = useState<SharePayload | null>(initial);
   const [state, setState] = useState<"loading" | "ok" | "missing">(initial ? "ok" : "loading");
   const [importing, setImporting] = useState(false);
+  const [views, setViews] = useState(0);
+  const [comments, setComments] = useState<ShareComment[]>([]);
+  const [nickname, setNickname] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [posting, setPosting] = useState(false);
 
   useEffect(() => {
     fetch(`/api/shares/${code}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("missing");
-        const j = (await r.json()) as SharePayload & { error?: string };
+        const j = (await r.json()) as SharePayload & { error?: string; views?: number; comments?: ShareComment[] };
         if (j.error) throw new Error("missing");
         setData(j);
+        setViews(j.views ?? 0);
+        setComments(j.comments ?? []);
         setState("ok");
       })
       .catch(() => setState((s) => (s === "ok" ? s : "missing")));
   }, [code]);
+
+  const postComment = async () => {
+    const c = commentText.trim();
+    if (!c || posting) return;
+    setPosting(true);
+    try {
+      const r = await fetch(`/api/shares/${code}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: nickname.trim(), content: c }),
+      });
+      const j = (await r.json()) as { ok?: boolean; error?: string; comment?: ShareComment; views?: number };
+      if (!j.ok || !j.comment) throw new Error(j.error || tt("评论失败"));
+      setComments((prev) => [...prev, j.comment!]);
+      if (typeof j.views === "number") setViews(j.views);
+      setCommentText("");
+      toast(tt("评论已发布"), "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : tt("评论失败"), "error");
+    } finally {
+      setPosting(false);
+    }
+  };
 
   const importArtifact = async () => {
     if (!data || !["slides", "docs", "image", "report"].includes(data.kind)) return;
@@ -323,6 +356,11 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
               <div className="bg-gradient-to-br from-[var(--oc-brand-tint)] to-[var(--oc-bg)] px-7 pb-6 pt-7">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
                   {tt(KIND_LABEL[kind])} · {tt("公开只读")}
+                  {views > 0 && (
+                    <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-[10px] normal-case tracking-normal text-stone-500">
+                      <Eye className="inline h-3 w-3 align-[-1px]" /> {tt("已访问 {n} 次", { n: views })}
+                    </span>
+                  )}
                 </p>
                 <h1 className="mt-1.5 text-[22px] font-semibold text-stone-900">{data.title}</h1>
                 {data.description && <p className="mt-2 text-[13px] leading-6 text-stone-600">{data.description}</p>}
@@ -439,6 +477,72 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
                     {importing ? "复制中…" : "复制到我的工作台"}
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* 评论 */}
+            <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--oc-border)] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center justify-between border-b border-[var(--oc-border-soft)] px-6 py-4">
+                <h2 className="flex items-center gap-2 text-[14px] font-semibold text-stone-800">
+                  <MessageCircle className="h-4 w-4 text-[var(--oc-brand)]" />
+                  {tt("评论")}
+                  <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10.5px] font-medium text-stone-500">
+                    {comments.length}
+                  </span>
+                </h2>
+                <span className="text-[10.5px] text-stone-300">{tt("请友善交流，评论仅对访问者可见")}</span>
+              </div>
+
+              <div className="space-y-3 px-6 py-4">
+                {comments.length === 0 && (
+                  <p className="py-3 text-center text-[12px] text-stone-300">{tt("暂无评论，来说两句吧")}</p>
+                )}
+                {comments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-200 to-red-200 text-[12px] font-bold text-white">
+                      {(c.nickname || tt("访客")).slice(0, 1).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1 rounded-xl border border-[var(--oc-border-soft)] bg-[var(--oc-hover)] px-3.5 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12.5px] font-semibold text-stone-700">
+                          {c.nickname || tt("访客")}
+                        </span>
+                        <span className="text-[10px] text-stone-300">
+                          {new Date(c.createdAt).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
+                        </span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-6 text-stone-600">
+                        {c.content}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex flex-col gap-2 border-t border-[var(--oc-border-soft)] pt-3 sm:flex-row">
+                  <input
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    maxLength={24}
+                    placeholder={tt("昵称（可选）")}
+                    className="w-full rounded-xl border border-[var(--oc-border)] bg-white px-3.5 py-2.5 text-[13px] text-stone-700 outline-none transition placeholder:text-stone-300 focus:border-[var(--oc-brand-border)] sm:w-40"
+                  />
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    placeholder={tt("写下你的评论…")}
+                    className="min-w-0 flex-1 resize-none rounded-xl border border-[var(--oc-border)] bg-white px-3.5 py-2.5 text-[13px] leading-6 text-stone-700 outline-none transition placeholder:text-stone-300 focus:border-[var(--oc-brand-border)]"
+                  />
+                  <button
+                    onClick={() => void postComment()}
+                    disabled={posting || !commentText.trim()}
+                    className="flex h-fit items-center justify-center gap-1.5 rounded-xl bg-[var(--oc-brand)] px-5 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                    {posting ? tt("发布中…") : tt("发布评论")}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
