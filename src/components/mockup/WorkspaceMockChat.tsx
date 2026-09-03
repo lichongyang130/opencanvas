@@ -8,9 +8,10 @@ import { Markdown } from "@/components/workspace/Markdown";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
 import { ArtifactPanel } from "@/components/workspace/ArtifactPanel";
 import { SettingsModal } from "@/components/workspace/SettingsModal";
+import { shareAsCase } from "@/components/shell/TopBarMenus";
 import { matchSlash, type SlashCommand } from "@/lib/slash";
 import { PERSONAS, getPersona } from "@/lib/personas";
-import { useChatStore, type UIMessage } from "@/lib/store/chat";
+import { useChatStore, type UIMessage, type WorkspaceMode } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
 import {
@@ -102,6 +103,7 @@ function titleOf(content: string): string {
 
 interface BubbleActions {
   isLast: boolean;
+  onShare: () => void;
   canAct: boolean;
   onRegenerate: () => void;
   onContinue: () => void;
@@ -111,6 +113,7 @@ interface BubbleActions {
 
 function AIBubble({ msg, actions }: { msg: UIMessage; actions?: BubbleActions }) {
   const [copied, setCopied] = useState(false);
+  const [vote, setVote] = useState<"up" | "down" | null>(null);
   const time = new Date(Number(msg.id.split("-")[0]) || Date.now()).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -145,13 +148,39 @@ function AIBubble({ msg, actions }: { msg: UIMessage; actions?: BubbleActions })
           >
             {copied ? <ThumbsUp className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
-          <button className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500">
+          <button
+            onClick={() => {
+              setVote(vote === "up" ? null : "up");
+              if (vote !== "up") toast("感谢反馈，已记录你的赞", "success");
+            }}
+            title="有帮助"
+            className={
+              vote === "up"
+                ? "flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-orange-500 transition"
+                : "flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500"
+            }
+          >
             <ThumbsUp className="h-3.5 w-3.5" />
           </button>
-          <button className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500">
+          <button
+            onClick={() => {
+              setVote(vote === "down" ? null : "down");
+              if (vote !== "down") toast("已记录，会作为改进参考", "info");
+            }}
+            title="没帮助"
+            className={
+              vote === "down"
+                ? "flex h-7 w-7 items-center justify-center rounded-lg bg-stone-200 text-stone-600 transition"
+                : "flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500"
+            }
+          >
             <ThumbsDown className="h-3.5 w-3.5" />
           </button>
-          <button className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500">
+          <button
+            onClick={actions?.onShare ?? (() => toast("分享暂不可用", "info"))}
+            title="生成分享链接"
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500"
+          >
             <Share2 className="h-3.5 w-3.5" />
           </button>
 
@@ -222,6 +251,9 @@ export default function WorkspaceMockChat() {
     regenerate,
     setDoc,
     generateSlides,
+    runTemplate,
+    fillTemplate,
+    pendingInput,
   } = useChatStore();
   const [input, setInput] = useState("");
   /** AI 创作画布显隐（默认收起，完全由顶栏的四个小方块控制） */
@@ -251,6 +283,79 @@ export default function WorkspaceMockChat() {
     if (!el || !sending) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [lastContent, sending]);
+
+  // 消费首页带来的意图（sessionStorage 传递，避免把长文本放进 URL）
+  useEffect(() => {
+    if (!hydrated) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem("oc:homeIntent");
+      if (raw) sessionStorage.removeItem("oc:homeIntent");
+    } catch {}
+    if (!raw) return;
+    try {
+      const intent = JSON.parse(raw) as {
+        type: "send" | "fill" | "mode" | "new" | "convo";
+        mode?: WorkspaceMode;
+        text?: string;
+        id?: string;
+        deep?: boolean;
+        web?: boolean;
+        attachment?: { name: string; content: string };
+        ts?: number;
+      };
+      // 超过 30 秒的意图视为过期
+      if (intent.ts && Date.now() - intent.ts > 30_000) return;
+      const store = useChatStore.getState();
+      const mode = intent.mode ?? "chat";
+      switch (intent.type) {
+        case "send": {
+          const text = intent.text?.trim();
+          if (!text) break;
+          if (intent.web) {
+            void store.runResearch(text);
+          } else if (intent.deep || intent.attachment) {
+            // 带能力开关 / 附件：先切到对应模式的新会话，再按选项发送
+            void store.newConversation(mode).then(async (id) => {
+              await store.selectConversation(id);
+              await store.send(text, {
+                deep: intent.deep,
+                attachment: intent.attachment,
+              });
+            });
+          } else {
+            void store.runTemplate({ mode, prompt: text });
+          }
+          break;
+        }
+        case "fill":
+          void store.fillTemplate({ mode, prompt: intent.text ?? "" });
+          break;
+        case "mode":
+          void store.newConversation(mode).then((id) => store.selectConversation(id));
+          break;
+        case "new":
+          void store.newConversation("chat").then((id) => store.selectConversation(id));
+          break;
+        case "convo":
+          if (intent.id) void store.selectConversation(intent.id);
+          break;
+      }
+    } catch {}
+  }, [hydrated]);
+
+  // 首页/模板「填进输入框但不发送」：把待填内容放进输入框
+  const pendingText = pendingInput?.text;
+  useEffect(() => {
+    if (!pendingText) return;
+    setInput(pendingText);
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(pendingText.length, pendingText.length);
+    });
+  }, [pendingText, pendingInput?.nonce]);
 
   // 画布内部点「关闭」时（store 被置为 false）同步收起
   useEffect(() => {
@@ -431,6 +536,7 @@ export default function WorkspaceMockChat() {
                         actions={{
                           isLast: m.id === lastAssistantId,
                           canAct: !sending && !m.streaming,
+                          onShare: () => void shareAsCase(m.content, "message"),
                           onRegenerate: () => void regenerate(),
                           onContinue: () =>
                             void send(

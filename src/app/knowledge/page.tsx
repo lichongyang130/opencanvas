@@ -47,6 +47,7 @@ import {
 import { KbFormModal } from "@/components/knowledge/KbFormModal";
 import { KbDocsModal } from "@/components/knowledge/KbDocsModal";
 import { DocDetailModal } from "@/components/knowledge/DocDetailModal";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 
 const TABS: { label: string; owner: KbOwner | null }[] = [
   { label: "全部知识库", owner: null },
@@ -249,13 +250,7 @@ export default function KnowledgePage() {
             <p className="mt-0.5 text-[12.5px] text-stone-400">管理和使用你的知识资源，让 AI 更好地理解和回答</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => toast("演示版暂未接入通知中心", "info")}
-              title="通知"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
-            >
-              <Bell className="h-[18px] w-[18px]" />
-            </button>
+            <NotificationBell />
             <button
               onClick={() => router.push("/apps")}
               title="更多应用"

@@ -31,6 +31,7 @@ import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
 import { CreateTemplateModal } from "@/components/templates/CreateTemplateModal";
 import { MyTemplatesModal } from "@/components/templates/MyTemplatesModal";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 
 interface UseTmplState {
   tpl: Template;
@@ -248,13 +249,7 @@ export default function TemplatesPage() {
             <p className="mt-0.5 text-[12.5px] text-stone-400">精选各类专业模板，助你高效完成各类工作</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => toast("演示版暂未接入通知中心", "info")}
-              title="通知"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
-            >
-              <Bell className="h-[18px] w-[18px]" />
-            </button>
+            <NotificationBell />
             <button
               onClick={() => router.push("/apps")}
               title="更多应用"

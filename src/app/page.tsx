@@ -37,6 +37,7 @@ import {
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
 import { ArtifactPanel } from "@/components/workspace/ArtifactPanel";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 import { useChatStore } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
@@ -149,41 +150,6 @@ interface RecentConvo {
   artifact?: string | null;
 }
 
-const MODE_LABEL_HOME: Record<string, string> = {
-  chat: "对话",
-  research: "深度研究",
-  slides: "PPT",
-  image: "绘图",
-  video: "视频",
-  docs: "文档",
-};
-
-function timeAgo(ts?: number): string {
-  if (!ts) return "";
-  const diff = Date.now() - ts;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min} 分钟前`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} 小时前`;
-  const d = Math.floor(h / 24);
-  if (d === 1) return "昨天";
-  if (d < 30) return `${d} 天前`;
-  return new Date(ts).toLocaleDateString("zh-CN");
-}
-
-/** 顶栏「更多应用」九宫格入口 */
-const APP_LAUNCHER = [
-  { label: "AI 对话", icon: MessageSquare, route: "/chat", tint: "text-orange-600", bg: "bg-orange-50" },
-  { label: "知识库", icon: Database, route: "/knowledge", tint: "text-emerald-600", bg: "bg-emerald-50" },
-  { label: "文档中心", icon: FileText, route: "/docs", tint: "text-sky-600", bg: "bg-sky-50" },
-  { label: "模板中心", icon: LayoutTemplate, route: "/templates", tint: "text-violet-600", bg: "bg-violet-50" },
-  { label: "工具箱", icon: Wrench, route: "/tools", tint: "text-amber-600", bg: "bg-amber-50" },
-  { label: "智能体", icon: Bot, route: "/agents", tint: "text-indigo-600", bg: "bg-indigo-50" },
-  { label: "会员中心", icon: Sparkles, route: "/membership", tint: "text-rose-600", bg: "bg-rose-50" },
-  { label: "设置中心", icon: Settings, route: "/settings", tint: "text-stone-600", bg: "bg-stone-100" },
-];
-
 /* ---------------- 页面 ---------------- */
 
 export default function HomePage() {
@@ -195,15 +161,11 @@ export default function HomePage() {
   const [featureOpen, setFeatureOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
-  const [bellOpen, setBellOpen] = useState(false);
-  const [appsOpen, setAppsOpen] = useState(false);
+  const [attachment, setAttachment] = useState<{ name: string; content: string } | null>(null);
   /** AI 创作画布显隐（右上角按钮控制，默认收起） */
   const [canvasOpen, setCanvasOpen] = useState(false);
   const [canvasConvoId, setCanvasConvoId] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const bellRef = useRef<HTMLDivElement>(null);
-  const appsRef = useRef<HTMLDivElement>(null);
   const featureRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
@@ -219,14 +181,10 @@ export default function HomePage() {
     const onClick = (e: MouseEvent) => {
       const t = e.target as Node;
       if (featureRef.current && !featureRef.current.contains(t)) setFeatureOpen(false);
-      if (bellRef.current && !bellRef.current.contains(t)) setBellOpen(false);
-      if (appsRef.current && !appsRef.current.contains(t)) setAppsOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setFeatureOpen(false);
-      setBellOpen(false);
-      setAppsOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     window.addEventListener("keydown", onKey);
@@ -297,7 +255,14 @@ export default function HomePage() {
   const submit = () => {
     const text = input.trim();
     if (!text) return goChat();
-    goChat({ type: "send", mode: "chat", text });
+    goChat({
+      type: "send",
+      mode: "chat",
+      text,
+      deep: thinking,
+      web: webSearch,
+      attachment: attachment ?? undefined,
+    });
   };
 
   return (
@@ -454,119 +419,11 @@ export default function HomePage() {
             <Settings className="h-[18px] w-[18px]" />
           </button>
 
-          {/* 通知：最近动态（真实数据） */}
-          <div ref={bellRef} className="relative">
-            <button
-              onClick={() => {
-                setBellOpen((v) => !v);
-                setAppsOpen(false);
-              }}
-              title="最近动态"
-              className={
-                bellOpen
-                  ? "flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-600 transition hover:bg-orange-100"
-                  : "flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
-              }
-            >
-              <Bell className="h-[18px] w-[18px]" />
-              {recent.length > 0 && (
-                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-orange-500" />
-              )}
-            </button>
-            {bellOpen && (
-              <div className="absolute right-0 top-full z-30 mt-2 w-[320px] overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-xl">
-                <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
-                  <span className="text-[13.5px] font-semibold text-stone-800">最近动态</span>
-                  <span className="text-[11px] text-stone-400">{recent.length} 条</span>
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  {recent.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-[12.5px] text-stone-400">
-                      还没有对话记录，开始第一段对话吧
-                    </p>
-                  ) : (
-                    recent.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          setBellOpen(false);
-                          goChat({ type: "convo", id: c.id });
-                        }}
-                        className="flex w-full items-start gap-2.5 border-b border-stone-50 px-4 py-2.5 text-left transition last:border-0 hover:bg-stone-50"
-                      >
-                        <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-300" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] text-stone-700">
-                            {c.title}
-                          </span>
-                          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-stone-400">
-                            {MODE_LABEL_HOME[c.mode ?? "chat"] ?? "对话"}
-                            {c.artifact && (
-                              <span className="rounded bg-orange-50 px-1 py-px text-[10px] font-medium text-orange-600">
-                                {c.artifact}
-                              </span>
-                            )}
-                            <span className="ml-auto shrink-0">{timeAgo(c.updatedAt)}</span>
-                          </span>
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    setBellOpen(false);
-                    goChat();
-                  }}
-                  className="w-full border-t border-stone-100 px-4 py-2.5 text-[12px] text-stone-500 transition hover:bg-stone-50 hover:text-orange-600"
-                >
-                  查看全部历史记录
-                </button>
-              </div>
-            )}
-          </div>
+          {/* 最近动态 */}
+          <NotificationBell />
 
-          {/* 更多应用：九宫格启动器 */}
-          <div ref={appsRef} className="relative">
-            <button
-              onClick={() => {
-                setAppsOpen((v) => !v);
-                setBellOpen(false);
-              }}
-              title="更多应用"
-              className={
-                appsOpen
-                  ? "flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-600 transition hover:bg-orange-100"
-                  : "flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
-              }
-            >
-              <LayoutGrid className="h-[18px] w-[18px]" />
-            </button>
-            {appsOpen && (
-              <div className="absolute right-0 top-full z-30 mt-2 w-[300px] rounded-2xl border border-stone-200/80 bg-white p-2 shadow-xl">
-                <div className="px-2 py-1.5 text-[11px] text-stone-400">全部应用</div>
-                <div className="grid grid-cols-4 gap-1">
-                  {APP_LAUNCHER.map((a) => (
-                    <button
-                      key={a.route}
-                      onClick={() => {
-                        setAppsOpen(false);
-                        router.push(a.route);
-                      }}
-                      className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition hover:bg-stone-50"
-                    >
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${a.bg} ${a.tint}`}>
-                        <a.icon className="h-[17px] w-[17px]" />
-                      </span>
-                      <span className="w-full truncate text-center text-[11px] text-stone-600">
-                        {a.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* 更多应用 */}
+          <AppLauncherMenu />
 
           <button
             onClick={() => goChat({ type: "new" })}
@@ -606,12 +463,15 @@ export default function HomePage() {
               placeholder="描述你的需求，或直接 @ 提及文件 / 智能体 / 知识库..."
               className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
             />
-            {attachedFile && (
+            {attachment && (
               <div className="mt-2 flex items-center gap-2 rounded-lg bg-stone-100 px-2.5 py-1.5 text-[13px] text-stone-600">
                 <FileUp className="h-3.5 w-3.5 shrink-0 text-stone-400" />
-                <span className="min-w-0 truncate">{attachedFile}</span>
+                <span className="min-w-0 truncate">{attachment.name}</span>
+                <span className="shrink-0 text-[11px] text-stone-400">
+                  {attachment.content.length} 字
+                </span>
                 <button
-                  onClick={() => setAttachedFile(null)}
+                  onClick={() => setAttachment(null)}
                   aria-label="移除附件"
                   className="ml-auto text-stone-400 transition hover:text-stone-700"
                 >
@@ -702,8 +562,20 @@ export default function HomePage() {
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) {
-                    setAttachedFile(f.name);
-                    toast("演示版暂不支持解析附件内容，仅显示文件名", "info");
+                    const isText =
+                      /\.(txt|md|mdx|csv|json|log|yaml|yml|ini|tsv|xml)$/i.test(f.name) ||
+                      f.type.startsWith("text/");
+                    if (!isText) {
+                      toast("目前支持文本文件：txt / md / csv / json / log 等", "error");
+                    } else {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const content = String(reader.result ?? "").slice(0, 12000);
+                        setAttachment({ name: f.name, content });
+                        toast(`已读取附件《${f.name}》，发送时一并发给模型`, "success");
+                      };
+                      reader.readAsText(f);
+                    }
                   }
                   setFeatureOpen(false);
                   e.currentTarget.value = "";

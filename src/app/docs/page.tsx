@@ -51,6 +51,7 @@ import {
 } from "@/lib/documents";
 import { DocViewerModal } from "@/components/docs/DocViewerModal";
 import { StorageModal } from "@/components/docs/StorageModal";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 
 const DOC_STYLE: Record<DocType, { bg: string; text: string; letter: string }> = {
   word: { bg: "bg-sky-50 text-sky-600", text: "text-sky-600", letter: "W" },
@@ -287,13 +288,7 @@ export default function DocsPage() {
             <p className="mt-0.5 text-[12.5px] text-stone-400">集中管理你的所有文档，支持预览、分享和协作</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => toast("演示版暂未接入通知中心", "info")}
-              title="通知"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
-            >
-              <Bell className="h-[18px] w-[18px]" />
-            </button>
+            <NotificationBell />
             <button
               onClick={() => router.push("/apps")}
               title="更多应用"

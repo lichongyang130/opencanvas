@@ -8,6 +8,7 @@ import { ToolRunnerModal } from "@/components/tools/ToolRunnerModal";
 import { TOOL_GROUPS, type ToolDef } from "@/lib/tools";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 
 export default function ToolsPage() {
   const router = useRouter();
@@ -51,13 +52,7 @@ export default function ToolsPage() {
                 className="w-40 bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-400"
               />
             </div>
-            <button
-              onClick={() => toast("演示版暂未接入通知中心", "info")}
-              title="通知"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
-            >
-              <Bell className="h-[18px] w-[18px]" />
-            </button>
+            <NotificationBell />
             <button
               onClick={() => router.push("/apps")}
               title="更多应用"
