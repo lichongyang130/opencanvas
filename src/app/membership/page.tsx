@@ -13,6 +13,7 @@ import {
   FileText,
   Gauge,
   Loader2,
+  Receipt,
   Sparkles,
   Zap,
 } from "lucide-react";
@@ -348,9 +349,19 @@ export default function MembershipPage() {
             </div>
           </div>
 
-          <p className="mt-10 text-center text-[11px] text-stone-400">
-            {tt("订单与会员数据已接入本地数据库，实际支付渠道将在上线时接入。")}
-          </p>
+          <div className="mt-10 flex flex-col items-center gap-3">
+            <button
+              onClick={() => router.push("/billing")}
+              className="flex items-center gap-2 rounded-xl border border-[var(--oc-border)] bg-white px-5 py-2.5 text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]"
+            >
+              <Receipt className="h-4 w-4" />
+              {tt("查看用量与账单")}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+            <p className="text-center text-[11px] text-stone-400">
+              {tt("订单与会员数据已接入本地数据库，实际支付渠道将在上线时接入。")}
+            </p>
+          </div>
         </div>
       </main>
     </div>

@@ -14,13 +14,14 @@ import {
   LayoutGrid,
   LayoutTemplate,
   MessageSquare,
+  Receipt,
   Sparkles,
   Wrench,
 } from "lucide-react";
 import { useChatStore } from "@/lib/store/chat";
 import { useI18n } from "@/lib/i18n";
 
-export type ShellActive = "chat" | "agents" | "knowledge" | "docs" | "templates" | "tools" | "apps";
+export type ShellActive = "chat" | "agents" | "knowledge" | "docs" | "templates" | "tools" | "apps" | "billing";
 
 const NAV = [
   { label: "首页", icon: Home, route: "/" },
@@ -31,6 +32,7 @@ const NAV = [
   { label: "模板中心", icon: LayoutTemplate, route: "/templates" },
   { label: "工具箱", icon: Wrench, route: "/tools" },
   { label: "更多应用", icon: LayoutGrid, route: "/apps" },
+  { label: "用量与账单", icon: Receipt, route: "/billing" },
 ];
 
 export function ShellSidebar({ active }: { active: ShellActive }) {
@@ -47,6 +49,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
     else if (route.startsWith("/templates")) router.push("/templates");
     else if (route.startsWith("/tools")) router.push("/tools");
     else if (route.startsWith("/apps")) router.push("/apps");
+    else if (route.startsWith("/billing")) router.push("/billing");
     else router.push(route === "/" ? "/" : "/chat");
     if (expand) setCollapsed(false);
   };
@@ -190,7 +193,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
             onClick={() => router.push("/chat")}
             className="mt-1 flex items-center gap-1 px-2 text-xs text-stone-400 transition hover:text-[var(--oc-brand)]"
           >
-            查看全部历史记录 <span aria-hidden>→</span>
+            {tt("查看全部历史记录")} <span aria-hidden>→</span>
           </button>
         </div>
       </div>
@@ -211,7 +214,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
           <span className="flex min-w-0 flex-1 flex-col items-start">
             <span className="text-[13.5px] font-medium text-stone-800">Alex Chen</span>
             <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-[var(--oc-brand-hover)] px-1.5 py-px text-[10px] font-medium text-[var(--oc-brand)]">
-              <Sparkles className="h-2.5 w-2.5" /> 专业版
+              <Sparkles className="h-2.5 w-2.5" /> {tt("专业版")}
             </span>
           </span>
           <ChevronDown className="h-4 w-4 text-stone-400" />
