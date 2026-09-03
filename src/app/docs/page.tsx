@@ -291,7 +291,7 @@ export default function DocsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-[12px] text-stone-400">{tt(s.label)}</p>
                     <p className="text-[20px] font-bold leading-tight text-stone-800">
-                      {s.value} <span className="text-[12px] font-normal text-stone-400">{s.unit}</span>
+                      {s.value} <span className="text-[12px] font-normal text-stone-400">{tt(s.unit)}</span>
                     </p>
                   </div>
                 </div>
