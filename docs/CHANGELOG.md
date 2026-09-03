@@ -2,6 +2,16 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第十四轮：知识库 Embedding 语义检索（B 类可自足部分）
+
+**Embedding 向量检索**
+- 新 `gateway/embedding.ts`：DashScope `text-embedding-v3`（默认）或 OpenAI `text-embedding-3-small` 批量向量化；密钥走前台 BYOK → 环境变量
+- 新 `kb/vector.ts`：文档按段落/窗口切块（400 字 + 60 重叠，每文档 ≤16 块）→ 向量化（进程内缓存）→ 余弦 topK；同文档只保留最佳块
+- `/api/knowledge/:id/query` 检索链路升级：配置密钥 → 模型向量检索；未配置或失败 → 本地 TF-IDF + 关键词融合（零依赖降级）；无命中 → 最近文档兜底
+- 响应新增 `engine` 字段（embedding / tfidf / fallback），前端可感知检索方式；Embedding 调用计入网关用量（成本看板可见）
+
+> 说明：需要真实 DASHSCOPE/OPENAI 密钥才能启用模型向量；无密钥时行为与之前一致（TF-IDF），已实测降级路径。
+
 ## 2026-09-03 · 第十三轮：可观测性与 SEO（C 类首批）
 
 **可观测性（C 类首批，无需外部服务）**
