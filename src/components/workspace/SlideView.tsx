@@ -2,7 +2,9 @@
 
 import { THEMES } from "@/lib/slides/themes";
 import type { Slide } from "@/lib/slides/types";
+import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 interface Props {
   slide: Slide;
@@ -30,6 +32,7 @@ function EditText({
   multiline?: boolean;
   placeholder?: string;
 }) {
+  const { tt } = useI18n();
   const emit = (v: string) => onPatch?.({ [field]: v } as Partial<Slide>);
   if (!editable) {
     return <div className={className}>{value ?? placeholder}</div>;
@@ -57,6 +60,7 @@ function EditText({
  * 侧栏缩略图与主预览复用同一组件自动缩放。
  */
 export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
+  const { tt } = useI18n();
   const t = THEMES[themeId] ?? THEMES.violet;
   const dark = slide.layout === "cover" || slide.layout === "end";
 
@@ -82,7 +86,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
               field="title"
               editable={editable}
               onPatch={onPatch}
-              placeholder="标题"
+              placeholder={tt("标题")}
               className="text-[5.2cqw] font-bold leading-tight"
             />
             {slide.subtitle !== undefined || editable ? (
@@ -91,7 +95,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
                 field="subtitle"
                 editable={editable}
                 onPatch={onPatch}
-                placeholder="副标题"
+                placeholder={tt("副标题")}
                 className="mt-[2cqw] text-[2.4cqw]"
               />
             ) : null}
@@ -111,7 +115,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
             field="title"
             editable={editable}
             onPatch={onPatch}
-            placeholder="页标题"
+            placeholder={tt("页标题")}
             className="text-[3cqw] font-bold"
           />
         </div>
@@ -175,12 +179,34 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
             </ul>
           </div>
           {slide.imagePrompt && (
-            <div
-              className="flex flex-1 items-center justify-center rounded-[1.2cqw] border-2 border-dashed text-center text-[1.6cqw]"
-              style={{ borderColor: t.accent, color: t.muted, background: "rgba(255,255,255,0.5)" }}
-            >
-              配图位 · 第 2 阶段 AI 生成
-            </div>
+            slide.imageUrl ? (
+               
+              <img
+                src={slide.imageUrl}
+                alt={slide.imagePrompt}
+                className="flex-1 rounded-[1.2cqw] object-cover shadow-sm"
+                style={{ background: t.surface }}
+              />
+            ) : (
+              <div
+                className="flex flex-1 flex-col items-center justify-center gap-[1cqw] rounded-[1.2cqw] border-2 border-dashed text-center text-[1.6cqw]"
+                style={{ borderColor: t.accent, color: t.muted, background: "rgba(255,255,255,0.5)" }}
+              >
+                <span>{tt("配图位（待生成）")}</span>
+                {editable && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void useChatStore.getState().generateSlideImages(index);
+                    }}
+                    className="rounded-full px-[2cqw] py-[0.8cqw] text-[1.5cqw] font-medium text-white transition hover:opacity-90"
+                    style={{ background: t.accent }}
+                  >
+                    ✨ 生成配图
+                  </button>
+                )}
+              </div>
+            )
           )}
         </div>
       )}
@@ -189,15 +215,15 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
       {slide.layout === "twoCol" && (
         <div className="grid grid-cols-2 gap-[3cqw] px-[6cqw] pt-[3cqw]">
           {[
-            { heading: "核心要点", items: slide.bullets ?? [], field: "bullets" as const },
-            { heading: slide.twoColTitle ?? "补充", items: slide.bulletsRight ?? [], field: "bulletsRight" as const },
+            { heading: tt("核心要点"), items: slide.bullets ?? [], field: "bullets" as const },
+            { heading: slide.twoColTitle ?? tt("补充"), items: slide.bulletsRight ?? [], field: "bulletsRight" as const },
           ].map((col, ci) => (
             <div key={ci} className="rounded-[1.2cqw] bg-white p-[3cqw] shadow-sm">
               <div className="mb-[1.5cqw] text-[2.3cqw] font-bold" style={{ color: t.accent }}>
                 {ci === 1 && editable ? (
                   <input
                     value={slide.twoColTitle ?? ""}
-                    placeholder="右栏标题"
+                    placeholder={tt("右栏标题")}
                     onChange={(e) => onPatch?.({ twoColTitle: e.target.value })}
                     className="w-full bg-transparent outline-none"
                   />
@@ -274,6 +300,127 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
                   {st.label}
                 </div>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 时间轴 */}
+      {slide.layout === "timeline" && (
+        <div className="px-[7cqw] pt-[2.5cqw]">
+          <div className="relative border-l-[0.4cqw] pl-[3.5cqw]" style={{ borderColor: t.accent }}>
+            {(slide.timeline ?? []).map((tl, i) => (
+              <div key={i} className="relative mb-[2.2cqw] last:mb-0">
+                <span
+                  className="absolute -left-[4.35cqw] top-[0.3cqw] h-[1.6cqw] w-[1.6cqw] rounded-full border-[0.35cqw] border-white"
+                  style={{ background: t.accent, boxShadow: `0 0 0 0.2cqw ${t.accent}44` }}
+                />
+                {editable ? (
+                  <div className="flex gap-[1.5cqw]">
+                    <input
+                      value={tl.time}
+                      onChange={(e) => {
+                        const next = [...(slide.timeline ?? [])];
+                        next[i] = { ...next[i], time: e.target.value };
+                        onPatch?.({ timeline: next });
+                      }}
+                      className="w-[16cqw] shrink-0 bg-transparent text-[2.2cqw] font-bold outline-none"
+                      style={{ color: t.accent }}
+                    />
+                    <input
+                      value={tl.label}
+                      onChange={(e) => {
+                        const next = [...(slide.timeline ?? [])];
+                        next[i] = { ...next[i], label: e.target.value };
+                        onPatch?.({ timeline: next });
+                      }}
+                      className="w-full bg-transparent text-[2.1cqw] outline-none"
+                      style={{ color: t.text }}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex gap-[1.5cqw]">
+                    <span className="w-[16cqw] shrink-0 text-[2.2cqw] font-bold" style={{ color: t.accent }}>{tl.time}</span>
+                    <span className="text-[2.1cqw]" style={{ color: t.text }}>{tl.label}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 对比 */}
+      {slide.layout === "compare" && (
+        <div className="px-[6cqw] pt-[2.5cqw]">
+          <div className="grid grid-cols-[1fr_1fr] gap-[2.5cqw]">
+            {[0, 1].map((col) => (
+              <div key={col} className="rounded-[1.5cqw] bg-white p-[2.5cqw] shadow-sm" style={{ border: `0.3cqw solid ${col === 0 ? t.accent : "#e2e8f0"}` }}>
+                <p className="mb-[1.5cqw] text-center text-[2.3cqw] font-bold" style={{ color: t.accent }}>
+                  {col === 0 ? (slide.twoColTitle ?? slide.bullets?.[0] ?? tt("方案 A")) : (slide.bulletsRight?.[0] ?? tt("方案 B"))}
+                </p>
+                <ul className="space-y-[1.2cqw]">
+                  {(col === 0 ? (slide.bullets ?? []) : (slide.bulletsRight ?? [])).slice(1).map((b, i) => (
+                    <li key={i} className="flex items-start gap-[1.2cqw] text-[1.9cqw] leading-snug" style={{ color: t.text }}>
+                      <span className="mt-[0.6cqw] h-[0.7cqw] w-[0.7cqw] shrink-0 rounded-full" style={{ background: t.accent }} />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          {slide.compareRows && slide.compareRows.length > 0 && (
+            <div className="mt-[2cqw] overflow-hidden rounded-[1.2cqw] border border-stone-200">
+              {slide.compareRows.map((r, i) => (
+                <div key={i} className="grid grid-cols-2 border-b border-stone-100 last:border-0">
+                  <div className="border-r border-stone-100 px-[2cqw] py-[1cqw] text-[1.8cqw]" style={{ color: t.text }}>
+                    <span className="font-medium" style={{ color: t.accent }}>{r.left}</span>
+                  </div>
+                  <div className="px-[2cqw] py-[1cqw] text-[1.8cqw]" style={{ color: t.text }}>{r.right}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 流程 */}
+      {slide.layout === "process" && (
+        <div className="flex items-center justify-center gap-[2cqw] px-[5cqw] pt-[2cqw]">
+          {(slide.process ?? []).map((p, i) => (
+            <div key={i} className="flex flex-1 flex-col items-center text-center">
+              <div className="flex h-[6cqw] w-[6cqw] items-center justify-center rounded-full text-[2.4cqw] font-bold text-white" style={{ background: t.accent }}>
+                {i + 1}
+              </div>
+              <div className="mt-[1.5cqw] text-[1.9cqw] leading-snug" style={{ color: t.text }}>{p}</div>
+              {i < (slide.process?.length ?? 0) - 1 && (
+                <span className="absolute -right-[1.2cqw] top-[2cqw] text-[2cqw]" style={{ color: t.muted }}>→</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 引言 */}
+      {slide.layout === "quote" && (
+        <div className="flex flex-col items-center justify-center px-[8cqw] pt-[1cqw] text-center">
+          <span className="text-[7cqw] leading-none" style={{ color: t.accent }}>“</span>
+          <p className="text-[3.2cqw] font-medium leading-[1.6]" style={{ color: t.text }}>{slide.quote}</p>
+          {slide.quoteBy && (
+            <p className="mt-[2.5cqw] text-[1.8cqw]" style={{ color: t.muted }}>—— {slide.quoteBy}</p>
+          )}
+        </div>
+      )}
+
+      {/* 团队 */}
+      {slide.layout === "team" && (
+        <div className="grid grid-cols-3 gap-[2.5cqw] px-[6cqw] pt-[2.5cqw]">
+          {(slide.team ?? []).map((m, i) => (
+            <div key={i} className="flex flex-col items-center rounded-[1.5cqw] bg-white py-[3cqw] shadow-sm" style={{ border: `0.3cqw solid ${t.accent}44` }}>
+              <span className="text-[4cqw]">{m.emoji ?? ["🦊", "🐼", "🦉", "🐯", "🐰", "🦄"][i % 6]}</span>
+              <span className="mt-[1cqw] text-[2.2cqw] font-semibold" style={{ color: t.text }}>{m.name}</span>
+              <span className="mt-[0.5cqw] text-[1.6cqw]" style={{ color: t.muted }}>{m.role}</span>
             </div>
           ))}
         </div>

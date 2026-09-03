@@ -153,7 +153,7 @@ export default function MembershipPage() {
   const upgradeTarget: Plan = plan === "free" ? "pro" : plan === "pro" ? "team" : "pro";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fdfaf6] text-stone-800">
+    <div className="flex h-screen overflow-hidden bg-[var(--oc-bg)] text-stone-800">
       <ShellSidebar active="chat" />
 
       {/* 主区域 */}

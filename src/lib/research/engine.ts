@@ -8,17 +8,26 @@ interface RunOptions {
   model: string;
   overrides?: ProviderOverrides;
   tavilyKey?: string;
+  /** 搜索深度：basic 快速检索 / advanced 深度检索 */
+  depth?: "basic" | "advanced";
+  /** 每次查询返回的来源数 */
+  maxResults?: number;
   onProgress: (message: string) => void;
 }
 
-async function tavilySearch(query: string, key: string): Promise<ResearchSource[]> {
+async function tavilySearch(
+  query: string,
+  key: string,
+  depth: "basic" | "advanced" = "advanced",
+  maxResults = 6
+): Promise<ResearchSource[]> {
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       query,
-      max_results: 6,
-      search_depth: "advanced",
+      max_results: maxResults,
+      search_depth: depth,
       include_answer: false,
     }),
   });
@@ -83,17 +92,18 @@ export async function runResearch(topic: string, opts: RunOptions): Promise<Rese
   }
 
   // —— 真实联网研究 ——
-  opts.onProgress("正在规划检索关键词…");
-  const queries = [
-    topic,
-    `${topic} 市场规模 增长 趋势`,
-    `${topic} 主要玩家 竞争 对比`,
-  ];
+  const depth = opts.depth ?? "advanced";
+  const maxResults = opts.maxResults ?? 6;
+  opts.onProgress(depth === "advanced" ? "正在规划检索关键词…" : "正在规划快速检索…");
+  const queries =
+    depth === "advanced"
+      ? [topic, `${topic} 市场规模 增长 趋势`, `${topic} 主要玩家 竞争 对比`, `${topic} 政策 趋势 机会`]
+      : [topic, `${topic} 市场 竞争`];
   await sleep(300);
 
-  opts.onProgress("正在多路线联网搜索…");
+  opts.onProgress(depth === "advanced" ? "正在多路线联网搜索…" : "正在快速联网搜索…");
   const results = await Promise.all(
-    queries.map((q) => tavilySearch(q, key).catch(() => [] as ResearchSource[]))
+    queries.map((q) => tavilySearch(q, key, depth, maxResults).catch(() => [] as ResearchSource[]))
   );
 
   // 去重合并

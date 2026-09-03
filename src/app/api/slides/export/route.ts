@@ -29,6 +29,9 @@ export async function POST(req: Request) {
   for (const s of deck.slides) {
     pageNo += 1;
     const slide = pptx.addSlide();
+    const addNotes = () => {
+      if (s.note?.trim()) slide.addNotes(s.note.trim());
+    };
 
     if (s.layout === "cover" || s.layout === "end") {
       slide.background = { color: hex(theme.primary) };
@@ -50,6 +53,7 @@ export async function POST(req: Request) {
           color: hex(theme.onPrimary), transparency: 25, align: "center",
         });
       }
+      addNotes();
       continue;
     }
 
@@ -157,6 +161,7 @@ export async function POST(req: Request) {
       x: 12.4, y: 7.0, w: 0.7, h: 0.4,
       fontFace: FONT, fontSize: 10, color: hex(theme.muted), align: "right",
     });
+    addNotes();
   }
 
   const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;

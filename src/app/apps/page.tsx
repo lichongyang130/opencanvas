@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   Bell,
   BellDot,
@@ -93,6 +94,7 @@ function Calc({ className }: { className?: string }) {
 }
 
 export default function AppsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { runTemplate } = useChatStore();
 
@@ -105,14 +107,14 @@ export default function AppsPage() {
   const demo = (label: string) => toast(`演示预览：${label} 功能即将接入`, "info");
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fbf8f4] text-stone-800">
+    <div className="flex h-screen overflow-hidden bg-[var(--oc-bg)] text-stone-800">
       <ShellSidebar active="apps" />
 
       <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* 顶栏 */}
-        <header className="flex shrink-0 items-center justify-between border-b border-[#f0eadf] bg-[#fbf8f4] px-6 py-4">
+        <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">更多应用</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.apps")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">发现更多实用应用，扩展你的工作能力</p>
           </div>
           <div className="flex items-center gap-2">
@@ -124,7 +126,7 @@ export default function AppsPage() {
             </button>
             <button
               onClick={() => demo("上传文档")}
-              className="ml-2 flex items-center gap-1.5 rounded-xl border border-[#f0c9a8] bg-white px-4 py-2 text-[13px] font-medium text-[#c05f3c] transition hover:bg-[#fdeee1]"
+              className="ml-2 flex items-center gap-1.5 rounded-xl border border-[var(--oc-brand-border-soft)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)]"
             >
               <Plus className="h-4 w-4" /> 上传文档
             </button>
@@ -140,7 +142,7 @@ export default function AppsPage() {
             <AppGrid title="其他应用" apps={OTHER} onLaunch={launch} />
 
             {/* 底部提示卡 */}
-            <div className="mt-5 flex items-center justify-between rounded-2xl border border-[#ece6db] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="mt-5 flex items-center justify-between rounded-2xl border border-[var(--oc-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                   <Package className="h-5 w-5" />
@@ -174,7 +176,7 @@ function AppGrid({ title, apps, onLaunch }: { title: string; apps: App[]; onLaun
           <button
             key={a.name}
             onClick={() => void onLaunch(a)}
-            className="flex items-start gap-3 rounded-2xl border border-[#ece6db] bg-white p-4 text-left shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition hover:shadow-md"
+            className="flex items-start gap-3 rounded-2xl border border-[var(--oc-border)] bg-white p-4 text-left shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition hover:shadow-md"
           >
             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${a.bg} ${a.tint}`}>
               <a.icon className="h-5 w-5" />

@@ -47,9 +47,11 @@
   - 一键导出 **.pptx**（pptxgenjs 服务端渲染，可直接用 PowerPoint/WPS 打开）
   - 演示模型零密钥返回完整示例 PPT，进度实时推送
 - ✅ **AI 绘图工作台**
-  - 图像网关：演示模式（本地 SVG 占位图，零密钥）/ DALL·E 3（海外）/ 通义万相 2.7（国内，异步任务轮询）
+  - 图像网关：演示模式（本地 SVG 占位图，零密钥）/ DALL·E 3（海外）/ FLUX.1 Schnell & Dev（fal.ai，海外）/ 通义万相 2.7 / 2.5 & Seedream 同源图生图（国内，异步任务轮询）
   - 三种比例（1:1 / 16:9 / 9:16），右侧画廊展示、点击放大、下载
-  - 图像随会话持久化
+  - **图生图**：上传参考图即生成变体（FLUX Dev / 万相 2.5 i2i 自动选择）
+  - **背景移除**：服务端 remove.bg（可选），未配置时客户端 @imgly WASM 本地 AI（免费）
+  - 绘图模型下拉（自动/FLUX/万相/DALL·E）+ 生成按模型扣积分；图像随会话持久化
 
 ## 快速开始
 
@@ -75,11 +77,19 @@ npm run dev
 
 ```bash
 # 海外
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...        # 对话 + DALL·E 3 绘图
+ANTHROPIC_API_KEY=sk-ant-... # 对话
+FAL_KEY=xxxxxxxx             # FLUX 绘图 / 图生图（可选）
 # 国内
 DEEPSEEK_API_KEY=sk-...
-DASHSCOPE_API_KEY=sk-...
+DASHSCOPE_API_KEY=sk-...     # Qwen 对话 + 万相绘图/图生图
+REMOVE_BG_API_KEY=xxxxxxxx   # 去背景（可选；不配则前端本地 AI）
+# 第三方登录（可选）：Google / GitHub OAuth 凭据，回调地址见 .env.example
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+OAUTH_REDIRECT_BASE=https://your-domain.com
 ```
 
 ## 路线图
@@ -88,3 +98,11 @@ DASHSCOPE_API_KEY=sk-...
 - 第 2 阶段：Deep Research（LangGraph + 任务队列）、Stripe/微信支付、认证、积分系统落库
 - 第 3 阶段：视频生成、Agent 素材包模板、品牌中心、代码沙箱
 - 第 4 阶段：自定义工作流、团队协作、API 开放平台
+
+## 本轮更新（2026-09-02）：占位清零 · 全站真实化 · 深色模式
+
+- ✅ **P0** 文件上传解析+文档中心；模板中心接真+一键运行；智能体 CRUD+分享
+- ✅ **P1** 知识库本地 RAG（检索命中/引用回答）；工具箱真实执行；通知中心
+- ✅ **P2** 代码沙箱（iframe 运行 AI 生成 HTML）；本地积分中心（真实账本）；全局深色模式
+- 📋 详见 [`docs/REAL_FEATURES.md`](docs/REAL_FEATURES.md)（进度清单）、[`docs/CHANGELOG.md`](docs/CHANGELOG.md)、[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+- 🗄️ 生产切换 PostgreSQL（用户体系/迁移/导入）：[`docs/POSTGRES.md`](docs/POSTGRES.md)

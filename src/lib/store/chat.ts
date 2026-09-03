@@ -2,13 +2,37 @@
 
 import { create } from "zustand";
 import { MODELS, resolveModel } from "@/lib/gateway/models";
-import { getOverrides, loadTavilyKey, serverProviderStatus } from "@/lib/settings";
+import {
+  getOverrides,
+  loadTavilyKey,
+  loadPrefs,
+  savePrefs,
+  loadDynamicModels,
+  serverProviderStatus,
+  type CanvasWidth,
+  type SendKey,
+  type ResearchDepth,
+  type HistoryLimit,
+  type ResearchMaxResults,
+  type ThemeMode,
+} from "@/lib/settings";
 import { toast } from "./toast";
-import type { SlideDeck, ThemeId } from "@/lib/slides/types";
+import type { Slide, SlideDeck, SlideOutline, ThemeId } from "@/lib/slides/types";
 import type { ResearchReport } from "@/lib/research/types";
 import { getPersona } from "@/lib/personas";
 
 export type WorkspaceMode = "chat" | "research" | "slides" | "image" | "video" | "docs";
+
+/** 设置中心分页 */
+export type SettingsTab = "general" | "models" | "network" | "data" | "about";
+
+/** 知识库检索命中（与 /api/knowledge/:id/query 返回一致） */
+export interface KbHit {
+  docId: string;
+  docName: string;
+  snippet: string;
+  score: number;
+}
 
 export interface UIMessage {
   id: string;
@@ -16,6 +40,8 @@ export interface UIMessage {
   content: string;
   streaming?: boolean;
   error?: boolean;
+  /** 知识库引用来源 */
+  refs?: KbHit[];
 }
 
 export interface UIImage {
@@ -52,8 +78,19 @@ export interface Conversation {
   researchMessage?: string;
   archived?: boolean;
   pinned?: boolean;
-  /** 绑定的 AI 角色 id（personas.ts） */
+  /** 绑定的 AI 角色 id（personas.ts；自定义智能体为 custom:<agentId>） */
   personaId?: string;
+  /** 自定义智能体的 system prompt（内置智能体为空，运行时经 personaId 查 personas.ts） */
+  personaSystem?: string;
+  /** 代码沙箱：AI 生成的 HTML 页面预览（history = 历史版本，最多 10 份） */
+  codePreview?: {
+    html: string;
+    lang: string;
+    createdAt: number;
+    history?: { html: string; lang: string; createdAt: number }[];
+  } | null;
+  /** 绑定的知识库 id（发送时自动 RAG 检索注入上下文） */
+  kbId?: string;
   createdAt: number;
 }
 
@@ -106,6 +143,36 @@ interface ChatState {
   /** 产物画布是否展开 */
   artifactOpen: boolean;
   setArtifactOpen: (v: boolean) => void;
+  /** 设置中心当前分页 */
+  settingsTab: SettingsTab;
+  setSettingsTab: (t: SettingsTab) => void;
+  /** 生成产物后是否自动展开画布 */
+  autoOpenArtifact: boolean;
+  setAutoOpenArtifact: (v: boolean) => void;
+  /** 新建任务默认模式 */
+  defaultMode: WorkspaceMode;
+  setDefaultMode: (m: WorkspaceMode) => void;
+  /** 新建任务默认模型 */
+  defaultModel: string;
+  setDefaultModel: (id: string) => void;
+  /** 右侧产物画布宽度 */
+  canvasWidth: CanvasWidth;
+  setCanvasWidth: (w: CanvasWidth) => void;
+  /** 历史列表显示条数 */
+  historyLimit: HistoryLimit;
+  setHistoryLimit: (n: HistoryLimit) => void;
+  /** 发送消息按键 */
+  sendKey: SendKey;
+  setSendKey: (k: SendKey) => void;
+  /** 深度研究搜索深度 */
+  researchDepth: ResearchDepth;
+  setResearchDepth: (d: ResearchDepth) => void;
+  /** 每次搜索来源数 */
+  researchMaxResults: ResearchMaxResults;
+  setResearchMaxResults: (n: ResearchMaxResults) => void;
+  /** 外观主题（system/light/dark） */
+  theme: ThemeMode;
+  setTheme: (t: ThemeMode) => void;
   stopGeneration: () => void;
   hydrate: () => Promise<void>;
   runTemplate: (t: { mode: WorkspaceMode; prompt: string }) => Promise<void>;
@@ -127,19 +194,48 @@ interface ChatState {
   setMode: (mode: WorkspaceMode) => void;
   /** 为当前会话设置/取消 AI 角色（null = 默认） */
   setPersona: (id: string | null) => void;
+  /** 以自定义/内置智能体开启新对话，回到 /chat 并预填开场白 */
+  startAgent: (a: {
+    id: string;
+    name: string;
+    emoji: string;
+    system: string;
+    starter?: string;
+    builtin?: boolean;
+  }) => Promise<void>;
   send: (text: string) => Promise<void>;
-  generateSlides: (topic: string, context?: string) => Promise<void>;
-  generateImage: (prompt: string, size: string) => Promise<void>;
+  /** 重新生成最后一条 AI 回复（删除旧回复后重发上一条用户输入） */
+  regenerate: () => Promise<void>;
+  /** 编辑重发：删除第 index 条用户消息及其后续回复，内容回填输入框 */
+  editResendFrom: (index: number) => void;
+  generateSlides: (topic: string, context?: string, outline?: SlideOutline | null, fromOutline?: boolean) => Promise<void>;
+  /** 大纲先行：先生成目录大纲并弹出确认（pendingOutline），确认后再 generateSlides */
+  generateOutline: (topic: string) => Promise<void>;
+  /** 确认（或修改后确认）大纲，开始生成完整 PPT */
+  confirmOutline: (edited?: SlideOutline) => Promise<void>;
+  /** 取消大纲，清空待确认状态 */
+  discardOutline: () => void;
+  /** 待确认的 PPT 大纲（大纲先行流程） */
+  pendingOutline: { topic: string; context?: string; outline: SlideOutline } | null;
+  generateImage: (prompt: string, size: string, opts?: { model?: string; imageUrl?: string }) => Promise<void>;
   generateDocs: (topic: string, seed?: string) => Promise<void>;
   runResearch: (topic: string) => Promise<void>;
   reportToSlides: () => Promise<void>;
   reportToDoc: () => Promise<void>;
   setDoc: (doc: UIDoc) => void;
+  /** 代码沙箱：设置/清除当前会话的 HTML 预览 */
+  setCodePreview: (html: string | null, lang?: string) => void;
+  /** 绑定/解除会话的知识库（发送时自动 RAG 检索） */
+  setKbId: (id: string | null) => void;
   aiDoc: (op: "continue" | "polish" | "shorten" | "expand" | "fix", selection?: string) => Promise<void>;
   docBusy: boolean;
   addImages: (images: UIImage[]) => void;
   setDeckTheme: (theme: ThemeId) => void;
   patchSlide: (slideIndex: number, patch: Record<string, unknown>) => void;
+  /** PPT 自动配图：slideIdx 不传时批量生成所有缺图页；返回生成数量 */
+  generateSlideImages: (slideIdx?: number) => Promise<number>;
+  /** AI 单页重写：调真实模型改写指定页并替换（演示模式保留原页） */
+  rewriteSlide: (index: number) => Promise<void>;
   addSlide: () => void;
   duplicateSlide: (index: number) => void;
   deleteSlide: (index: number) => void;
@@ -178,6 +274,21 @@ function parseSSE<T>(line: string): T | null {
   }
 }
 
+
+/** 大纲 → 对话消息里的 Markdown 文本 */
+export function formatOutlineText(o: SlideOutline): string {
+  return (
+    `📋 已生成大纲《${o.title}》，共 ${o.sections.length} 章。请确认或修改后开始生成完整 PPT。\n\n` +
+    o.sections
+      .map(
+        (s, i) =>
+          `${i + 1}. **${s.title}**\n` +
+          (s.bullets.length > 0 ? s.bullets.map((b) => `   - ${b}`).join("\n") : "")
+      )
+      .join("\n\n")
+  );
+}
+
 // 文档与 PPT 各自的落库防抖定时器（旧版共用一个，会互相取消）
 let docPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let deckPersistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -204,6 +315,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         role: m.role,
         content: m.content,
         error: Boolean(m.error),
+        refs: m.refs ?? null,
       }),
     }).catch(() => {});
 
@@ -214,12 +326,64 @@ export const useChatStore = create<ChatState>((set, get) => {
     sending: false,
     hydrated: false,
     settingsOpen: false,
-    artifactOpen: true,
+    settingsTab: "general",
     docBusy: false,
     pendingInput: null,
+    pendingOutline: null,
+    // 界面偏好不在模块顶层读取（SSR 无 localStorage），hydrate 时再加载
+    artifactOpen: true,
+    autoOpenArtifact: true,
+    defaultMode: "chat",
+    defaultModel: "demo",
+    canvasWidth: "standard",
+    historyLimit: 50,
+    sendKey: "enter",
+    researchDepth: "advanced",
+    researchMaxResults: 6,
+    theme: "system",
 
     setSettingsOpen: (v) => set({ settingsOpen: v }),
-    setArtifactOpen: (v) => set({ artifactOpen: v }),
+    setSettingsTab: (t) => set({ settingsTab: t }),
+    setArtifactOpen: (v) => {
+      set({ artifactOpen: v });
+      savePrefs({ artifactOpen: v });
+    },
+    setAutoOpenArtifact: (v) => {
+      set({ autoOpenArtifact: v });
+      savePrefs({ autoOpenArtifact: v });
+    },
+    setDefaultMode: (m) => {
+      set({ defaultMode: m });
+      savePrefs({ defaultMode: m });
+    },
+    setDefaultModel: (id) => {
+      set({ defaultModel: id });
+      savePrefs({ defaultModel: id });
+    },
+    setCanvasWidth: (w) => {
+      set({ canvasWidth: w });
+      savePrefs({ canvasWidth: w });
+    },
+    setHistoryLimit: (n) => {
+      set({ historyLimit: n });
+      savePrefs({ historyLimit: n });
+    },
+    setSendKey: (k) => {
+      set({ sendKey: k });
+      savePrefs({ sendKey: k });
+    },
+    setResearchDepth: (d) => {
+      set({ researchDepth: d });
+      savePrefs({ researchDepth: d });
+    },
+    setResearchMaxResults: (n) => {
+      set({ researchMaxResults: n });
+      savePrefs({ researchMaxResults: n });
+    },
+    setTheme: (t) => {
+      set({ theme: t });
+      savePrefs({ theme: t });
+    },
 
     stopGeneration: () => {
       activeAbort?.abort();
@@ -278,6 +442,8 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     hydrate: async () => {
       if (get().hydrated) return;
+      // 界面偏好只存在于浏览器，此时再读取（避免 SSR 无 localStorage 崩溃）
+      set(loadPrefs());
       try {
         const data = await api<{ conversations: Array<Record<string, unknown>> }>(
           "/api/conversations?archived=all"
@@ -298,6 +464,9 @@ export const useChatStore = create<ChatState>((set, get) => {
           doc: (c.doc as UIDoc) ?? undefined,
           archived: Boolean(c.archived),
           personaId: (c.personaId as string) ?? undefined,
+          personaSystem: (c.personaSystem as string) ?? undefined,
+          codePreview: (c.codePreview as Conversation["codePreview"]) ?? undefined,
+          kbId: (c.kbId as string) ?? undefined,
           pinned: Boolean(c.pinned),
           createdAt: (c.createdAt as number) ?? Date.now(),
         }));
@@ -337,8 +506,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    newConversation: async (mode = "chat") => {
-      const convo = createConversation(mode, get().model);
+    newConversation: async (mode: WorkspaceMode = get().defaultMode) => {
+      // 默认模型：设置中指定的 id 生效时使用，否则沿用当前模型
+      const preferred = get().defaultModel;
+      const dynamicIds = Object.values(loadDynamicModels()).flat();
+      const model = MODELS.some((m) => m.id === preferred) || dynamicIds.includes(preferred) ? preferred : get().model;
+      const convo = createConversation(mode, model);
       set((s) => ({ conversations: [convo, ...s.conversations], activeId: convo.id, model: convo.model }));
       await api("/api/conversations", {
         method: "POST",
@@ -355,7 +528,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (convo.loaded) return;
       try {
         const data = await api<{
-          messages: Array<{ id: string; role: "user" | "assistant"; content: string; error: boolean }>;
+          messages: Array<{
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            error: boolean;
+            refs?: KbHit[] | null;
+          }>;
         }>(`/api/conversations/${id}`);
         patchConvo(id, {
           loaded: true,
@@ -364,6 +543,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             role: m.role,
             content: m.content,
             error: m.error,
+            refs: Array.isArray(m.refs) ? m.refs : undefined,
           })),
         });
       } catch {
@@ -475,6 +655,27 @@ export const useChatStore = create<ChatState>((set, get) => {
       persistConvo(activeId, { personaId: id || null });
     },
 
+    startAgent: async (a) => {
+      const id = await get().newConversation("chat");
+      await get().selectConversation(id);
+      const personaId = a.builtin ? a.id : `custom:${a.id}`;
+      const patch = {
+        title: a.name,
+        personaId,
+        personaSystem: a.builtin ? undefined : a.system,
+      };
+      patchConvo(id, patch);
+      persistConvo(id, {
+        title: a.name,
+        personaId,
+        personaSystem: a.builtin ? null : a.system,
+      });
+      if (a.starter) {
+        set((s) => ({ pendingInput: { text: a.starter!, nonce: (s.pendingInput?.nonce ?? 0) + 1 } }));
+      }
+      toast(`已创建「${a.name}」智能体对话`, "success");
+    },
+
     addImages: (images) => {
       const { activeId, conversations } = get();
       if (!activeId) return;
@@ -484,7 +685,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       persistConvo(activeId, { images: next });
     },
 
-    generateImage: async (prompt, size) => {
+    generateImage: async (prompt, size, opts) => {
       const p = prompt.trim();
       if (!p || get().sending) return;
 
@@ -515,20 +716,19 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({ sending: true });
 
       const ov = getOverrides();
-      let imageModel = "demo-image";
-      if (ov.dashscope?.apiKey && current.model.startsWith("qwen")) imageModel = "wan2.7-t2i-flash";
-      else if (ov.openai?.apiKey) imageModel = "dall-e-3";
-      else if (ov.dashscope?.apiKey) imageModel = "wan2.7-t2i-flash";
+      const imageUrl = opts?.imageUrl?.trim() || undefined;
+      // 用户显式选了绘图模型则直接使用；否则 "auto" 由服务端按已配置密钥自动选
+      const imageModel = opts?.model && opts.model !== "auto" ? opts.model : "auto";
 
       const controller = newAbort();
       try {
         const res = await fetch("/api/images", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model: imageModel, prompt: p, size, overrides: ov }),
+          body: JSON.stringify({ model: imageModel, prompt: p, size, imageUrl, overrides: ov }),
           signal: controller.signal,
         });
-        const data = (await res.json()) as { url?: string; model?: string; error?: string };
+        const data = (await res.json()) as { url?: string; model?: string; error?: string; credits?: number };
         if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
 
         const img: UIImage = {
@@ -539,7 +739,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           createdAt: Date.now(),
         };
         get().addImages([img]);
-        const note = `✅ 图像已生成（${data.model}）。可在右侧画布查看、下载。`;
+        const note =
+          (data.credits && data.credits > 0
+            ? `✅ 图像已生成（${data.model}），消耗 ${data.credits} 积分。可在右侧画布查看、下载或去背景。`
+            : `✅ 图像已生成（${data.model}）。可在右侧画布查看、下载。`);
         patchConvo(current.id, {
           messages: get()
             .conversations.find((x) => x.id === current.id)!
@@ -562,6 +765,48 @@ export const useChatStore = create<ChatState>((set, get) => {
       } finally {
         set({ sending: false });
       }
+    },
+
+    regenerate: async () => {
+      const { activeId, sending: busy } = get();
+      if (!activeId || busy) return;
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo) return;
+      // 找最后一条用户消息
+      let userIdx = -1;
+      for (let i = convo.messages.length - 1; i >= 0; i--) {
+        if (convo.messages[i].role === "user") { userIdx = i; break; }
+      }
+      if (userIdx < 0) return;
+      const removed = convo.messages.slice(userIdx + 1);
+      if (removed.length === 0) return; // 没有可重生成的回复
+      const lastUser = convo.messages[userIdx].content;
+      patchConvo(activeId, { messages: convo.messages.slice(0, userIdx + 1) });
+      // 同步清理数据库中的旧回复
+      try {
+        await api(`/api/messages?conversationId=${encodeURIComponent(activeId)}&ids=${removed.map((m) => encodeURIComponent(m.id)).join(",")}`, {
+          method: "DELETE",
+        });
+      } catch { /* 忽略：本地已移除 */ }
+      await get().send(lastUser);
+    },
+
+    editResendFrom: (index) => {
+      const { activeId } = get();
+      if (!activeId || get().sending) return;
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo) return;
+      const target = convo.messages[index];
+      if (!target || target.role !== "user") return;
+      const removed = convo.messages.slice(index);
+      patchConvo(activeId, { messages: convo.messages.slice(0, index) });
+      try {
+        void api(
+          `/api/messages?conversationId=${encodeURIComponent(activeId)}&ids=${removed.map((m) => encodeURIComponent(m.id)).join(",")}`,
+          { method: "DELETE" }
+        );
+      } catch { /* 本地已移除 */ }
+      set((s) => ({ pendingInput: { text: target.content, nonce: (s.pendingInput?.nonce ?? 0) + 1 } }));
     },
 
     send: async (text) => {
@@ -611,13 +856,47 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (title !== current.title) persistConvo(current.id, { title });
       set({ sending: true });
 
+      // 知识库 RAG：会话绑定知识库时，先检索相关片段再注入上下文
+      let kbHits: KbHit[] = [];
+      if (current.kbId) {
+        try {
+          const data = (await fetch(`/api/knowledge/${current.kbId}/query`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: trimmed }),
+          }).then((r) => r.json())) as { hits?: KbHit[] };
+          kbHits = data.hits ?? [];
+        } catch {
+          kbHits = [];
+        }
+        if (kbHits.length > 0) {
+          assistantMsg.refs = kbHits;
+          patchConvo(current.id, {
+            messages: get()
+              .conversations.find((x) => x.id === current.id)!
+              .messages.map((mm) =>
+                mm.id === assistantMsg.id ? { ...mm, refs: kbHits } : mm
+              ),
+          });
+        }
+      }
+
       // AI 角色 system prompt（叠加在模式提示词之后）
-      let personaSystem = "";
-      if (current.personaId) {
+      // 自定义智能体直接用会话内保存的 personaSystem；内置智能体按 personaId 查 personas.ts
+      let personaSystem = current.personaSystem ?? "";
+      if (current.personaId && !personaSystem) {
         const persona = getPersona(current.personaId);
         if (persona?.system) personaSystem = persona.system;
       }
-      const systemContent = [MODE_PROMPTS[current.mode], personaSystem].filter(Boolean).join("\n\n");
+      const kbContext = kbHits
+        .map((h, i) => `【资料${i + 1}｜${h.docName}】\n${h.snippet}`)
+        .join("\n\n");
+      const kbPrompt = kbContext
+        ? `以下是从绑定的知识库检索到的相关资料，请优先依据资料回答；如有引用，请在结尾列出「引用来源：资料编号 · 文档名」。\n\n${kbContext}`
+        : "";
+      const systemContent = [MODE_PROMPTS[current.mode], personaSystem, kbPrompt]
+        .filter(Boolean)
+        .join("\n\n");
 
       const apiMessages = [
         { role: "system" as const, content: systemContent },
@@ -626,14 +905,29 @@ export const useChatStore = create<ChatState>((set, get) => {
       ];
 
       const controller = newAbort();
+      // 流式请求失败重试一次（仅 HTTP 阶段失败；已收到流则不重试）
+      const chatFetch = async () => {
+        const call = async () =>
+          fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: apiMessages, overrides: getOverrides(), provider: modelProvider ?? undefined }),
+            signal: controller.signal,
+          });
+        try {
+          const r = await call();
+          if (!r.ok || !r.body) throw new Error(`请求失败 ${r.status}`);
+          return r;
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError" || controller.signal.aborted) throw err;
+          const r2 = await call();
+          if (!r2.ok || !r2.body) throw new Error(`请求失败 ${r2.status}`);
+          return r2;
+        }
+      };
       try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model, messages: apiMessages, overrides: getOverrides(), provider: modelProvider ?? undefined }),
-          signal: controller.signal,
-        });
-        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+        const res = await chatFetch();
+        if (!res.body) throw new Error("响应流为空");
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -711,7 +1005,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    generateSlides: async (topic, context) => {
+    generateSlides: async (topic, context, outline, fromOutline) => {
       const trimmed = topic.trim();
       if (!trimmed || get().sending) return;
 
@@ -726,15 +1020,18 @@ export const useChatStore = create<ChatState>((set, get) => {
         persistConvo(current.id, { mode: "slides" });
       }
 
-      const userMsg: UIMessage = { id: nextId(), role: "user", content: `生成 PPT：${trimmed}` };
+      // 大纲先行：用户输入时已在对话里留下「生成 PPT：主题」，确认大纲后不再重复插入
+      const userMsg: UIMessage | null = fromOutline
+        ? null
+        : { id: nextId(), role: "user", content: `生成 PPT：${trimmed}` };
       const assistantMsg: UIMessage = { id: nextId(), role: "assistant", content: "", streaming: true };
 
       const title = current.messages.length === 0 ? trimmed.slice(0, 24) : current.title;
       patchConvo(current.id, {
         title,
         deckStatus: "loading",
-        deckMessage: "正在规划幻灯片结构…",
-        messages: [...current.messages, userMsg, assistantMsg],
+        deckMessage: outline ? "正在按已确认大纲生成…" : "正在规划幻灯片结构…",
+        messages: [...current.messages, ...(userMsg ? [userMsg] : []), assistantMsg],
       });
       persistConvo(current.id, { title, deckStatus: "loading" });
       set({ sending: true });
@@ -760,6 +1057,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             provider: current.modelProvider ?? undefined,
             overrides: getOverrides(),
             context: context ? context.slice(0, 6000) : undefined,
+            outline: outline ?? undefined,
           }),
           signal: slidesController.signal,
         });
@@ -802,7 +1100,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           patchConvo(current.id, { deck, deckStatus: "done", deckMessage: undefined });
           updateAssistant(note, { streaming: false });
           persistConvo(current.id, { deck, deckStatus: "done" });
-          persistMessage(current.id, userMsg);
+          if (userMsg) persistMessage(current.id, userMsg);
           persistMessage(current.id, { ...assistantMsg, content: note });
         } else {
           throw new Error(error ?? "生成失败");
@@ -816,12 +1114,131 @@ export const useChatStore = create<ChatState>((set, get) => {
         });
         updateAssistant(content, { streaming: false, error: !aborted });
         if (!aborted) persistConvo(current.id, { deckStatus: "error" });
+        if (userMsg) persistMessage(current.id, userMsg);
+        persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
+      } finally {
+        set({ sending: false });
+      }
+    },
+
+    generateOutline: async (topic) => {
+      const trimmed = topic.trim();
+      if (!trimmed || get().sending || get().pendingOutline) return;
+
+      let convo = get().conversations.find((c) => c.id === get().activeId);
+      if (!convo) {
+        const id = await get().newConversation("slides");
+        convo = get().conversations.find((c) => c.id === id)!;
+      }
+      const current = convo;
+      if (current.mode !== "slides") {
+        patchConvo(current.id, { mode: "slides" });
+        persistConvo(current.id, { mode: "slides" });
+      }
+
+      const userMsg: UIMessage = { id: nextId(), role: "user", content: `生成 PPT：${trimmed}` };
+      const assistantMsg: UIMessage = { id: nextId(), role: "assistant", content: "", streaming: true };
+      const title = current.messages.length === 0 ? trimmed.slice(0, 24) : current.title;
+      patchConvo(current.id, {
+        title,
+        deckStatus: "loading",
+        deckMessage: "正在规划大纲…",
+        messages: [...current.messages, userMsg, assistantMsg],
+      });
+      persistConvo(current.id, { title, deckStatus: "loading" });
+      set({ sending: true });
+
+      const updateAssistant = (content: string, extra?: Partial<UIMessage>) => {
+        patchConvo(current.id, {
+          messages: get()
+            .conversations.find((x) => x.id === current.id)!
+            .messages.map((m) =>
+              m.id === assistantMsg.id ? { ...m, content, ...extra } : m
+            ),
+        });
+      };
+
+      const controller = newAbort(90_000);
+      try {
+        const res = await fetch("/api/slides/outline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: trimmed,
+            model: current.model,
+            provider: current.modelProvider ?? undefined,
+            overrides: getOverrides(),
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let outline: SlideOutline | null = null;
+        let error: string | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            const evt = parseSSE<
+              | { type: "status"; message: string }
+              | { type: "outline"; outline: SlideOutline }
+              | { type: "error"; message: string }
+            >(t);
+            if (!evt) continue;
+            if (evt.type === "status") {
+              patchConvo(current.id, { deckMessage: evt.message });
+              updateAssistant(evt.message + "…");
+            } else if (evt.type === "outline") {
+              outline = evt.outline;
+            } else if (evt.type === "error") {
+              error = evt.message;
+            }
+          }
+        }
+
+        if (outline) {
+          const text = formatOutlineText(outline);
+          patchConvo(current.id, { deckStatus: "idle", deckMessage: undefined });
+          updateAssistant(text, { streaming: false });
+          persistMessage(current.id, userMsg);
+          persistMessage(current.id, { ...assistantMsg, content: text });
+          set({ pendingOutline: { topic: trimmed, context: undefined, outline } });
+          toast("大纲已生成，请确认或修改后开始生成完整 PPT", "info");
+        } else {
+          throw new Error(error ?? "大纲生成失败");
+        }
+      } catch (err) {
+        const aborted = (err as Error)?.name === "AbortError";
+        const content = aborted ? "已停止生成大纲。" : `⚠️ ${err instanceof Error ? err.message : "大纲生成失败"}`;
+        patchConvo(current.id, {
+          deckStatus: aborted ? "idle" : "error",
+          deckMessage: undefined,
+        });
+        updateAssistant(content, { streaming: false, error: !aborted });
         persistMessage(current.id, userMsg);
         persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
       } finally {
         set({ sending: false });
       }
     },
+
+    confirmOutline: async (edited) => {
+      const pending = get().pendingOutline;
+      if (!pending) return;
+      set({ pendingOutline: null });
+      await get().generateSlides(pending.topic, pending.context, edited ?? pending.outline, true);
+    },
+
+    discardOutline: () => set({ pendingOutline: null }),
 
     runResearch: async (topic) => {
       const trimmed = topic.trim();
@@ -876,6 +1293,8 @@ export const useChatStore = create<ChatState>((set, get) => {
             provider: current.modelProvider ?? undefined,
             overrides: getOverrides(),
             tavilyKey: loadTavilyKey(),
+            depth: get().researchDepth,
+            maxResults: get().researchMaxResults,
           }),
           signal: researchController.signal,
         });
@@ -968,6 +1387,32 @@ export const useChatStore = create<ChatState>((set, get) => {
       patchConvo(activeId, { doc: next });
       if (docPersistTimer) clearTimeout(docPersistTimer);
       docPersistTimer = setTimeout(() => persistConvo(activeId, { doc: next }), 600);
+    },
+
+    setCodePreview: (html, lang = "html") => {
+      const { activeId } = get();
+      if (!activeId) return;
+      const prev = get().conversations.find((c) => c.id === activeId)?.codePreview ?? null;
+      const next = html
+        ? {
+            html,
+            lang,
+            createdAt: Date.now(),
+            // 版本历史：替换前把旧版归档（上限 10 份）
+            history: prev
+              ? [{ html: prev.html, lang: prev.lang, createdAt: prev.createdAt }, ...(prev.history ?? [])].slice(0, 10)
+              : undefined,
+          }
+        : null;
+      patchConvo(activeId, { codePreview: next });
+      persistConvo(activeId, { codePreview: next });
+    },
+
+    setKbId: (id) => {
+      const { activeId } = get();
+      if (!activeId) return;
+      patchConvo(activeId, { kbId: id || undefined });
+      persistConvo(activeId, { kbId: id || null });
     },
 
     reportToDoc: async () => {
@@ -1171,6 +1616,107 @@ export const useChatStore = create<ChatState>((set, get) => {
       patchConvo(activeId!, { deck });
       if (deckPersistTimer) clearTimeout(deckPersistTimer);
       deckPersistTimer = setTimeout(() => persistConvo(activeId!, { deck }), 600);
+    },
+
+    generateSlideImages: async (slideIdx) => {
+      const { activeId } = get();
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo?.deck || get().sending) return 0;
+      const targets = convo.deck.slides
+        .map((s, i) => ({ s, i }))
+        .filter(({ s, i }) => s.imagePrompt && !s.imageUrl && (slideIdx === undefined || i === slideIdx));
+      if (targets.length === 0) return 0;
+
+      // 自动选择绘图模型：有 OpenAI Key → DALL·E 3；有百炼 Key → 万相；否则演示 SVG
+      const ov = getOverrides();
+      let imageModel = "demo-image";
+      if (ov.openai?.apiKey) imageModel = "dall-e-3";
+      else if (ov.dashscope?.apiKey) imageModel = "wan2.7-t2i-flash";
+
+      let done = 0;
+      for (const { s, i } of targets) {
+        try {
+          const res = await fetch("/api/images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: imageModel, prompt: s.imagePrompt, size: "1024x1024", overrides: ov }),
+          });
+          const data = (await res.json()) as { url?: string; error?: string };
+          if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
+          get().patchSlide(i, { imageUrl: data.url });
+          done++;
+        } catch (err) {
+          toast(`第 ${i + 1} 页配图失败：${err instanceof Error ? err.message : "未知错误"}`, "error");
+        }
+      }
+      // 确保批量生成结果落库（patchSlide 内部是 600ms 防抖）
+      if (done > 0) {
+        const latest = get().conversations.find((c) => c.id === convo.id);
+        if (latest?.deck) persistConvo(convo.id, { deck: latest.deck });
+      }
+      return done;
+    },
+
+    rewriteSlide: async (index) => {
+      const { activeId } = get();
+      const convo = get().conversations.find((c) => c.id === activeId);
+      const slide = convo?.deck?.slides[index];
+      if (!convo?.deck || !slide || get().sending) return;
+
+      const ov = getOverrides();
+      const hasModel = Object.values(ov).some((p) => p?.apiKey);
+      if (!hasModel) {
+        toast("请先在模型设置中配置 API Key，即可用真实模型重写本页", "info");
+        return;
+      }
+      try {
+        const res = await fetch("/api/slides", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "rewrite",
+            slide,
+            topic: convo.deck.title,
+            model: convo.model,
+            provider: convo.modelProvider ?? undefined,
+            overrides: ov,
+          }),
+        });
+        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+
+        // SSE 读取 slide 事件
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result: { type?: string; slide?: Slide; message?: string } | null = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            try {
+              const evt = JSON.parse(t.slice(5).trim()) as { type?: string; slide?: Slide; message?: string };
+              if (evt.type === "slide") result = evt;
+              if (evt.type === "error") throw new Error(evt.message ?? "重写失败");
+            } catch (err) {
+              if ((err as Error)?.message === "重写失败") throw err;
+              if (err instanceof SyntaxError) continue;
+              throw err;
+            }
+          }
+        }
+        if (!result?.slide) throw new Error("未收到重写结果");
+        // 重写后旧配图作废，可重新生成
+        const cleaned = { ...result.slide, imageUrl: undefined } as unknown as Record<string, unknown>;
+        get().patchSlide(index, cleaned);
+        toast(`已重写第 ${index + 1} 页`, "success");
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "重写失败", "error");
+      }
     },
 
     addSlide: () => {

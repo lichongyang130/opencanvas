@@ -6,12 +6,12 @@ import { ShellSidebar } from "./ShellSidebar";
 import { Markdown } from "@/components/workspace/Markdown";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
 import { SettingsModal } from "@/components/workspace/SettingsModal";
-import { useChatStore, type UIMessage } from "@/lib/store/chat";
+import { ArtifactPanel } from "@/components/workspace/ArtifactPanel";
+import { useChatStore, type UIMessage, type WorkspaceMode } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
 import {
   ArrowUp,
-  Bell,
   Bot,
   BrainCircuit,
   ChevronDown,
@@ -24,13 +24,17 @@ import {
   LayoutTemplate,
   MessageSquare,
   Paperclip,
+  PanelRight,
   RefreshCw,
+  Settings,
   Share2,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
   Wrench,
 } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
+import CreditsBadge from "@/components/CreditsBadge";
 
 /* ────────────────────────────────────────────────
  *  AI 对话工作台（保持设计稿 1:1 视觉，接真实数据流）
@@ -73,7 +77,7 @@ function UserBubble({ msg }: { msg: UIMessage }) {
     <div className="flex items-start justify-end gap-3">
       <div className="max-w-[640px]">
         <p className="mb-1 text-right text-[11px] text-stone-400">{time}</p>
-        <div className="rounded-xl rounded-tr-sm bg-[#fdeee3] px-4 py-3 text-[14px] leading-6 text-stone-800">
+        <div className="rounded-xl rounded-tr-sm bg-[var(--oc-brand-tint)] px-4 py-3 text-[14px] leading-6 text-stone-800">
           {msg.content}
         </div>
       </div>
@@ -105,7 +109,7 @@ function AIBubble({ msg }: { msg: UIMessage }) {
     <div className="flex items-start gap-3">
       <AILogo />
       <div className="min-w-0 max-w-[840px] flex-1">
-        <div className="rounded-xl rounded-tl-sm border border-[#e9e4d9] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="rounded-xl rounded-tl-sm border border-[var(--oc-border-strong)] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <p className="mb-2 text-xs text-stone-400">AI 助手 {time}</p>
           {msg.error ? (
             <p className="text-[13px] text-red-600">{msg.content}</p>
@@ -154,6 +158,9 @@ export default function WorkspaceMockChat() {
     setModel,
     settingsOpen,
     setSettingsOpen,
+    artifactOpen,
+    setArtifactOpen,
+    sendKey,
   } = useChatStore();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -165,6 +172,49 @@ export default function WorkspaceMockChat() {
     void hydrate();
   }, [hydrate]);
 
+  // 消费首页带来的意图（sessionStorage 传递，避免 URL 泄漏长文本）
+  useEffect(() => {
+    if (!hydrated) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem("oc:homeIntent");
+      if (raw) sessionStorage.removeItem("oc:homeIntent");
+    } catch {}
+    if (!raw) return;
+    try {
+      const intent = JSON.parse(raw) as {
+        type: "send" | "fill" | "mode" | "new" | "convo" | "preview";
+        mode?: WorkspaceMode;
+        text?: string;
+        id?: string;
+        ts?: number;
+      };
+      // 超过 30 秒的意图视为过期
+      if (intent.ts && Date.now() - intent.ts > 30_000) return;
+      const store = useChatStore.getState();
+      switch (intent.type) {
+        case "send":
+          if (intent.text) void store.runTemplate({ mode: intent.mode ?? "chat", prompt: intent.text });
+          break;
+        case "fill":
+          void store.fillTemplate({ mode: intent.mode ?? "chat", prompt: intent.text ?? "" });
+          break;
+        case "mode":
+          void store.newConversation(intent.mode ?? "chat").then((id) => store.selectConversation(id));
+          break;
+        case "new":
+          void store.newConversation().then((id) => store.selectConversation(id));
+          break;
+        case "convo":
+          if (intent.id) void store.selectConversation(intent.id);
+          break;
+        case "preview":
+          store.setArtifactOpen(true);
+          break;
+      }
+    } catch {}
+  }, [hydrated]);
+
   const lastContent = messages[messages.length - 1]?.content;
   useEffect(() => {
     const el = scrollRef.current;
@@ -173,7 +223,7 @@ export default function WorkspaceMockChat() {
   }, [lastContent, sending]);
 
   const startNew = () => {
-    void newConversation("chat").then((id) => selectConversation(id));
+    void newConversation().then((id) => selectConversation(id));
   };
 
   const sendMessage = () => {
@@ -188,20 +238,20 @@ export default function WorkspaceMockChat() {
 
   if (!hydrated) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#fbf8f4]">
-        <Sparkles className="h-6 w-6 animate-pulse text-[#c05f3c]" />
+      <div className="flex h-screen items-center justify-center bg-[var(--oc-bg)]">
+        <Sparkles className="h-6 w-6 animate-pulse text-[var(--oc-brand)]" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fbf8f4] text-stone-800">
+    <div className="flex h-screen overflow-hidden bg-[var(--oc-bg)] text-stone-800">
       <ShellSidebar active="chat" />
 
       {/* 主区域 */}
       <main className="relative flex min-w-0 flex-1 flex-col">
         {/* 顶栏 */}
-        <header className="flex shrink-0 items-center justify-between border-b border-[#f0eadf] bg-[#fbf8f4] px-6 py-4">
+        <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
             <h1 className="text-[18px] font-semibold text-stone-900">AI 对话</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">
@@ -209,17 +259,31 @@ export default function WorkspaceMockChat() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
-              <Bell className="h-[18px] w-[18px]" />
+            <NotificationBell />
+            <CreditsBadge />
+            <button
+              onClick={() => setSettingsOpen(true)}
+              title="设置"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
+              <Settings className="h-[18px] w-[18px]" />
             </button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
-              <LayoutGrid className="h-[18px] w-[18px]" />
+            <button
+              onClick={() => setArtifactOpen(!artifactOpen)}
+              title={artifactOpen ? "隐藏右侧产物预览" : "开启右侧产物预览"}
+              className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${
+                artifactOpen
+                  ? "bg-white text-[var(--oc-brand)] shadow-sm"
+                  : "text-stone-400 hover:bg-white hover:text-stone-700"
+              }`}
+            >
+              <PanelRight className="h-[18px] w-[18px]" />
             </button>
             <button
               onClick={startNew}
-              className="ml-2 rounded-xl px-4 py-2 text-[13.5px] font-medium text-[#c05f3c] transition hover:bg-[#fdeee1]"
+              className="ml-2 rounded-xl px-4 py-2 text-[13.5px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)]"
             >
-              新建对话
+              新建任务
             </button>
           </div>
         </header>
@@ -246,7 +310,7 @@ export default function WorkspaceMockChat() {
             {sending && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex items-start gap-3">
                 <AILogo />
-                <div className="rounded-xl rounded-tl-sm border border-[#e9e4d9] bg-white px-4 py-3 text-[14px] text-stone-400 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="rounded-xl rounded-tl-sm border border-[var(--oc-border-strong)] bg-white px-4 py-3 text-[14px] text-stone-400 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                   正在思考…
                 </div>
               </div>
@@ -263,23 +327,27 @@ export default function WorkspaceMockChat() {
                 <button
                   key={s}
                   onClick={() => setInput(s)}
-                  className="rounded-full border border-[#ece6db] bg-white px-3.5 py-1.5 text-[12.5px] text-stone-500 shadow-sm transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
+                  className="rounded-full border border-[var(--oc-border)] bg-white px-3.5 py-1.5 text-[12.5px] text-stone-500 shadow-sm transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]"
                 >
                   {s}
                 </button>
               ))}
-              <button className="ml-1 flex items-center gap-1 rounded-full px-2 py-1.5 text-[12px] text-stone-400 transition hover:text-[#c05f3c]">
+              <button className="ml-1 flex items-center gap-1 rounded-full px-2 py-1.5 text-[12px] text-stone-400 transition hover:text-[var(--oc-brand)]">
                 换一批 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             </div>
 
             {/* 输入舱 */}
-            <div className="rounded-2xl border border-[#ece6db] bg-white p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)]">
+            <div className="rounded-2xl border border-[var(--oc-border)] bg-white p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)]">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  const isSend =
+                    sendKey === "ctrlEnter"
+                      ? e.key === "Enter" && !e.shiftKey && (e.ctrlKey || e.metaKey)
+                      : e.key === "Enter" && !e.shiftKey;
+                  if (isSend) {
                     e.preventDefault();
                     sendMessage();
                   }
@@ -290,16 +358,16 @@ export default function WorkspaceMockChat() {
               />
               <div className="mt-1 flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                  <button className="flex items-center gap-1.5 rounded-full border border-[var(--oc-border)] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]">
                     <BrainCircuit className="h-4 w-4" /> 深度思考 <ChevronDown className="h-3 w-3 text-stone-400" />
                   </button>
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                  <button className="flex items-center gap-1.5 rounded-full border border-[var(--oc-border)] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]">
                     <Globe className="h-4 w-4" /> 联网搜索
                   </button>
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                  <button className="flex items-center gap-1.5 rounded-full border border-[var(--oc-border)] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]">
                     <FileText className="h-4 w-4" /> 上传文件
                   </button>
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                  <button className="flex items-center gap-1.5 rounded-full border border-[var(--oc-border)] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]">
                     <Bot className="h-4 w-4" /> 选择智能体
                   </button>
                 </div>
@@ -336,6 +404,9 @@ export default function WorkspaceMockChat() {
           </div>
         </div>
       </main>
+
+      {/* 右侧产物预览（AI 创作画布） */}
+      <ArtifactPanel />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Toaster />
     </div>

@@ -79,7 +79,7 @@ function IconRail() {
     { icon: Package, label: "素材包", active: false },
   ];
   return (
-    <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[#eadfd0] bg-[#f5efe4] py-3">
+    <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-[#f5efe4] py-3">
       {/* 品牌 */}
       <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-sm font-bold text-white shadow-sm">
         AI
@@ -133,7 +133,7 @@ function AvatarUser() {
 
 function BrowserChrome() {
   return (
-    <div className="shrink-0 bg-[#fbf8f3]">
+    <div className="shrink-0 bg-[var(--oc-bg)]">
       {/* Tabs */}
       <div className="flex items-center gap-3 px-4 pt-3">
         <div className="flex items-center gap-1.5">
@@ -141,26 +141,26 @@ function BrowserChrome() {
           <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
           <span className="h-3 w-3 rounded-full bg-[#28c840]" />
         </div>
-        <div className="flex h-8 flex-1 items-center gap-2 rounded-t-lg border border-b-0 border-[#eadfd0] bg-white px-3 text-[12px] text-stone-600">
+        <div className="flex h-8 flex-1 items-center gap-2 rounded-t-lg border border-b-0 border-[var(--oc-border-strong)] bg-white px-3 text-[12px] text-stone-600">
           <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-orange-400 to-red-500 text-[10px] font-bold text-white">
             AI
           </span>
           智能助手 · 营销内容生成
         </div>
-        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 hover:bg-[#efe7da]">
+        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 hover:bg-[var(--oc-border-strong)]">
           <Plus className="h-3.5 w-3.5" />
         </button>
-        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 hover:bg-[#efe7da]">
+        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 hover:bg-[var(--oc-border-strong)]">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* URL bar */}
-      <div className="flex items-center gap-2 border-b border-[#eadfd0] bg-[#fbf8f3] px-4 py-2">
+      <div className="flex items-center gap-2 border-b border-[var(--oc-border-strong)] bg-[var(--oc-bg)] px-4 py-2">
         <ChevronLeft className="h-4 w-4 text-stone-400" />
         <ChevronRight className="h-4 w-4 text-stone-300" />
         <RefreshCw className="h-4 w-4 text-stone-300" />
-        <div className="mx-2 flex h-8 flex-1 items-center rounded-full bg-[#efe7da] px-4 text-[12px] text-stone-500">
+        <div className="mx-2 flex h-8 flex-1 items-center rounded-full bg-[var(--oc-border-strong)] px-4 text-[12px] text-stone-500">
           workspace.ai.com/marketing
         </div>
         <div className="flex items-center gap-1.5 text-stone-400">
@@ -190,7 +190,7 @@ export default function WorkspaceMock04() {
             </span>
             <span className="text-[16px] font-bold tracking-tight text-stone-800">AI Workspace</span>
           </div>
-          <button className="flex items-center gap-2 rounded-full px-2 py-1 text-[13px] text-stone-700 hover:bg-[#efe7da]">
+          <button className="flex items-center gap-2 rounded-full px-2 py-1 text-[13px] text-stone-700 hover:bg-[var(--oc-border-strong)]">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sky-300 to-sky-500 text-[11px] font-semibold text-white">
               李
             </span>
@@ -204,7 +204,7 @@ export default function WorkspaceMock04() {
           <IconRail />
           <div className="grid min-h-0 flex-1 grid-cols-[228px_minmax(0,1fr)_480px] gap-3 pl-3">
           {/* ───── 左：对话历史 ───── */}
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#eadfd0] bg-white shadow-sm">
+          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--oc-border-strong)] bg-white shadow-sm">
             <div className="flex items-center justify-between px-4 pb-2 pt-4">
               <h2 className="text-[15px] font-semibold text-stone-800">对话历史</h2>
               <button className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100">
@@ -218,7 +218,7 @@ export default function WorkspaceMock04() {
                   key={item.title}
                   className={`flex items-center gap-3 rounded-xl px-3 py-3 ${
                     item.active
-                      ? "border border-[#f2d8bd] bg-[#fdf1e3] shadow-[0_2px_10px_rgba(0,0,0,0.03)]"
+                      ? "border border-[#f2d8bd] bg-[var(--oc-brand-soft)] shadow-[0_2px_10px_rgba(0,0,0,0.03)]"
                       : "border border-transparent hover:bg-[#faf5ec]"
                   }`}
                 >
@@ -233,17 +233,17 @@ export default function WorkspaceMock04() {
               ))}
             </div>
 
-            <div className="border-t border-[#eee4d4] p-3">
-              <button className="flex w-full items-center justify-center rounded-xl border border-[#e3d8c6] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600">
+            <div className="border-t border-[var(--oc-border-strong)] p-3">
+              <button className="flex w-full items-center justify-center rounded-xl border border-[var(--oc-border-strong)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600">
                 升级方案
               </button>
             </div>
           </section>
 
           {/* ───── 中：对话流 ───── */}
-          <section className="flex min-h-0 flex-col rounded-2xl border border-[#eadfd0] bg-[#f8f2e7] shadow-sm">
+          <section className="flex min-h-0 flex-col rounded-2xl border border-[var(--oc-border-strong)] bg-[#f8f2e7] shadow-sm">
             {/* 头部 */}
-            <div className="flex shrink-0 items-center justify-between border-b border-[#eee4d4] px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-strong)] px-4 py-3">
               <div className="flex items-center gap-2.5">
                 <AvatarAI />
                 <div>
@@ -290,7 +290,7 @@ export default function WorkspaceMock04() {
             </div>
 
             {/* 输入舱 */}
-            <div className="shrink-0 border-t border-[#eee4d4] p-4">
+            <div className="shrink-0 border-t border-[var(--oc-border-strong)] p-4">
               <div className="rounded-2xl border border-[#e7dccb] bg-white p-3 shadow-sm">
                 <textarea
                   rows={1}
@@ -326,14 +326,14 @@ export default function WorkspaceMock04() {
           </section>
 
           {/* ───── 右：AI 创作画布 ───── */}
-          <section className="flex min-h-0 flex-col rounded-2xl border border-[#eadfd0] bg-[#fcf8f0] shadow-sm">
+          <section className="flex min-h-0 flex-col rounded-2xl border border-[var(--oc-border-strong)] bg-[var(--oc-bg)] shadow-sm">
             <div className="shrink-0 px-4 pb-2 pt-4">
               <h2 className="text-[15px] font-semibold text-stone-800">AI创作画布</h2>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-5">
               {/* 文档卡片 */}
-              <div className="rounded-2xl border border-[#eadfd0] bg-white p-4 shadow-sm">
+              <div className="rounded-2xl border border-[var(--oc-border-strong)] bg-white p-4 shadow-sm">
                 <p className="flex items-center gap-1.5 text-[12px] text-stone-400">
                   <FileImage className="h-3.5 w-3.5" />
                   智能手表营销文案（v1）
@@ -364,13 +364,13 @@ export default function WorkspaceMock04() {
               </div>
 
               {/* 视觉草图卡片 */}
-              <div className="rounded-2xl border border-[#eadfd0] bg-white p-4 shadow-sm">
+              <div className="rounded-2xl border border-[var(--oc-border-strong)] bg-white p-4 shadow-sm">
                 <p className="flex items-center gap-1.5 text-[14px] font-medium text-stone-700">
                   <FileImage className="h-4 w-4 text-stone-500" />
                   生成的视觉草图
                 </p>
                 <div className="mt-3 overflow-hidden rounded-xl border border-stone-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  { }
                   <img src="/mock-visual.png" alt="智能手表视觉草图" className="h-40 w-full object-cover" />
                 </div>
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-stone-100">

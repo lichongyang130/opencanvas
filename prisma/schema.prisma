@@ -1,7 +1,7 @@
-// Prisma 数据模型
-// 开发环境：SQLite（零外部服务，开箱即用）
-// 生产环境：把 provider 改为 "postgresql" 并设置 DATABASE_URL 即可，业务代码无需改动。
-// 第 2 阶段会在这些表基础上扩展用户体系（当前为单用户本地版）。
+// Prisma 数据模型（开发环境：SQLite）
+// 说明：运行时数据层使用 Node 22 内置 node:sqlite（src/lib/db/sqlite.ts），
+// 本文件用于 dev 侧类型/迁移参考与 prisma studio 查看 data/dev.db。
+// 生产 PostgreSQL 权威 schema 见 prisma/schema.postgres.prisma（模型一致，provider 不同）。
 
 generator client {
   provider = "prisma-client-js"
@@ -12,35 +12,251 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id             String @id
+  email          String @unique
+  name           String @default("")
+  passwordHash   String
+  provider       String @default("")
+  providerUserId String @default("")
+  createdAt      Float
+
+  @@index([provider, providerUserId])
+  @@map("users")
+}
+
+model Session {
+  token     String @id
+  userId    String
+  createdAt Float
+  expiresAt Float
+
+  @@index([userId])
+  @@map("sessions")
+}
+
 model Conversation {
-  id            String    @id
-  title         String    @default("新任务")
-  mode          String    @default("chat") // chat/research/slides/image/video/docs
-  model         String    @default("demo") // 使用的模型 id
-  modelProvider String?   // 动态模型对应的供应商
-  deck          String?   // PPT 产物 JSON (SlideDeck)
-  deckStatus    String?   // idle/loading/done/error
-  images        String?   // 图像产物 JSON (StoredImage[])
-  report        String?   // 研究报告 JSON (ResearchReport)
-  doc           String?   // 文档产物 JSON (UIDoc)
-  personaId     String?   // 绑定的 AI 角色 id
-  archived      Boolean   @default(false)
-  pinned        Boolean   @default(false)
+  id            String  @id
+  title         String  @default("新任务")
+  mode          String  @default("chat")
+  model         String  @default("demo")
+  modelProvider String?
+  deck          String?
+  deckStatus    String?
+  images        String?
+  report        String?
+  doc           String?
+  personaId     String?
+  personaSystem String?
+  codePreview   String?
+  kbId          String?
+  userId        String?
+  archived      Boolean @default(false)
+  pinned        Boolean @default(false)
   createdAt     Float
   updatedAt     Float
-  messages      Message[]
 
   @@index([updatedAt])
+  @@map("conversations")
 }
 
 model Message {
-  id             String       @id
+  id             String @id
   conversationId String
-  role           String // user / assistant
+  role           String
   content        String
-  error          Boolean      @default(false)
+  error          Boolean @default(false)
+  refs           String?
   createdAt      Float
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@map("messages")
+}
+
+model Document {
+  id        String  @id
+  name      String
+  type      String  @default("text")
+  size      Int     @default(0)
+  ext       String  @default("")
+  content   String  @default("")
+  filePath  String?
+  tags      String  @default("[]")
+  favorite  Boolean @default(false)
+  deleted   Boolean @default(false)
+  userId    String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([updatedAt])
+  @@index([name])
+  @@index([userId, updatedAt])
+  @@map("documents")
+}
+
+model KnowledgeBase {
+  id        String  @id
+  name      String
+  desc      String  @default("")
+  tags      String  @default("[]")
+  semantic  Boolean @default(true)
+  qa        Boolean @default(true)
+  cite      Boolean @default(true)
+  userId    String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([userId, updatedAt])
+  @@map("knowledge_bases")
+}
+
+model KbDocument {
+  kbId       String
+  documentId String
+  createdAt  Float
+
+  @@id([kbId, documentId])
+  @@index([kbId])
+  @@map("kb_documents")
+}
+
+model PromptTemplate {
+  id        String  @id
+  label     String
+  desc      String  @default("")
+  category  String  @default("productivity")
+  mode      String  @default("chat")
+  prompt    String
+  author    String  @default("我")
+  uses      Int     @default(0)
+  shared    Boolean @default(false)
+  shareCode String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([updatedAt])
+  @@index([shareCode])
+  @@map("prompt_templates")
+}
+
+model Agent {
+  id        String  @id
+  name      String
+  desc      String  @default("")
+  category  String  @default("自定义")
+  emoji     String  @default("🤖")
+  system    String  @default("")
+  starter   String  @default("")
+  shared    Boolean @default(false)
+  shareCode String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([updatedAt])
+  @@index([shareCode])
+  @@map("agents")
+}
+
+model CaseShare {
+  code      String @id
+  data      String
+  createdAt Float
+
+  @@map("case_shares")
+}
+
+model ArtifactShare {
+  code      String @id
+  kind      String
+  data      String
+  createdAt Float
+
+  @@index([createdAt])
+  @@map("artifact_shares")
+}
+
+model Membership {
+  id        String  @id
+  plan      String  @default("free")
+  autoRenew Boolean @default(true)
+  renewAt   Float?
+  createdAt Float
+  updatedAt Float
+
+  @@map("membership")
+}
+
+model Order {
+  id        String @id
+  plan      String
+  amount    Int
+  status    String
+  createdAt Float
+
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model Notification {
+  id        String  @id
+  type      String  @default("info")
+  title     String
+  body      String  @default("")
+  link      String?
+  read      Boolean @default(false)
+  userId    String?
+  createdAt Float
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model ClientError {
+  id        String  @id
+  message   String  @default("")
+  source    String  @default("")
+  stack     String  @default("")
+  url       String  @default("")
+  userAgent String  @default("")
+  userId    String?
+  createdAt Float
+
+  @@index([createdAt])
+  @@map("client_errors")
+}
+
+model GatewayUsage {
+  id           String  @id
+  userId       String?
+  sessionId    String?
+  modelId      String
+  providerId   String
+  fallback     Boolean @default(false)
+  status       String  @default("success")
+  inputTokens  Int     @default(0)
+  outputTokens Int     @default(0)
+  costUsd      Float   @default(0)
+  credits      Int     @default(0)
+  latencyMs    Int     @default(0)
+  error        String  @default("")
+  createdAt    Float
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([modelId, createdAt])
+  @@map("gateway_usage")
+}
+
+model CreditLedger {
+  id        String  @id
+  delta     Int
+  reason    String  @default("")
+  ref       String?
+  userId    String?
+  createdAt Float
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("credit_ledger")
 }

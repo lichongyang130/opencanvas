@@ -15,8 +15,10 @@ import {
 import { useChatStore, type UIDoc } from "@/lib/store/chat";
 import { Markdown } from "./Markdown";
 import { downloadMarkdown, downloadWord } from "@/lib/docs/export";
+import { RichEditor } from "./RichEditor";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 type Mode = "edit" | "preview" | "split";
 
@@ -29,6 +31,7 @@ const AI_OPS: { id: "continue" | "polish" | "shorten" | "expand" | "fix"; label:
 ];
 
 export function DocView({ doc }: { doc: UIDoc }) {
+  const { tt } = useI18n();
   const { setDoc, aiDoc, docBusy } = useChatStore();
   const [mode, setMode] = useState<Mode>("split");
   const [saved, setSaved] = useState(false);
@@ -51,7 +54,7 @@ export function DocView({ doc }: { doc: UIDoc }) {
   const copy = async () => {
     await navigator.clipboard?.writeText(doc.content);
     setCopied(true);
-    toast("已复制 Markdown", "success");
+    toast(tt("已复制 Markdown"), "success");
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -73,9 +76,9 @@ export function DocView({ doc }: { doc: UIDoc }) {
                   <Loader2 className="h-3 w-3 animate-spin" /> AI 处理中
                 </span>
               ) : saved ? (
-                "已自动保存"
+                tt("已自动保存")
               ) : (
-                "编辑中"
+                tt("编辑中")
               )}
             </span>
           </div>
@@ -83,9 +86,9 @@ export function DocView({ doc }: { doc: UIDoc }) {
             <div className="flex items-center rounded-lg border border-stone-200 p-0.5">
               {(
                 [
-                  { m: "edit", icon: <Pencil className="h-3.5 w-3.5" />, t: "编辑" },
-                  { m: "split", icon: <Columns2 className="h-3.5 w-3.5" />, t: "分屏" },
-                  { m: "preview", icon: <Eye className="h-3.5 w-3.5" />, t: "预览" },
+                  { m: "edit", icon: <Pencil className="h-3.5 w-3.5" />, t: tt("编辑") },
+                  { m: "split", icon: <Columns2 className="h-3.5 w-3.5" />, t: tt("分屏") },
+                  { m: "preview", icon: <Eye className="h-3.5 w-3.5" />, t: tt("预览") },
                 ] as const
               ).map((b) => (
                 <button
@@ -102,27 +105,34 @@ export function DocView({ doc }: { doc: UIDoc }) {
               ))}
             </div>
             <button
-              title="复制"
+              title={tt("复制")}
               onClick={() => void copy()}
               className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
             <button
-              title="导出 Word"
+              title={tt("导出 Word")}
               onClick={() => {
                 downloadWord(doc.title, doc.content);
-                toast("已导出 Word", "success");
+                toast(tt("已导出 Word"), "success");
               }}
               className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 transition hover:border-brand-300 hover:text-brand-600"
             >
               <Download className="h-3.5 w-3.5" /> Word
             </button>
-            <button
-              title="导出 Markdown"
+                        <button
+              onClick={() => window.print()}
+              title={tt("导出 PDF（浏览器打印）")}
+              className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+<button
+              title={tt("导出 Markdown")}
               onClick={() => {
                 downloadMarkdown(doc.title, doc.content);
-                toast("已导出 Markdown", "success");
+                toast(tt("已导出 Markdown"), "success");
               }}
               className="rounded-lg bg-brand-600 p-1.5 text-white transition hover:bg-brand-700"
             >
@@ -140,7 +150,7 @@ export function DocView({ doc }: { doc: UIDoc }) {
               onClick={() => void aiDoc(op.id)}
               className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] text-brand-700 transition hover:bg-brand-100 disabled:opacity-40"
             >
-              AI {op.label}
+              AI {tt(op.label)}
             </button>
           ))}
         </div>
@@ -149,20 +159,16 @@ export function DocView({ doc }: { doc: UIDoc }) {
       {/* 编辑/预览 */}
       <div className="flex min-h-0 flex-1">
         {(mode === "edit" || mode === "split") && (
-          <textarea
+          <RichEditor
             value={doc.content}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="用 Markdown 写文档，或在左侧对话里让 AI 生成…"
-            className={cn(
-              "min-h-0 flex-1 resize-none border-stone-100 p-5 font-mono text-[13px] leading-7 outline-none",
-              mode === "split" ? "border-r" : ""
-            )}
+            onChange={onChange}
+            className={mode === "split" ? "min-w-0 flex-1 border-r border-stone-100" : "min-w-0 flex-1"}
           />
         )}
         {(mode === "preview" || mode === "split") && (
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
             <article className="prose-doc text-sm leading-7 text-stone-700">
-              <Markdown content={doc.content || "*暂无内容*"} />
+              <Markdown content={doc.content || tt("*暂无内容*")} />
             </article>
           </div>
         )}

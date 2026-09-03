@@ -4,6 +4,8 @@ import {
   type ProviderId,
   type ProviderOverrides,
 } from "@/lib/gateway";
+import { checkText, createOutputGuard } from "@/lib/moderation";
+import { getUserFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,13 +28,22 @@ export async function POST(req: Request) {
   const model = body.model ?? "demo";
   const messages = body.messages ?? [];
   const overrides = body.overrides;
+  const authUser = getUserFromRequest(req);
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(JSON.stringify({ error: "messages 不能为空" }), { status: 400 });
   }
 
+  // 输入内容审核（本地规则；命中直接拒绝）
+  const userText = messages.map((m) => m.content).join("\n");
+  const mod = checkText(userText);
+  if (!mod.ok) {
+    return Response.json({ error: mod.reason }, { status: 400 });
+  }
+
   const encoder = new TextEncoder();
   const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
+  const guard = createOutputGuard();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -41,16 +52,42 @@ export async function POST(req: Request) {
           model,
           messages,
           {
-            onToken: (delta) => controller.enqueue(sse({ type: "token", delta })),
+            onToken: (delta) => {
+              // 输出流式审核：命中即终止
+              const hit = guard.feed(delta);
+              if (hit) {
+                controller.enqueue(sse({ type: "error", message: hit }));
+                controller.close();
+                throw new Error(`MODERATION:${hit}`);
+              }
+              controller.enqueue(sse({ type: "token", delta }));
+            },
             // 客户端断开/停止时同步中断上游模型流，避免白烧 token
             signal: req.signal,
           },
           overrides,
-          body.provider ?? null
+          body.provider ?? null,
+          {
+            userId: authUser?.id ?? null,
+            ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+          }
         );
         controller.enqueue(
           sse({ type: "usage", credits: result.credits, costUsd: result.costUsd })
         );
+        // 真实计费扣积分（demo 模型 costUsd=0，credits=0，自动跳过）
+        if (result.credits > 0) {
+          try {
+            (await import("@/lib/db/repo")).repo.addCredits(
+              -result.credits,
+              "AI 对话",
+              null,
+              authUser?.id ?? null
+            );
+          } catch {
+            /* 数据库不可用时忽略 */
+          }
+        }
       } catch (err) {
         controller.enqueue(
           sse({ type: "error", message: err instanceof Error ? err.message : "未知错误" })

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -7,7 +8,6 @@ import {
   ArrowRight,
   ArrowUp,
   BarChart3,
-  Bell,
   Bot,
   BrainCircuit,
   Check,
@@ -24,17 +24,26 @@ import {
   LayoutGrid,
   LayoutTemplate,
   Lightbulb,
+  Dices,
   MessageSquare,
+  PanelRight,
   Presentation,
   Scan,
+  Settings,
   SlidersHorizontal,
   X,
   Share2,
   Sparkles,
   Wrench,
 } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
+import CreditsBadge from "@/components/CreditsBadge";
+import AuthBadge from "@/components/AuthBadge";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n";
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
+import { SettingsModal } from "@/components/workspace/SettingsModal";
 import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
 
@@ -145,17 +154,27 @@ interface RecentConvo {
 
 export default function HomePage() {
   const router = useRouter();
-  const { model, setModel } = useChatStore();
+  const { t } = useI18n();
+  const { model, setModel, settingsOpen, setSettingsOpen } = useChatStore();
   const [input, setInput] = useState("");
-  const [greeting, setGreeting] = useState("你好");
+  const [greeting, setGreeting] = useState<"night" | "morning" | "afternoon" | "evening">("morning");
+  const [shuffleKey, setShuffleKey] = useState(0); // 随机灵感：每次点击换一个提示
   const [recent, setRecent] = useState<RecentConvo[]>([]);
   const [featureOpen, setFeatureOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [onboardStep, setOnboardStep] = useState<number | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const featureRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 首次访问 3 步新手引导
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("oc:onboarded")) setOnboardStep(0);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -167,7 +186,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const h = new Date().getHours();
-    setGreeting(h < 6 ? "夜深了" : h < 12 ? "上午好" : h < 18 ? "下午好" : "晚上好");
+    setGreeting(h < 6 ? "night" : h < 12 ? "morning" : h < 18 ? "afternoon" : "evening");
     // 拉取最近对话
     fetch("/api/conversations")
       .then((r) => r.json())
@@ -195,7 +214,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fdfaf6] text-stone-800">
+    <div className="flex h-screen overflow-hidden bg-[var(--oc-bg)] text-stone-800">
       {/* ============ 左侧导航 ============ */}
       <aside className="hidden w-[256px] shrink-0 flex-col border-r border-stone-100 bg-white md:flex">
         {/* Logo */}
@@ -256,28 +275,8 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* 用户卡片 */}
-        <div className="border-t border-stone-100 p-3">
-          <button
-            onClick={() => router.push("/membership")}
-            className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50"
-          >
-            <Image
-              src="/avatar.png"
-              alt="Alex Chen"
-              width={36}
-              height={36}
-              className="h-9 w-9 rounded-full object-cover"
-            />
-            <span className="flex min-w-0 flex-1 flex-col items-start">
-              <span className="text-[13.5px] font-medium text-stone-800">Alex Chen</span>
-              <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-orange-50 px-1.5 py-px text-[10px] font-medium text-orange-600">
-                <Sparkles className="h-2.5 w-2.5" /> 专业版
-              </span>
-            </span>
-            <ChevronDown className="h-4 w-4 text-stone-400" />
-          </button>
-        </div>
+        {/* 用户卡片（真实登录态） */}
+        <AuthBadge variant="card" />
       </aside>
 
       {/* ============ 主区域 ============ */}
@@ -287,17 +286,29 @@ export default function HomePage() {
 
         {/* 顶栏 */}
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
-            <Bell className="h-[18px] w-[18px]" />
+          <NotificationBell />
+          <CreditsBadge />
+          <LanguageSwitcher />
+          <AuthBadge />
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title={t("common.settings")}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
+          >
+            <Settings className="h-[18px] w-[18px]" />
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
-            <LayoutGrid className="h-[18px] w-[18px]" />
+          <button
+            onClick={() => goChat({ type: "preview" })}
+            title={t("home.openPreview")}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
+          >
+            <PanelRight className="h-[18px] w-[18px]" />
           </button>
           <button
             onClick={() => goChat({ type: "new" })}
             className="ml-2 rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-600 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
           >
-            新建对话
+            {t("home.newChat")}
           </button>
         </header>
 
@@ -305,13 +316,13 @@ export default function HomePage() {
           {/* 问候 */}
           <div className="mt-10 text-center">
             <h1 className="text-[40px] font-bold leading-tight tracking-tight text-stone-900">
-              {greeting}，Alex 👋
+              {t(`home.greeting${greeting[0].toUpperCase()}${greeting.slice(1)}`)}，Alex 👋
             </h1>
             <p className="mt-1 bg-gradient-to-r from-orange-500 via-pink-500 to-violet-500 bg-clip-text text-[34px] font-bold tracking-tight text-transparent">
-              今天想创造点什么？
+              {t("home.ctaIdea")}
             </p>
             <p className="mt-3 text-[15px] text-stone-500">
-              用 AI 把想法变成现实，探索<span className="font-medium text-stone-700">无限可能</span>
+              {t("home.ideaSub")}<span className="font-medium text-stone-700">{t("home.ideaSubHighlight")}</span>
             </p>
           </div>
 
@@ -328,7 +339,7 @@ export default function HomePage() {
                 }
               }}
               rows={3}
-              placeholder="描述你的需求，或直接 @ 提及文件 / 智能体 / 知识库..."
+              placeholder={t("home.inputPlaceholder")}
               className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
             />
             {attachedFile && (
@@ -512,20 +523,121 @@ export default function HomePage() {
           <div className="mt-10">
             <h2 className="text-[15px] font-semibold text-stone-800">最近使用</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {RECENT_USE.map((r) => (
+              {RECENT_USE.map((r, i) => (
                 <button
-                  key={r.label}
+                  key={`${r.label}-${i}`}
                   onClick={() => goChat({ type: "fill", mode: r.mode, text: r.prompt })}
-                  className="flex items-center gap-2.5 rounded-xl border border-stone-200/80 bg-white px-4 py-3.5 text-left text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow"
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-xl border border-stone-200/80 bg-white px-4 py-3.5 text-left text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow",
+                    i === shuffleKey % RECENT_USE.length && "border-orange-300 ring-2 ring-orange-100"
+                  )}
                 >
-                  <r.icon className={`h-4.5 w-4.5 h-[18px] w-[18px] shrink-0 ${r.color}`} />
+                  <r.icon className={`h-[18px] w-[18px] shrink-0 ${r.color}`} />
                   <span className="truncate">{r.label}</span>
                 </button>
               ))}
+              <button
+                onClick={() => setShuffleKey((v) => v + 1)}
+                title="随机一个灵感"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 bg-white/60 px-4 py-3.5 text-[13px] text-stone-400 transition hover:border-orange-300 hover:text-orange-600"
+              >
+                <Dices className="h-4 w-4" />
+                {t("home.randomIdea")}
+              </button>
             </div>
           </div>
         </div>
       </main>
+
+      {/* 设置中心（可从首页顶栏直接打开） */}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* 页脚：合规链接 */}
+      <footer className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 border-t border-stone-100 bg-white/70 py-2 text-[11px] text-stone-400 backdrop-blur">
+        <span>© 2026 OpenCanvas</span>
+        <Link href="/privacy" className="transition hover:text-stone-600">{t("home.privacy")}</Link>
+        <Link href="/terms" className="transition hover:text-stone-600">{t("home.terms")}</Link>
+        <Link href="/api/export" className="transition hover:text-stone-600">{t("home.exportData")}</Link>
+      </footer>
+
+      {/* 首次访问新手引导 */}
+      {onboardStep !== null && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-orange-500">
+                第 {onboardStep + 1} / 3 步
+              </span>
+              <button
+                onClick={() => setOnboardStep(null)}
+                className="rounded-lg p-1 text-stone-400 hover:bg-stone-100"
+                title={t("home.skip")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {onboardStep === 0 && (
+              <div className="mt-3">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-xl font-bold text-white">O</div>
+                <h3 className="text-lg font-semibold text-stone-800">{t("home.onboardWelcome")}</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                                    {t("home.onboardDesc")}
+                </p>
+              </div>
+            )}
+            {onboardStep === 1 && (
+              <div className="mt-3">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100 text-orange-500">
+                  <MessageSquare className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-800">{t("home.onboardIdea")}</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  回车发送、Shift+回车换行；还可粘贴图片、添加文档，AI 会基于它们回答。
+                </p>
+              </div>
+            )}
+            {onboardStep === 2 && (
+              <div className="mt-3">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-500">
+                  <PanelRight className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-800">产物实时呈现在右侧画布</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  PPT、文档、代码预览与研究报告都会出现在右侧，可编辑、导出与一键转 PPT。
+                </p>
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-between">
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={cn("h-1.5 w-1.5 rounded-full", i === onboardStep ? "bg-orange-500" : "bg-stone-200")}
+                  />
+                ))}
+              </div>
+              {onboardStep < 2 ? (
+                <button
+                  onClick={() => setOnboardStep((v) => (v ?? 0) + 1)}
+                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+                >
+                  下一步
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    try { localStorage.setItem("oc:onboarded", "1"); } catch {}
+                    setOnboardStep(null);
+                  }}
+                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+                >
+                  开始使用
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

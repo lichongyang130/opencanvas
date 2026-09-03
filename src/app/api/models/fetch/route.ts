@@ -14,15 +14,46 @@ interface FetchedModel {
   id: string;
 }
 
+/** fal.ai：GET /v1/models（Authorization: Key ...），既验证 key 又拉取模型目录 */
+async function fetchFalModels(apiKey: string) {
+  try {
+    const res = await fetch("https://api.fal.ai/v1/models?limit=100", {
+      headers: { Authorization: `Key ${apiKey}` },
+    });
+    if (res.status === 401 || res.status === 403) throw new Error("API Key 无效或权限不足");
+    if (!res.ok) throw new Error(`列表接口返回 ${res.status}`);
+    const data = (await res.json()) as { models?: { endpoint_id?: string; id?: string; slug?: string }[] };
+    const ids = (data.models ?? []).map((m) => m.endpoint_id ?? m.id ?? m.slug ?? "").filter(Boolean);
+    if (ids.length === 0) return Response.json({ error: "未获取到可用模型" }, { status: 502 });
+    return Response.json({ models: [...new Set(ids)].sort((a, b) => a.localeCompare(b)) });
+  } catch (err) {
+    return Response.json(
+      { error: `获取失败：${err instanceof Error ? err.message : "网络错误"}` },
+      { status: 502 }
+    );
+  }
+}
+
 /**
  * 动态获取某供应商账号/中转实际可用的模型列表。
  * POST { provider, overrides? } -> { models: string[] }
  */
 export async function POST(req: Request) {
-  const body = (await req.json()) as { provider?: ProviderId; overrides?: ProviderOverrides };
+  const body = (await req.json()) as { provider?: ProviderId | "fal"; overrides?: ProviderOverrides };
   const provider = body.provider;
   if (!provider || provider === "demo") {
     return Response.json({ error: "不支持的供应商" }, { status: 400 });
+  }
+
+  // fal 是图像专用供应商，不在聊天 ProviderId 集合内，单独收窄读取
+  const falOv = (body.overrides as { fal?: { apiKey?: string } } | undefined)?.fal;
+
+  if (provider === "fal") {
+    const apiKey = falOv?.apiKey || process.env.FAL_KEY || "";
+    if (!apiKey) {
+      return Response.json({ error: "fal.ai 未配置密钥，请先在模型设置中填写 API Key" }, { status: 400 });
+    }
+    return fetchFalModels(apiKey);
   }
 
   const providers = body.overrides ? buildProviders(body.overrides) : buildProviders();

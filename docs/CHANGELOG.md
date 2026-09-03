@@ -1,0 +1,375 @@
+# OpenCanvas 变更日志
+
+> 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
+
+## 2026-09-03 · 第二十三轮：深度研究收官（P0 招牌链路 · 演示模式零凭据验收）
+
+**核心链路（工作台 research 模式 / Tavily 双模式引擎 / ReportView 一键转 PPT / 设置中心配置）此前已交付，本轮补齐验收缺口并打标：**
+
+**新增**
+- 工具中心「深度研究」入口卡片：`kind=chat` + `mode=research`（`fillTemplate` 支持工作台模式路由），点击直达研究模式并预填主题（工具 26 个）
+- `POST /api/research` 内容审核：违规 topic → 400（复用 `checkText`）
+- 演示模式计入网关用量：`gateway_usage` 落 `research-demo / research`（免费 cost=0，按用户归属，成本看板可见）；真实模式仍由网关按模型记账，错误不重复入账
+
+**验证**
+- `scripts/e2e-research.mjs`：8/8（health → demo 研究 SSE 进度 4 条 → 报告结构 6 小节/4 来源/4 要点 → [n] 角标与示例来源标记 → 注册 → 登录态研究 → scope=me 归属 research-demo calls≥1 cost=0 → 违规 400 → 删号）
+- `next build` 0 error；tsc=0、eslint=0；生产预览（:3008）回归 E2E 8/8
+- `docs/RESEARCH_E2E.md`：完整验证矩阵与真实联网接入点
+
+**边界**：真实联网需 Tavily Key（env 或设置中心）；扩展检索源（Exa/博查/秘塔）与 Jina Reader 深度阅读为后续迭代。
+
+## 2026-09-03 · 第二十二轮：AI 视频生成（B 类功能 mock 交付 · 演示引擎零凭据可用）
+
+**视频工作台（复用图像网关模式，前后端全链路真实）**
+- `src/lib/gateway/video/`：types（VideoAdapter/结果/模型元数据）→ `gif.ts`（纯 Node 零依赖 GIF89a 编码器）→ `demo-video.ts`（提示词散列配色 + 16 帧程序化动画：对角渐变/三光斑/扫描线，256 色索引帧直接编码）→ `index.ts`（模型清单：demo-video / FAL Kling / 万相 wanx2.1，适配器骨架+状态）
+- `/tools/video`：描述输入/4 条预设/生成进度条/预览循环播放/下载 GIF/引擎状态面板（可用/待接入角标）
+- `POST /api/video`：审核（复用 checkText）→ 生成 → `gateway_usage` 归属记账（demo 免费，真实模型按 credits 扣）；`GET /api/video/status` 返回供应商与模型
+- 工具中心新增「AI 视频生成」入口（25 个工具）
+
+**GIF 编码器两个关键修复（独立解码器 + ImageMagick 双层验证）**
+- LZW 码宽 off-by-one：GIF 解码器表滞后编码器一条目，升位须在 `next == 2^codeSize + 1`（而非 `2^codeSize`），否则大图在第 2 个字典边界后错位、尾帧裁断/色表越界
+- 调色板统计越界读（末像素寄生色）修正；>256 色 RGB 帧截断问题改为「256 色参数化调色板（16 色相 × 16 亮度）+ 索引帧」直接编码，动画色彩零失真
+
+**验证**
+- `scripts/e2e-video.mjs`：7/7（health→status→匿名生成(GIF 字节校验 480×270)→注册→登录态生成→scope=me 用量归属→审核 400→删号）
+- 独立 LZW 解码器逐帧校验 16 帧 ×129,600 索引全等；ImageMagick `identify -verbose` 全通过
+- `next build` 0 error（新增 /api/video、/api/video/status、/tools/video）；tsc=0、eslint=0
+
+**边界**：真实文生视频（FAL/万相）需 Key，适配器骨架与模型信息已就位，前端自动复用同一计费通道。
+
+## 2026-09-03 · 第二十一轮：生产部署验证（build + start 回归，在线预览）
+
+- `next build` 0 error（48 API + 12 页）→ `next start`（0.0.0.0:3008）生产回归全 200
+- 页面/静态 14 项、health、双语（en cookie）、匿名导出与错误统计隔离、注册→上传→下载→KB（tfidf）→分享页→删号 全通过
+- 向量检索生产实测：BYOK overrides 指向本地 mock → `engine=embedding` + gateway_usage 记账（query+doc 块共 2 次调用）
+- **修复**：`embedTexts` 未尊重 `overrides.{provider}.baseUrl`（硬编码官方端点，中转/本地网关不可用）→ 支持 baseUrl 覆盖
+- `docs/DEPLOY_CHECK.md`：部署验证清单与回归矩阵
+
+## 2026-09-03 · 第二十轮：网关计费端到端验证（B 类真实凭据批 · 无凭据可复验）
+
+**本地兼容 Mock + 真实代码路径 E2E**
+- `scripts/openai-mock.mjs`：OpenAI Chat Completions SSE + Anthropic Messages SSE + Embeddings 三协议最小 Mock（x-mock-fail 错误注入）
+- `scripts/e2e-billing.mjs`：10 项断言的端到端计费脚本（注册→签到→流式对话→usage→扣分→落库→成本看板→清理）
+- openai（gpt-4o-mini）/ deepseek（deepseek-chat）/ dashscope（qwen-max）/ anthropic（claude-3-5-sonnet-20241022）四供应商全 PASS
+- 拿到真实 Key 后：改 baseUrl 或用同一脚本复验（docs/GATEWAY_E2E.md）
+
+**修复**
+- `checkedInToday` 按身份精确判定（修复隔离引入的「匿名签到后登录用户无法签到」），E2E 第 3 步回归覆盖
+
+## 2026-09-03 · 第十九轮：Next.js 14 → 16 升级（C 类完成）
+
+**依赖升级**
+- `next` 14.2.35 → 16.3.4（Turbopack dev）、`react`/`react-dom` 18.3 → 19.2、`zustand` 4.5 → 5
+- `eslint` 8 → 9（flat config）＋ `eslint-config-next` 14 → 16；`next lint` 已移除 → `eslint .`（eslint.config.mjs）
+- `@types/react`/`@types/react-dom` 19
+
+**破坏性变更适配**
+- `cookies()` 变 async：i18n 服务端 `getLocale/getDict` 改 async（layout/privacy/terms 同步适配）
+- 动态路由 `params` 为 Promise：15 个 route + `/s/[code]` 页面用官方 `next-async-request-api` codemod 转换
+- `next.config.mjs`：`experimental.serverComponentsExternalPackages` → 顶层 `serverExternalPackages`
+- 新版 eslint-config 引入 React Compiler 实验规则（set-state-in-effect/purity），存量 useEffect 初始化模式在 React 19 运行时合法，暂关闭并在配置内注明；`--fix` 清理失效 disable 注释
+
+**验证**：`next build` 成功（48 API + 12 页面）；dev（Turbopack）下首页/health/robots/sitemap/隐私双语、
+注册→上传→下载→知识库 query 降级、`/s/[code]` 动态分享页全 200；tsc=0、lint=0 ✓
+
+## 2026-09-03 · 第十八轮：多语言 i18n（中/英，C 类）
+
+**轻量自研 i18n（无路由段、无 next-intl 依赖）**
+- `src/lib/i18n/dicts.ts`：中英同构字典（en 由 Dict 类型约束，缺 key 编译报错）
+- `src/lib/i18n/index.tsx`：客户端 LocaleProvider + useI18n（t(key, params) 插值）；cookie `oc_lang` + localStorage 持久化
+- `src/lib/i18n/server.ts`：服务端 getLocale/getDict（cookie 驱动，SSR 直接双语渲染）
+- `src/lib/i18n/legal.ts`：隐私政策/用户协议完整中英结构化内容
+- `src/components/LanguageSwitcher.tsx` + Sidebar 图标轨「中/EN」切换按钮
+
+**已覆盖**：首页（问候/CTA/输入舱/新建对话/随机灵感/新手引导/footer）、登录注册弹窗与账号菜单、
+工作台侧栏图标提示、顶栏积分/通知徽章、设置中心标题与分页、文档/知识库/模板/工具/智能体/应用页 H1、
+隐私/条款整页双语、`<html lang>`/metadata 随 cookie 切换（generateMetadata 按请求读取）。
+
+**说明**：API 服务端错误信息保持中文（渐进迁移）；未覆盖的长尾文案（设置内部各卡、业务数据）仍为中文。
+
+## 2026-09-03 · 第十七轮：生产化存储与队列（R2/S3 + Redis，C 类）
+
+**文件存储抽象（本地默认 / S3 兼容切换）**
+- 新 `src/lib/storage`：`LocalDriver`（data/，零依赖）与 `S3Driver`（AWS SDK，兼容 Cloudflare R2 / AWS S3 / MinIO）
+- 配置 `S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY`（R2 加 `S3_ENDPOINT`/`S3_REGION=auto`）即切换，业务不变
+- 统一 `put/get/exists/delete`；文档上传/下载/删除、删号清理全部接入（含 S3 对象删除）
+- 上传 key 安全生成（防目录穿越）
+
+**后台队列抽象（Redis/BullMQ / 内存兜底）**
+- 新 `src/lib/queue`：`MemoryQueue`（进程内串行消费，零依赖）与 BullMQ（配置 `REDIS_URL` 自动切换）
+- `enqueue(name, data)` / `register(name, handler)` 统一接口；`GET /api/health` 展示 `storage`/`queue` 模式
+- next.config 外部化 bullmq/aws-sdk/valkey-glide（避免 webpack 打包 native 依赖）
+
+**实测**：S3 mock（scripts/s3-mock.mjs）下上传→下载→删除→删号对象清理全通过；默认本地模式回归通过；内存队列 register/enqueue/消费 PASS ✓
+
+## 2026-09-03 · 第十六轮：PostgreSQL 版用户体系（C 类收尾）
+
+**完整权威 Schema**
+- `prisma/schema.postgres.prisma`：17 张表全量模型（users/sessions/conversations/messages/documents/knowledge_bases/kb_documents/prompt_templates/agents/shares/membership/orders/notifications/client_errors/gateway_usage/credit_ledger），含 userId 归属维度与索引，与运行时 DDL 对齐
+- `prisma/schema.prisma`：SQLite 开发模型同步补全（模型一致，provider 不同）
+- `prisma/migrations/postgresql/0001_init/migration.sql`：初始迁移 DDL
+
+**切换工具链（真实可用）**
+- `scripts/pg-migrate.mjs`：无 psql 迁移执行器（幂等，`_schema_migrations` 记账）
+- `scripts/pg-import.mjs`：SQLite → PG 全量导入（主键 UPSERT、布尔 0/1→boolean、--clear 支持）
+- `scripts/pg-smoke.mjs`：真实 PG 冒烟（表结构/用户会话/跨账号隔离/积分/删号清理，事务回滚）
+- npm scripts：`pg:migrate` / `pg:import` / `pg:smoke`；`.env.example` 补 `DATABASE_URL`
+- `docs/POSTGRES.md`：切换步骤与一致性说明
+
+**实测（真实 PostgreSQL 18.4）**：迁移建 17 表 → 冒烟全 PASS（含发现并修复：PG 无 FK 时删号需显式删 sessions，repo 双端一致）→ 导入 boolean 正确且幂等 ✓
+
+## 2026-09-03 · 第十五轮：全表数据隔离（账号维度）
+
+**多用户隔离（SQLite 运行时）**
+- `documents` / `knowledge_bases` / `notifications` / `credit_ledger` 补 `userId` 列（老库自动迁移，存量数据归属本地 NULL）
+- 可见性规则：登录 = 本人数据 + 未登录时创建的本地数据；未登录 = 仅本地数据；跨租户读写一律 404
+- 文档/知识库全部 API（列表/详情/上传/修改/删除/关联/查询）带会话用户过滤；`listKbDocuments` 先校验知识库归属防枚举
+- 积分按用户记账：签到/上传/建库/建智能体/提交模板/分享等奖励与 AI 对话/绘图扣费全部落 `userId`
+- 通知按用户隔离；消息角标只统计本人未读数
+- `GET /api/export` 账号导出扩展为含文档/知识库/通知/积分；`POST /api/account/delete` 同步清理文档（含本地缓存文件）/知识库/通知/积分/错误日志
+- Embedding 用量计入调用者所属用户
+
+**端到端实测**：A/B 两账号互不可见（跨租户 404）、A 导出含 docs/kb/credits、删号后 A 数据全清而 B 不受影响、匿名仍可访问本地数据 ✓
+
+## 2026-09-03 · 第十四轮：知识库 Embedding 语义检索（B 类可自足部分）
+
+**Embedding 向量检索**
+- 新 `gateway/embedding.ts`：DashScope `text-embedding-v3`（默认）或 OpenAI `text-embedding-3-small` 批量向量化；密钥走前台 BYOK → 环境变量
+- 新 `kb/vector.ts`：文档按段落/窗口切块（400 字 + 60 重叠，每文档 ≤16 块）→ 向量化（进程内缓存）→ 余弦 topK；同文档只保留最佳块
+- `/api/knowledge/:id/query` 检索链路升级：配置密钥 → 模型向量检索；未配置或失败 → 本地 TF-IDF + 关键词融合（零依赖降级）；无命中 → 最近文档兜底
+- 响应新增 `engine` 字段（embedding / tfidf / fallback），前端可感知检索方式；Embedding 调用计入网关用量（成本看板可见）
+
+> 说明：需要真实 DASHSCOPE/OPENAI 密钥才能启用模型向量；无密钥时行为与之前一致（TF-IDF），已实测降级路径。
+
+## 2026-09-03 · 第十三轮：可观测性与 SEO（C 类首批）
+
+**可观测性（C 类首批，无需外部服务）**
+- `GET /api/health`：DB 可达性 / Node / 运行时长 / 供应商配置状态（不含密钥）
+- `POST /api/logs/client`：全局采集 window.onerror / unhandledrejection（10 秒节流、URL 脱敏只留路径）
+- `GET /api/logs/client/stats`：登录可见错误统计（累计 / 24h / Top / 最近错误）
+- 根布局挂 Observability；设置「数据管理 → 运行诊断」展示健康状态与错误摘要；新表 `client_errors`
+
+**SEO（C 类第二批）**
+- `robots.txt`：收录全站，排除 /api 与 /chat；`sitemap.xml`：静态页 + 公开分享页自动收录
+- 全局 metadata：OpenGraph / Twitter Card / canonical / metadataBase（`NEXT_PUBLIC_SITE_URL` 可配）
+- `/s/:code` 拆为 server wrapper（generateMetadata 动态标题/描述/OG）+ client ShareView（首屏复用服务端解析）
+- 分享类型/常量独立 `share-types`（客户端不再引入 node:crypto，修复 /s/ 页面 500）
+
+## 2026-09-03 · 第十二轮：合规基础（A7）
+
+**隐私政策 / 用户协议**
+- 新增 `/privacy`、`/terms` 静态页（服务端渲染，可被搜索引擎收录），首页页脚 + 设置中心入口
+
+**数据导出（GDPR 式）**
+- `/api/export` 按账号隔离：登录导出账号全量（资料 + 名下会话/消息 + 模型用量），未登录仅本机匿名会话
+- 设置中心「数据管理 → 账号与数据权利」一键导出；首页页脚亦有「导出我的数据」入口
+
+**账号删除**
+- `POST /api/account/delete`：需输入 DELETE 确认；删除账号资料、登录会话、名下会话/消息与用量记录
+- 积分账本/模板市场为全局共享数据，文档中如实标注不随删号变动
+
+**安全收窄**
+- 修复原 `/api/export` 导出全部会话（含他人数据）的越权问题
+
+## 2026-09-03 · 第十一轮：模型网关增强（A3）
+
+**跨供应商降级**
+- 模型目录新增 fallback 链：gpt-4o-mini → deepseek-chat → qwen-plus；gpt-4o / claude-3.5 → qwen-max → qwen-plus；qwen-max → qwen-plus
+- 网关按链自动切换：仅在上游失败且未输出任何 token 时降级（已流式输出不撤回），对话推送降级状态
+- 环境变量 `GATEWAY_FALLBACK=0` 可关闭
+
+**多 Key 轮询**
+- 供应商适配器支持密钥列表：`OPENAI_API_KEYS=a,b,c`（各供应商同款），请求按轮询切换
+- 当前 key 返回 401/403/429 时自动换下一个 key 重试；全部失败才报错
+
+**限流**
+- 进程内令牌桶：`GATEWAY_RATE_LIMIT`（默认 60 次/分钟/用户，未登录按 IP；0 = 关闭）
+- 超限返回 429 + 建议等待秒数；对话/PPT/大纲接口均接入
+
+**成本看板**
+- 新表 `gateway_usage`：每次真实调用记录模型/供应商/是否降级/tokens/成本/积分/延迟/状态
+- `GET /api/gateway/stats`：今日/近 7 天调用、成本、按模型聚合、最近调用；`scope=all` 需 `GATEWAY_ADMIN_KEY`
+- 设置中心「模型设置」新增「网关增强」与「用量与成本看板」两个区块（含 .env 说明）
+
+## 2026-09-03 · 第十轮：增长闭环（A4）
+
+**产物分享只读页**
+- 画布标题栏新增「分享」：PPT / 文档 / 图片 / 研究报告一键生成公开只读链接（`/s/:code`）
+- 分享页多态解析：智能体 → 产物 → 模板 → 案例（legacy）统一走 `/api/shares/:code`
+- PPT 分享页支持翻页只读预览 + 下载 PPTX（复用导出接口）；文档/报告复用只读组件；图片网格展示
+- 「复制到我的工作台」：`POST /api/shares/:code/import` 服务端建会话写产物 → 跳 `/chat` 直接编辑
+- 新表 `artifact_shares`；老库自动迁移
+
+**模板独立分享码**
+- `prompt_templates` 新增 `shared` / `shareCode`（老库自动 ALTER）
+- 「我的提示词」卡片：独立分享链接（公开只读页，含「开始创作」）+ 原离线分享码双入口
+- `POST /api/templates/:id/share` 生成/复用分享码，`DELETE` 取消分享
+
+## 2026-09-03 · 第九轮：PPT 增强（A2）
+
+**演讲者备注**
+- 主幻灯片下方新增「演讲者备注」编辑框，`patchSlide(idx, {"note"})` 600ms 防抖落库
+- PPTX 导出每页写入 `speakerNotes`；打印视图同样保留备注
+
+**大纲先行**
+- 幻灯片模式参数行新增「大纲先行」开关：先生成目录大纲，用户可修改标题/章节/要点后确认，再按大纲生成完整 PPT
+- 新接口 `POST /api/slides/outline`（SSE）：真实模型输出 JSON 大纲；未配密钥走内置示例大纲，零配置可体验
+- `POST /api/slides` 支持 `outline` 字段：真实模型严格遵循章节顺序与标题；演示路径把章节映射到示例 PPT
+- 确认弹窗：章节可编辑（标题 + 每行一条要点），取消/关闭清空待确认状态
+
+**主题市场**
+- 主题切换改为市场式 chips（色点 + 标签，选中反白），主题扩至 9 套：violet / ocean / sunset / forest / ink / rose / slate / amber / cyan
+
+## 2026-09-03 · 第八轮：图像工具补齐（A1）
+
+- 万相 imageedit 接入：指令编辑（description_edit）/ 智能扩图（expand，四向比例）/ 风格化（stylization_all），base_image_url 支持 base64，设置页选 DASHSCOPE key 即用
+- 画布图片工具行：变体 / AI 编辑 / 扩图 / 风格化 / 同款组图（串行 3 视角）/ 去背景 / 下载
+- 尺寸模板：1:1 / 16:9 / 9:16 / 海报 4:5 / 封面 4:3（fal 与万相同步映射）
+
+## 2026-09-03 · 第七轮：Google / GitHub OAuth 登录
+
+- 完整 OAuth 2.0 授权码流程（服务端）：/api/auth/oauth/{google,github} 授权跳转（state + httpOnly cookie 防 CSRF）→ 回调换 token → 拉取资料 → 绑定/创建本地用户 → 会话 cookie
+- 登录弹窗新增「Google / GitHub」按钮（官方 G 图标 + GitHub 图标）；未配置凭据时点击给出配置指引
+- users 表新增 provider / providerUserId 列（幂等迁移）；同邮箱自动绑定本地账号；GitHub 邮箱非公开时自动请求 user/emails 补拉
+- OAuth 回调结果回到首页 toast 提示（/?oauth=success|error）；.env.example 新增 GOOGLE/GITHUB CLIENT_ID/SECRET、OAUTH_REDIRECT_BASE 及回调地址说明
+- 配置方式：Google Cloud Console / GitHub Developer Settings 创建 OAuth 应用，回调地址 = https://你的域名/api/auth/oauth/{google,github}/callback
+
+## 2026-09-03 · 第六轮：登录真实化 + 弹窗遮挡修复
+
+- 全局登录态 store（useAuthStore）：顶栏徽章与侧栏底部卡片共享状态，登录/登出实时同步
+- 首页左下「Alex Chen」mock 用户卡片 → 真实「登录 / 注册」卡片（已登录显示头像昵称 + 下拉：会员方案 / 退出登录）
+- AuthBadge 弹窗与头像下拉改为 React Portal 挂 body + fixed z-[9999]，修复顶栏层叠上下文导致的「登录框被遮挡」
+- 弹窗支持点击遮罩关闭、自动聚焦邮箱输入
+
+## 2026-09-03 · 第五轮：AI 绘图增强（FLUX / Seedream / 背景移除）
+
+- 新增 fal.ai 图像适配器：FLUX.1 Schnell（文生图）/ Dev（图生图，image_url），queue 轮询 60s，支持 base64 data URI；设置页可配 FAL_KEY、测试连接、获取模型列表（fal /v1/models）
+- 通义万相图像适配器扩展：wan2.7-t2i-flash / wanx2.5-t2i（Seedream 同源）文生图，wanx2.1-i2i-turbo 图生图（image_url）
+- /api/images 支持 model 指定与 imageUrl 图生图，按模型自动扣积分（失败不扣）；模型表含价格/积分/图生图能力，/api/models 自动下发
+- 图片工作台：参数行「绘图模型」下拉（自动/FLUX/万相/DALL·E）+「参考图（图生图）」按钮，上传图片附件即作为参考图
+- 画布图片新增操作：一键生成「变体」（以该图为参考图）与「去背景」（服务端 remove.bg 优先，未配置时客户端 @imgly/background-removal WASM 本地 AI，免费）
+- demo 适配器支持图生图占位提示；.env.example 新增 FAL_KEY / REMOVE_BG_API_KEY 说明
+- 复查修正：fal 模型列表改用官方 `endpoint_id` 字段；万相按版本分接口（wan2.7/2.5 新版 multimodal、wanx2.5-t2i 旧 text2image、wanx2.1-i2i-turbo 旧 image2image），图生图推荐 wan2.5-i2i-preview 并兼容新旧响应
+- 体验修正：图片模式隐藏对话模型选择器（用绘图模型下拉）、仅传参考图也可提交（默认变体提示词）、本地去背景对外链先取 Blob 再处理
+
+## 2026-09-03 · 第四轮：本地账号体系（P2-4-2 本地版）
+
+- users / sessions 表 + conversations.userId（幂等迁移）
+- /api/auth/register|login|logout|me；scrypt 密码哈希 + httpOnly cookie（30 天），零外部依赖
+- AuthBadge：首页/工作台顶栏登录按钮、注册/登录弹窗、头像下拉登出；刷新恢复会话
+- 会话按用户归属：登录后新会话归本人，列表按身份过滤（未登录仅见本地旧会话）
+
+## 2026-09-03 · 第三轮：TipTap 富文本 + PPT 单页 AI 重写 + 流式重试
+
+- 富文本编辑器：TipTap 所见即所得（标题/粗斜体/删除线/列表/引用/代码块/撤销重做），Markdown 双向转换（marked + turndown），AI 操作与导出链路不变
+- PPT AI 单页重写：/api/slides 新增 rewrite 模式，真实模型改写选中页（版式可自适应，旧配图作废）
+- 流式请求 HTTP 阶段失败客户端自动重试一次（Abort 不重试）
+
+## 2026-09-03 · 第二轮：PPT 版式/PDF/高亮/编辑重发
+
+- PPT 新版式：时间轴 / 对比 / 流程 / 引言 / 团队（类型、prompt、解析器、渲染四层同步）
+- PPT 导出 PDF：打印视图逐页输出（@media print 横版 + break-inside-avoid）
+- Markdown 代码块语法高亮：语言标签 + 关键词/字符串/注释/数字着色（零依赖）
+- 消息编辑重发：用户消息「编辑」→ 删除后续回复并回填输入框（含数据库清理）
+- 顶栏任务标题可点击重命名（Enter 保存 / Esc 取消）
+- 代码版本历史持久化（随会话落库）
+
+## 2026-09-03 · 缺口清单批量落地（感知/体验/健壮性）
+
+**核心能力**
+- PPT 自动配图：单页 + 批量「AI 配图」，自动选模型（DALL·E 3 / 万相 / 演示 SVG），imageUrl 随会话持久化
+- 知识库语义向量化：零依赖 TF-IDF + cosine，与关键词命中融合排序，接口不变
+- 对话附件：粘贴/拖拽/按钮添加图片与文档，文本注入模型上下文，图片 Markdown 渲染（Markdown 组件补图片/链接支持）
+- 深度研究「一键转 PPT」（此前已实现，本轮验收打通）
+
+**交互与体验**
+- 移动端响应式：侧栏抽屉导航、画布全屏；PWA（manifest + icon + theme-color）
+- Artifact 画布：多产物 Tab（代码预览 ↔ 对话产物）、代码版本历史（10 版回看）
+- 消息重新生成（含删除 API）、↑ 键召回上一条、Ctrl/Cmd+N 新建
+- 历史分组（今天/昨天/7 天内/更早）、首页随机灵感、首访 3 步新手引导
+- 语音输入（Web Speech API）+ 消息朗读（speechSynthesis）
+- DocView：Markdown 快捷工具栏（标题/加粗/列表/引用/代码/链接）+ 导出 PDF
+
+**健壮性与合规**
+- 网关：首个 token 前失败自动重试一次
+- 本地内容审核：输入拦截 + 输出流式检测（词表/正则可扩展）
+- API：`DELETE /api/messages`（重新生成清理旧回复）
+
+## 2026-09-03 · 知识库接入工作台对话（RAG）
+
+**数据层**
+- `conversations` 新增 `kbId`、`messages` 新增 `refs`（含幂等 PRAGMA 迁移）；repo 读写同步扩展
+
+**工作台**
+- 新建 `KbPicker`：输入舱上方选择/解除知识库，空态引导去知识库创建，选中显示已启用提示
+- 会话绑定知识库后发送消息：自动 POST `/api/knowledge/:id/query` 检索命中片段 → 注入 system 上下文（`【资料N｜docName】snippet`，要求优先依据资料并列出引用来源）→ 命中写入消息 `refs` 并持久化
+- 引用来源卡片：回答下方可折叠展示（文档名 / 片段 / 相关度），历史会话重新打开自动回填
+
+**API**
+- `POST /api/messages` 接受 `refs`；`PATCH /api/conversations/:id` 接受 `kbId`
+
+## 2026-09-02 · 占位清零 + 全站真实化 + 深色模式（一次性交付）
+
+### P0 核心功能接真
+
+**P0-1 文件上传解析 + 文档中心**
+- `documents` 表 + `data/uploads` 文件存储；`POST/GET/PATCH/DELETE /api/documents` + 详情/下载/搜索/回收站
+- PDF（pdf-parse）、DOCX（mammoth）、Markdown/TXT/CSV/JSON/LOG/HTML/YML 直接正文提取；XLSX/PPTX 登记
+- 文档中心：真实列表、拖拽/多文件上传、正文预览抽屉、收藏、回收站、下载
+
+**P0-2 模板中心接真实数据 + 一键运行**
+- `prompt_templates` 表 + CRUD/计数 API；热门/最新/我的提交三个 Tab
+- 提交模板真实入库（变量 `{{x}}` 实时预览）；一键运行新建对应模式会话并真实发送；共享模板运行前真实计数
+- 右栏推荐按 uses 排序、随机来一个、我的模板删除
+
+**P0-3 智能体 CRUD + 分享**
+- `agents` 表 + CRUD/分享 API；我的智能体（创建/编辑/删除）+ 官方智能体（personas.ts 真实系统提示词）
+- `startAgent`：新建绑定角色的会话、注入 system prompt 到 `/api/chat`、预填开场白；使用次数按绑定会话数统计
+- 分享：公开链接 `/s/:code`，复制/预览/取消分享，分享页可「立即使用」
+
+### P1 产品差异化
+
+**知识库（本地 RAG）**
+- `knowledge_bases` + `kb_documents` 表；CRUD/文档关联 API（复用文档正文解析）
+- `lib/kb/search.ts` 本地检索引擎：中文 2-gram + 滑窗打分，返回带来源片段与相关度
+- 知识库页：真实统计/列表/搜索/分页；能力开关（语义检索/问答增强/引用来源）持久化
+- 提问弹窗：命中片段 → 注入 `/api/chat` 生成带引用回答
+
+**工具箱**
+- 内容创作/数据分析工具经对话引擎真实执行（预填指令）；文档工具直达文档中心；协作类如实标注「规划中」
+
+**通知中心**
+- `notifications` 表 + API；全局 `NotificationBell` 替换 7 个页面铃铛
+- 上传文档/建库/建智能体/提交模板自动产生通知，未读角标、点击跳转、全部已读
+
+### P2 扩展能力
+
+**代码沙箱（P2-1）**
+- AI 回复含 HTML 代码块时出现「运行预览」；右侧画布 sandbox iframe 隔离运行
+- 重新运行/复制源码/新窗口打开；`codePreview` 随会话持久化
+
+**本地积分中心（P2-2）**
+- `credit_ledger` 账本；AI 调用按真实用量扣积分（gateway credits）
+- 上传 +5 / 创建智能体/模板/知识库 +3 / 分享 +3 / 每日签到 +10
+- `CreditsBadge` 全局组件（7 页顶栏）：余额 + 今日任务 + 流水，到账弹跳动效
+
+**深色模式（P2-4-1）**
+- Tailwind stone/brand 色板变量化 + 语义令牌（背景/面板/边框/悬停/品牌/强调）
+- 19 个文件 300+ 处硬编码色替换；`.dark` 全套深色令牌，品牌色提亮
+- 设置中心「外观主题」：跟随系统 / 浅色 / 深色，即时切换 + 本地持久化
+
+### 体验美化
+- 模板热门 Tab：Top3 卡片 🔥 徽章 + 强调描边
+- 知识库提问：命中词高亮（中文 2-gram/英文词）
+- 工具箱：全局搜索框（24 个工具实时过滤）
+- 智能体创建弹窗：官方角色一键预设（8 个）
+- 积分徽章：余额变化弹跳动效
+
+### 数据层
+- 新增表：`prompt_templates`、`agents`、`knowledge_bases`、`kb_documents`、`notifications`、`credit_ledger`
+- `conversations` 新增列：`personaSystem`、`codePreview`
+- 老库自动迁移（CREATE IF NOT EXISTS + ALTER TABLE 补列），无需手动操作
+
+### 已知边界（如实说明）
+- 文生视频、OCR/压缩/水印、团队协作、登录账号：需外部服务，界面已标注「规划中」
+- 深色模式覆盖主流程页面；第三方依赖自绘组件（如部分图表）仍为其原始配色

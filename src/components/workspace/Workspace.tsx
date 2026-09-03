@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Home, LayoutDashboard, Loader2, Plus, UserRound } from "lucide-react";
+import { Home, LayoutDashboard, Loader2, Menu, Plus, Settings, X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { HistoryPanel } from "./HistoryPanel";
 import { ChatPanel } from "./ChatPanel";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { SettingsModal } from "./SettingsModal";
 import { Toaster } from "@/components/Toaster";
+import AuthBadge from "@/components/AuthBadge";
 import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 export function Workspace() {
+  const { tt } = useI18n();
   const {
     hydrated,
     hydrate,
@@ -25,11 +28,28 @@ export function Workspace() {
     setArtifactOpen,
     newConversation,
     selectConversation,
+    renameConversation,
   } = useChatStore();
+
+  const [mobileNav, setMobileNav] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // Ctrl/Cmd+N 新建对话
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        void newConversation().then((id) => selectConversation(id));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [newConversation, selectConversation]);
 
   // 消费首页带来的意图（sessionStorage 传递，避免 URL 泄漏长文本）
   useEffect(() => {
@@ -82,23 +102,81 @@ export function Workspace() {
   const active = conversations.find((c) => c.id === activeId);
 
   const startNew = () => {
-    void newConversation("chat").then((id) => selectConversation(id));
+    void newConversation().then((id) => selectConversation(id));
+  };
+
+  const saveTitle = () => {
+    const t = titleDraft.trim();
+    if (t && active) renameConversation(active.id, t);
+    setEditingTitle(false);
   };
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <HistoryPanel />
+      {/* 桌面侧栏 + 历史 */}
+      <div className="hidden md:flex h-full">
+        <Sidebar />
+        <HistoryPanel />
+      </div>
+
+      {/* 移动端抽屉导航 */}
+      {mobileNav && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNav(false)} />
+          <div className="absolute inset-y-0 left-0 w-[288px] overflow-y-auto bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
+              <span className="text-xs font-medium text-stone-400">{tt("导航")}</span>
+              <button
+                onClick={() => setMobileNav(false)}
+                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100"
+                title={tt("关闭")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <Sidebar onNavigate={() => setMobileNav(false)} />
+            <HistoryPanel onNavigate={() => setMobileNav(false)} />
+          </div>
+        </div>
+      )}
+
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-[#e8ddca] bg-[#faf6ee] px-4 py-2.5">
+        <header className="flex items-center justify-between gap-3 border-b border-[var(--oc-border-strong)] bg-[var(--oc-bg)] px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={() => setMobileNav(true)}
+              className="rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 md:hidden"
+              title={tt("打开导航")}
+            >
+              <Menu className="h-4 w-4" />
+            </button>
             <div className="flex items-center gap-2">
-              <span className="text-[15px] font-semibold text-stone-800">智能助手</span>
-              {active && (
-                <span className="max-w-[220px] truncate text-sm text-stone-400">
-                  · {active.title}
-                </span>
-              )}
+              <span className="text-[15px] font-semibold text-stone-800">{tt("智能助手")}</span>
+              {active &&
+                (editingTitle ? (
+                  <input
+                    autoFocus
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onBlur={saveTitle}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveTitle();
+                      if (e.key === "Escape") setEditingTitle(false);
+                    }}
+                    className="w-[220px] rounded-md border border-orange-200 bg-white px-2 py-0.5 text-sm text-stone-600 outline-none focus:border-orange-300"
+                  />
+                ) : (
+                  <button
+                    onClick={() => {
+                      setTitleDraft(active.title);
+                      setEditingTitle(true);
+                    }}
+                    title={tt("点击重命名当前任务")}
+                    className="max-w-[220px] truncate text-sm text-stone-400 transition hover:text-stone-600"
+                  >
+                    · {active.title}
+                  </button>
+                ))}
             </div>
             <button
               onClick={startNew}
@@ -115,14 +193,21 @@ export function Workspace() {
             )}
             <Link
               href="/"
-              title="返回首页"
+              title={tt("返回首页")}
               className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
             >
               <Home className="h-4 w-4" />
             </Link>
             <button
+              onClick={() => setSettingsOpen(true)}
+              title={tt("设置")}
+              className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+            <button
               onClick={() => setArtifactOpen(!artifactOpen)}
-              title={artifactOpen ? "关闭产物画布" : "打开产物画布"}
+              title={artifactOpen ? tt("关闭产物画布") : tt("打开产物画布")}
               className={cn(
                 "rounded-lg p-1.5 transition",
                 artifactOpen
@@ -132,12 +217,7 @@ export function Workspace() {
             >
               <LayoutDashboard className="h-4 w-4" />
             </button>
-            <span
-              title="李明"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-rose-400 text-white shadow-sm"
-            >
-              <UserRound className="h-4 w-4" />
-            </span>
+            <AuthBadge />
           </div>
         </header>
         <div className="flex min-h-0 flex-1">

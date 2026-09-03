@@ -1,0 +1,271 @@
+// PostgreSQL 生产权威 schema（与 src/lib/db/sqlite.ts 运行时 DDL 对齐）
+//
+// 说明：开发环境运行库是 Node 22 内置 node:sqlite（零依赖、零外部服务）；
+// 生产切换 PostgreSQL 的步骤：
+//   1. DATABASE_URL=postgresql://user:pass@host:5432/db （.env / 环境变量）
+//   2. npm run pg:generate     # 生成 PG 专用 Prisma Client
+//   3. npm run pg:migrate      # 应用 prisma/migrations/postgresql 迁移（建表）
+//   4. npm run pg:import       # 把现有 SQLite data/dev.db 全量导入 PG（可选）
+//   5. 业务层统一走 repo（本文件仅作权威 schema 与迁移来源）
+//
+// 字段与索引均与 SQLite 运行时保持一一对应；userId 为个人数据归属维度
+// （NULL = 未登录本地数据），全表隔离语义见 docs/roadmap.md。
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/pg-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String @id
+  email          String @unique
+  name           String @default("")
+  passwordHash   String
+  provider       String @default("")
+  providerUserId String @default("")
+  createdAt      Float
+
+  @@index([provider, providerUserId])
+  @@map("users")
+}
+
+model Session {
+  token     String @id
+  userId    String
+  createdAt Float
+  expiresAt Float
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Conversation {
+  id            String  @id
+  title         String  @default("新任务")
+  mode          String  @default("chat")
+  model         String  @default("demo")
+  modelProvider String?
+  deck          String?
+  deckStatus    String?
+  images        String?
+  report        String?
+  doc           String?
+  personaId     String?
+  personaSystem String?
+  codePreview   String?
+  kbId          String?
+  userId        String?
+  archived      Boolean @default(false)
+  pinned        Boolean @default(false)
+  createdAt     Float
+  updatedAt     Float
+
+  @@index([updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String @id
+  conversationId String
+  role           String
+  content        String
+  error          Boolean @default(false)
+  refs           String?
+  createdAt      Float
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model Document {
+  id        String  @id
+  name      String
+  type      String  @default("text")
+  size      Int     @default(0)
+  ext       String  @default("")
+  content   String  @default("")
+  filePath  String?
+  tags      String  @default("[]")
+  favorite  Boolean @default(false)
+  deleted   Boolean @default(false)
+  userId    String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([updatedAt])
+  @@index([name])
+  @@index([userId, updatedAt])
+  @@map("documents")
+}
+
+model KnowledgeBase {
+  id        String  @id
+  name      String
+  desc      String  @default("")
+  tags      String  @default("[]")
+  semantic  Boolean @default(true)
+  qa        Boolean @default(true)
+  cite      Boolean @default(true)
+  userId    String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([userId, updatedAt])
+  @@map("knowledge_bases")
+}
+
+model KbDocument {
+  kbId       String
+  documentId String
+  createdAt  Float
+
+  @@id([kbId, documentId])
+  @@index([kbId])
+  @@map("kb_documents")
+}
+
+model PromptTemplate {
+  id        String  @id
+  label     String
+  desc      String  @default("")
+  category  String  @default("productivity")
+  mode      String  @default("chat")
+  prompt    String
+  author    String  @default("我")
+  uses      Int     @default(0)
+  shared    Boolean @default(false)
+  shareCode String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([updatedAt])
+  @@index([shareCode])
+  @@map("prompt_templates")
+}
+
+model Agent {
+  id        String  @id
+  name      String
+  desc      String  @default("")
+  category  String  @default("自定义")
+  emoji     String  @default("🤖")
+  system    String  @default("")
+  starter   String  @default("")
+  shared    Boolean @default(false)
+  shareCode String?
+  createdAt Float
+  updatedAt Float
+
+  @@index([updatedAt])
+  @@index([shareCode])
+  @@map("agents")
+}
+
+model CaseShare {
+  code      String @id
+  data      String
+  createdAt Float
+
+  @@map("case_shares")
+}
+
+model ArtifactShare {
+  code      String @id
+  kind      String
+  data      String
+  createdAt Float
+
+  @@index([createdAt])
+  @@map("artifact_shares")
+}
+
+model Membership {
+  id        String  @id
+  plan      String  @default("free")
+  autoRenew Boolean @default(true)
+  renewAt   Float?
+  createdAt Float
+  updatedAt Float
+
+  @@map("membership")
+}
+
+model Order {
+  id        String @id
+  plan      String
+  amount    Int
+  status    String
+  createdAt Float
+
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model Notification {
+  id        String  @id
+  type      String  @default("info")
+  title     String
+  body      String  @default("")
+  link      String?
+  read      Boolean @default(false)
+  userId    String?
+  createdAt Float
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model ClientError {
+  id        String  @id
+  message   String  @default("")
+  source    String  @default("")
+  stack     String  @default("")
+  url       String  @default("")
+  userAgent String  @default("")
+  userId    String?
+  createdAt Float
+
+  @@index([createdAt])
+  @@map("client_errors")
+}
+
+model GatewayUsage {
+  id           String  @id
+  userId       String?
+  sessionId    String?
+  modelId      String
+  providerId   String
+  fallback     Boolean @default(false)
+  status       String  @default("success")
+  inputTokens  Int     @default(0)
+  outputTokens Int     @default(0)
+  costUsd      Float   @default(0)
+  credits      Int     @default(0)
+  latencyMs    Int     @default(0)
+  error        String  @default("")
+  createdAt    Float
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([modelId, createdAt])
+  @@map("gateway_usage")
+}
+
+model CreditLedger {
+  id        String  @id
+  delta     Int
+  reason    String  @default("")
+  ref       String?
+  userId    String?
+  createdAt Float
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("credit_ledger")
+}

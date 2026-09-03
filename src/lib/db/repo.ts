@@ -1,5 +1,6 @@
 import { getDb } from "./sqlite";
 import { randomUUID } from "node:crypto";
+import { deleteUploadFile } from "@/lib/docs/files";
 
 export interface StoredConversation {
   id: string;
@@ -13,6 +14,14 @@ export interface StoredConversation {
   report: unknown | null;
   doc: unknown | null;
   personaId: string | null;
+  /** 自定义智能体的 system prompt（内置智能体为空，运行时按 personaId 查 personas.ts） */
+  personaSystem: string | null;
+  /** 代码沙箱预览（AI 生成的 HTML） */
+  codePreview: unknown | null;
+  /** 会话绑定的知识库 id（RAG 检索来源） */
+  kbId: string | null;
+  /** 归属用户（NULL = 本地/未登录旧会话） */
+  userId: string | null;
   archived: boolean;
   pinned: boolean;
   createdAt: number;
@@ -25,6 +34,8 @@ export interface StoredMessage {
   role: "user" | "assistant";
   content: string;
   error: boolean;
+  /** 引用来源（知识库 RAG 命中，JSON） */
+  refs: unknown | null;
   createdAt: number;
 }
 
@@ -34,6 +45,186 @@ export interface StoredImage {
   model: string;
   url: string; // data: 或 http(s)
   createdAt: number;
+}
+
+export interface StoredTemplate {
+  id: string;
+  label: string;
+  desc: string;
+  category: string;
+  mode: string;
+  prompt: string;
+  author: string;
+  uses: number;
+  shared: boolean;
+  shareCode: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StoredAgent {
+  id: string;
+  name: string;
+  desc: string;
+  category: string;
+  emoji: string;
+  system: string;
+  starter: string;
+  shared: boolean;
+  shareCode: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StoredKnowledgeBase {
+  id: string;
+  name: string;
+  desc: string;
+  tags: string[];
+  semantic: boolean;
+  qa: boolean;
+  cite: boolean;
+  /** 归属用户（NULL = 未登录本地数据） */
+  userId: string | null;
+  createdAt: number;
+  updatedAt: number;
+  /** 聚合：关联文档数 */
+  docCount: number;
+  /** 聚合：关联文档总大小（字节） */
+  totalSize: number;
+}
+
+export interface StoredNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  /** 归属用户（NULL = 未登录本地数据） */
+  userId: string | null;
+  createdAt: number;
+}
+
+function rowToTemplate(r: Record<string, unknown>): StoredTemplate {
+  return {
+    id: r.id as string,
+    label: r.label as string,
+    desc: (r.desc as string) ?? "",
+    category: (r.category as string) ?? "productivity",
+    mode: (r.mode as string) ?? "chat",
+    prompt: (r.prompt as string) ?? "",
+    author: (r.author as string) ?? "我",
+    uses: (r.uses as number) ?? 0,
+    shared: Boolean(r.shared),
+    shareCode: (r.shareCode as string | null) ?? null,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function rowToAgent(r: Record<string, unknown>): StoredAgent {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    desc: (r.desc as string) ?? "",
+    category: (r.category as string) ?? "自定义",
+    emoji: (r.emoji as string) ?? "🤖",
+    system: (r.system as string) ?? "",
+    starter: (r.starter as string) ?? "",
+    shared: Boolean(r.shared),
+    shareCode: (r.shareCode as string | null) ?? null,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function rowToKnowledgeBase(r: Record<string, unknown>): Omit<StoredKnowledgeBase, "docCount" | "totalSize"> {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    desc: (r.desc as string) ?? "",
+    tags: parseJson<string[]>(r.tags as string | null, []),
+    semantic: Boolean(r.semantic),
+    qa: Boolean(r.qa),
+    cite: Boolean(r.cite),
+    userId: (r.userId as string | null) ?? null,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+function withKbStats(kb: Omit<StoredKnowledgeBase, "docCount" | "totalSize">): StoredKnowledgeBase {
+  const db = getDb();
+  const agg = db
+    .prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(d.size), 0) AS size
+       FROM kb_documents k JOIN documents d ON d.id = k.documentId
+       WHERE k.kbId = ?`
+    )
+    .get(kb.id) as { n: number; size: number };
+  return { ...kb, docCount: agg.n, totalSize: agg.size };
+}
+
+function rowToNotification(r: Record<string, unknown>): StoredNotification {
+  return {
+    id: r.id as string,
+    type: (r.type as string) ?? "info",
+    title: r.title as string,
+    body: (r.body as string) ?? "",
+    link: (r.link as string | null) ?? null,
+    read: Boolean(r.read),
+    userId: (r.userId as string | null) ?? null,
+    createdAt: r.createdAt as number,
+  };
+}
+
+export interface StoredDocument {
+  id: string;
+  name: string;
+  /** text / markdown / pdf / word / excel / ppt / other */
+  type: string;
+  size: number;
+  ext: string;
+  content: string;
+  filePath: string | null;
+  tags: string[];
+  favorite: boolean;
+  deleted: boolean;
+  /** 归属用户（NULL = 未登录本地数据） */
+  userId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+function rowToDocument(r: Record<string, unknown>): StoredDocument {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    type: (r.type as string) ?? "text",
+    size: (r.size as number) ?? 0,
+    ext: (r.ext as string) ?? "",
+    content: (r.content as string) ?? "",
+    filePath: (r.filePath as string) ?? null,
+    tags: parseJson<string[]>(r.tags as string | null, []),
+    favorite: Boolean(r.favorite),
+    deleted: Boolean(r.deleted),
+    userId: (r.userId as string | null) ?? null,
+    createdAt: r.createdAt as number,
+    updatedAt: r.updatedAt as number,
+  };
+}
+
+/**
+ * 数据可见性条件：
+ * - userId 未传：不过滤（内部聚合/全局数据）
+ * - userId === null：仅未登录本地数据（userId IS NULL）
+ * - userId 字符串：本人 + 本地历史数据（(userId IS NULL OR userId = ?)）
+ */
+function scopeCond(userId: string | null | undefined, col = "userId"): { sql: string; params: (string | number)[] } {
+  if (userId === null) return { sql: `${col} IS NULL`, params: [] };
+  if (typeof userId === "string") return { sql: `(${col} IS NULL OR ${col} = ?)`, params: [userId] };
+  return { sql: "1=1", params: [] };
 }
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => {
@@ -58,6 +249,10 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
     report: parseJson(r.report as string | null, null),
     doc: parseJson(r.doc as string | null, null),
     personaId: (r.personaId as string | null) ?? null,
+    personaSystem: (r.personaSystem as string | null) ?? null,
+    codePreview: parseJson(r.codePreview as string | null, null),
+    kbId: (r.kbId as string | null) ?? null,
+    userId: (r.userId as string | null) ?? null,
     archived: Boolean(r.archived),
     pinned: Boolean(r.pinned),
     createdAt: r.createdAt as number,
@@ -67,14 +262,26 @@ function rowToConversation(r: Record<string, unknown>): StoredConversation {
 
 export const repo = {
   /** archivedFilter: 0=活跃 1=归档 undefined=全部 */
-  listConversations(archivedFilter?: 0 | 1): StoredConversation[] {
-    const where =
-      archivedFilter === undefined ? "" : ` WHERE archived = ${archivedFilter ? 1 : 0}`;
+  /**
+   * 会话列表。
+   * userId 语义：undefined=全部（管理/统计）；null=仅本地 NULL 归属；字符串=该用户 + 本地 NULL（迁移兼容）。
+   */
+  listConversations(archivedFilter?: 0 | 1, userId?: string | null): StoredConversation[] {
+    const conds: string[] = [];
+    const params: (string | number)[] = [];
+    if (archivedFilter !== undefined) {
+      conds.push(`archived = ${archivedFilter ? 1 : 0}`);
+    }
+    if (userId === null) {
+      conds.push("userId IS NULL");
+    } else if (typeof userId === "string") {
+      conds.push("(userId IS NULL OR userId = ?)");
+      params.push(userId);
+    }
+    const where = conds.length > 0 ? ` WHERE ${conds.join(" AND ")}` : "";
     const rows = getDb()
-      .prepare(
-        `SELECT * FROM conversations${where} ORDER BY pinned DESC, updatedAt DESC`
-      )
-      .all() as Record<string, unknown>[];
+      .prepare(`SELECT * FROM conversations${where} ORDER BY pinned DESC, updatedAt DESC`)
+      .all(...params) as Record<string, unknown>[];
     return rows.map(rowToConversation);
   },
 
@@ -95,6 +302,7 @@ export const repo = {
       role: r.role as "user" | "assistant",
       content: r.content as string,
       error: Boolean(r.error),
+      refs: parseJson(r.refs as string | null, null),
       createdAt: r.createdAt as number,
     }));
   },
@@ -111,6 +319,10 @@ export const repo = {
     report?: unknown;
     doc?: unknown;
     personaId?: string | null;
+    personaSystem?: string | null;
+    codePreview?: unknown;
+    kbId?: string | null;
+    userId?: string | null;
     archived?: boolean;
     pinned?: boolean;
   }): void {
@@ -140,6 +352,10 @@ export const repo = {
       if (c.report !== undefined) set("report", c.report === null ? null : JSON.stringify(c.report));
       if (c.doc !== undefined) set("doc", c.doc === null ? null : JSON.stringify(c.doc));
       if (c.personaId !== undefined) set("personaId", c.personaId);
+      if (c.personaSystem !== undefined) set("personaSystem", c.personaSystem);
+      if (c.codePreview !== undefined) set("codePreview", c.codePreview === null ? null : JSON.stringify(c.codePreview));
+      if (c.kbId !== undefined) set("kbId", c.kbId);
+      if (c.userId !== undefined) set("userId", c.userId);
       if (c.archived !== undefined) set("archived", c.archived ? 1 : 0);
       if (c.pinned !== undefined) set("pinned", c.pinned ? 1 : 0);
 
@@ -150,8 +366,8 @@ export const repo = {
       }
     } else {
       db.prepare(
-        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, archived, pinned, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO conversations (id, title, mode, model, modelProvider, deck, deckStatus, images, report, doc, personaId, personaSystem, codePreview, kbId, userId, archived, pinned, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         c.id,
         c.title ?? "新任务",
@@ -164,6 +380,10 @@ export const repo = {
         c.report === undefined || c.report === null ? null : JSON.stringify(c.report),
         c.doc === undefined || c.doc === null ? null : JSON.stringify(c.doc),
         c.personaId ?? null,
+        c.personaSystem ?? null,
+        c.codePreview === undefined || c.codePreview === null ? null : JSON.stringify(c.codePreview),
+        c.kbId ?? null,
+        c.userId ?? null,
         c.archived ? 1 : 0,
         c.pinned ? 1 : 0,
         now,
@@ -178,12 +398,21 @@ export const repo = {
     role: string;
     content: string;
     error?: boolean;
+    refs?: unknown;
   }): void {
     getDb()
       .prepare(
-        "INSERT INTO messages (id, conversationId, role, content, error, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO messages (id, conversationId, role, content, error, refs, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
       )
-      .run(m.id, m.conversationId, m.role, m.content, m.error ? 1 : 0, Date.now());
+      .run(
+        m.id,
+        m.conversationId,
+        m.role,
+        m.content,
+        m.error ? 1 : 0,
+        m.refs === undefined || m.refs === null ? null : JSON.stringify(m.refs),
+        Date.now()
+      );
     getDb().prepare("UPDATE conversations SET updatedAt = ? WHERE id = ?").run(Date.now(), m.conversationId);
   },
 
@@ -215,6 +444,14 @@ export const repo = {
     for (const id of ids) stmt.run(archived ? 1 : 0, Date.now(), id);
   },
 
+  /** 删除会话内指定消息（重新生成 / 编辑重发用） */
+  deleteMessages(conversationId: string, ids: string[]): void {
+    if (ids.length === 0) return;
+    const db = getDb();
+    const stmt = db.prepare("DELETE FROM messages WHERE conversationId = ? AND id = ?");
+    for (const id of ids) stmt.run(conversationId, id);
+  },
+
   deleteConversation(id: string): void {
     const db = getDb();
     db.prepare("DELETE FROM messages WHERE conversationId = ?").run(id);
@@ -227,6 +464,685 @@ export const repo = {
       db.prepare("DELETE FROM messages WHERE conversationId = ?").run(id);
       db.prepare("DELETE FROM conversations WHERE id = ?").run(id);
     }
+  },
+
+  /* ─────────────────────────── 文档中心 ─────────────────────────── */
+
+  /** 文档列表（支持关键字搜索；deleted=1 为回收站） */
+  listDocuments(q = "", includeDeleted = false, userId?: string | null): StoredDocument[] {
+    const db = getDb();
+    const scope = scopeCond(userId);
+    const where = `${scope.sql}${includeDeleted ? "" : " AND deleted = 0"}`;
+    const rows = q.trim()
+      ? (db
+          .prepare(
+            `SELECT * FROM documents WHERE (name LIKE ? OR content LIKE ?) AND ${where} ORDER BY updatedAt DESC`
+          )
+          .all(`%${q.trim()}%`, `%${q.trim()}%`, ...scope.params) as Record<string, unknown>[])
+      : (db
+          .prepare(`SELECT * FROM documents WHERE ${where} ORDER BY updatedAt DESC`)
+          .all(...scope.params) as Record<string, unknown>[]);
+    return rows.map(rowToDocument);
+  },
+
+  getDocument(id: string, userId?: string | null): StoredDocument | null {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT * FROM documents WHERE id = ? AND ${scope.sql}`)
+      .get(id, ...scope.params) as Record<string, unknown> | undefined;
+    return row ? rowToDocument(row) : null;
+  },
+
+  createDocument(d: StoredDocument): void {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO documents (id, name, type, size, ext, content, filePath, tags, favorite, deleted, userId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      d.id,
+      d.name,
+      d.type,
+      d.size,
+      d.ext,
+      d.content ?? "",
+      d.filePath ?? null,
+      JSON.stringify(d.tags ?? []),
+      d.favorite ? 1 : 0,
+      d.deleted ? 1 : 0,
+      d.userId ?? null,
+      d.createdAt,
+      d.updatedAt
+    );
+  },
+
+  updateDocument(id: string, patch: Partial<StoredDocument>, userId?: string | null): void {
+    const db = getDb();
+    const scope = scopeCond(userId);
+    const row = db.prepare(`SELECT * FROM documents WHERE id = ? AND ${scope.sql}`).get(id, ...scope.params) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToDocument(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    db.prepare(
+      `UPDATE documents SET name=?, type=?, size=?, ext=?, content=?, filePath=?, tags=?, favorite=?, deleted=?, updatedAt=? WHERE id=?`
+    ).run(
+      next.name,
+      next.type,
+      next.size,
+      next.ext,
+      next.content ?? "",
+      next.filePath ?? null,
+      JSON.stringify(next.tags ?? []),
+      next.favorite ? 1 : 0,
+      next.deleted ? 1 : 0,
+      next.updatedAt,
+      id
+    );
+  },
+
+  deleteDocument(id: string, hard = false, userId?: string | null): void {
+    const db = getDb();
+    const scope = scopeCond(userId);
+    if (hard) db.prepare(`DELETE FROM documents WHERE id = ? AND ${scope.sql}`).run(id, ...scope.params);
+    else
+      db
+        .prepare(`UPDATE documents SET deleted = 1, updatedAt = ? WHERE id = ? AND ${scope.sql}`)
+        .run(Date.now(), id, ...scope.params);
+  },
+
+  documentStats(userId?: string | null): { total: number; favorite: number; size: number } {
+    const db = getDb();
+    const scope = scopeCond(userId);
+    const total = (
+      db.prepare(`SELECT COUNT(*) AS n FROM documents WHERE deleted = 0 AND ${scope.sql}`).get(...scope.params) as {
+        n: number;
+      }
+    ).n;
+    const favorite = (
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM documents WHERE deleted = 0 AND favorite = 1 AND ${scope.sql}`)
+        .get(...scope.params) as { n: number }
+    ).n;
+    const size = (
+      db
+        .prepare(`SELECT COALESCE(SUM(size), 0) AS n FROM documents WHERE deleted = 0 AND ${scope.sql}`)
+        .get(...scope.params) as { n: number }
+    ).n;
+    return { total, favorite, size };
+  },
+
+  /* ─────────────────────────── 模板中心 ─────────────────────────── */
+
+  /** 用户提交的模板列表（不含内置） */
+  listTemplates(): StoredTemplate[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM prompt_templates ORDER BY uses DESC, updatedAt DESC")
+      .all() as Record<string, unknown>[];
+    return rows.map(rowToTemplate);
+  },
+
+  getTemplate(id: string): StoredTemplate | null {
+    const row = getDb().prepare("SELECT * FROM prompt_templates WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToTemplate(row) : null;
+  },
+
+  createTemplate(t: StoredTemplate): void {
+    getDb()
+      .prepare(
+        `INSERT INTO prompt_templates (id, label, desc, category, mode, prompt, author, uses, shared, shareCode, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        t.id, t.label, t.desc, t.category, t.mode, t.prompt, t.author, t.uses ?? 0,
+        t.shared ? 1 : 0, t.shareCode ?? null, t.createdAt, t.updatedAt
+      );
+  },
+
+  updateTemplate(id: string, patch: Partial<StoredTemplate>): void {
+    const row = getDb().prepare("SELECT * FROM prompt_templates WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToTemplate(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    getDb()
+      .prepare(
+        `UPDATE prompt_templates SET label=?, desc=?, category=?, mode=?, prompt=?, author=?, uses=?, shared=?, shareCode=?, updatedAt=? WHERE id=?`
+      )
+      .run(
+        next.label, next.desc, next.category, next.mode, next.prompt, next.author, next.uses,
+        next.shared ? 1 : 0, next.shareCode ?? null, next.updatedAt, id
+      );
+  },
+
+  incrTemplateUses(id: string): void {
+    getDb().prepare("UPDATE prompt_templates SET uses = uses + 1, updatedAt = ? WHERE id = ?").run(Date.now(), id);
+  },
+
+  deleteTemplate(id: string): void {
+    getDb().prepare("DELETE FROM prompt_templates WHERE id = ?").run(id);
+  },
+
+  /** 生成/复用模板分享码（shared=1），返回分享码 */
+  shareTemplate(id: string): string | null {
+    const db = getDb();
+    const row = db.prepare("SELECT shareCode FROM prompt_templates WHERE id = ?").get(id) as
+      | { shareCode: string | null }
+      | undefined;
+    if (!row) return null;
+    let code = row.shareCode;
+    if (!code) {
+      code = randomUUID().replace(/-/g, "").slice(0, 12);
+      db.prepare("UPDATE prompt_templates SET shared = 1, shareCode = ?, updatedAt = ? WHERE id = ?")
+        .run(code, Date.now(), id);
+    } else {
+      db.prepare("UPDATE prompt_templates SET shared = 1, updatedAt = ? WHERE id = ?").run(Date.now(), id);
+    }
+    return code;
+  },
+
+  unshareTemplate(id: string): void {
+    getDb()
+      .prepare("UPDATE prompt_templates SET shared = 0, shareCode = NULL, updatedAt = ? WHERE id = ?")
+      .run(Date.now(), id);
+  },
+
+  getTemplateByShareCode(code: string): StoredTemplate | null {
+    const row = getDb()
+      .prepare("SELECT * FROM prompt_templates WHERE shareCode = ? AND shared = 1")
+      .get(code) as Record<string, unknown> | undefined;
+    return row ? rowToTemplate(row) : null;
+  },
+
+  templateStats(): { total: number; totalUses: number } {
+    const db = getDb();
+    const total = (db.prepare("SELECT COUNT(*) AS n FROM prompt_templates").get() as { n: number }).n;
+    const totalUses = (
+      db.prepare("SELECT COALESCE(SUM(uses), 0) AS n FROM prompt_templates").get() as { n: number }
+    ).n;
+    return { total, totalUses };
+  },
+
+  // ---------------- 智能体 ----------------
+
+  listAgents(): StoredAgent[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM agents ORDER BY updatedAt DESC")
+      .all() as Record<string, unknown>[];
+    return rows.map(rowToAgent);
+  },
+
+  getAgent(id: string): StoredAgent | null {
+    const row = getDb().prepare("SELECT * FROM agents WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToAgent(row) : null;
+  },
+
+  getAgentByShareCode(code: string): StoredAgent | null {
+    const row = getDb().prepare("SELECT * FROM agents WHERE shareCode = ? AND shared = 1").get(code) as
+      | Record<string, unknown>
+      | undefined;
+    return row ? rowToAgent(row) : null;
+  },
+
+  createAgent(a: StoredAgent): void {
+    getDb()
+      .prepare(
+        `INSERT INTO agents (id, name, desc, category, emoji, system, starter, shared, shareCode, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        a.id,
+        a.name,
+        a.desc,
+        a.category,
+        a.emoji,
+        a.system,
+        a.starter,
+        a.shared ? 1 : 0,
+        a.shareCode,
+        a.createdAt,
+        a.updatedAt
+      );
+  },
+
+  updateAgent(id: string, patch: Partial<StoredAgent>): void {
+    const row = getDb().prepare("SELECT * FROM agents WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return;
+    const cur = rowToAgent(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    getDb()
+      .prepare(
+        `UPDATE agents SET name=?, desc=?, category=?, emoji=?, system=?, starter=?, shared=?, shareCode=?, updatedAt=? WHERE id=?`
+      )
+      .run(
+        next.name,
+        next.desc,
+        next.category,
+        next.emoji,
+        next.system,
+        next.starter,
+        next.shared ? 1 : 0,
+        next.shareCode,
+        next.updatedAt,
+        id
+      );
+  },
+
+  deleteAgent(id: string): void {
+    getDb().prepare("DELETE FROM agents WHERE id = ?").run(id);
+  },
+
+  agentStats(): { total: number; totalUses: number } {
+    const db = getDb();
+    const total = (db.prepare("SELECT COUNT(*) AS n FROM agents").get() as { n: number }).n;
+    const totalUses = (
+      db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE personaId IS NOT NULL").get() as {
+        n: number;
+      }
+    ).n;
+    return { total, totalUses };
+  },
+
+  /** 各角色/智能体的真实使用次数：conversations 里绑定 personaId 的会话数 */
+  personaUseCounts(): Record<string, number> {
+    const rows = getDb()
+      .prepare("SELECT personaId, COUNT(*) AS n FROM conversations WHERE personaId IS NOT NULL GROUP BY personaId")
+      .all() as Array<{ personaId: string; n: number }>;
+    const map: Record<string, number> = {};
+    for (const r of rows) map[r.personaId] = r.n;
+    return map;
+  },
+
+  // ---------------- 知识库 ----------------
+
+  listKnowledgeBases(userId?: string | null): StoredKnowledgeBase[] {
+    const scope = scopeCond(userId);
+    const rows = getDb()
+      .prepare(`SELECT * FROM knowledge_bases WHERE ${scope.sql} ORDER BY updatedAt DESC`)
+      .all(...scope.params) as Record<string, unknown>[];
+    return rows.map((r) => withKbStats(rowToKnowledgeBase(r)));
+  },
+
+  getKnowledgeBase(id: string, userId?: string | null): StoredKnowledgeBase | null {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT * FROM knowledge_bases WHERE id = ? AND ${scope.sql}`)
+      .get(id, ...scope.params) as Record<string, unknown> | undefined;
+    return row ? withKbStats(rowToKnowledgeBase(row)) : null;
+  },
+
+  createKnowledgeBase(a: {
+    id: string;
+    name: string;
+    desc?: string;
+    tags?: string[];
+    semantic?: boolean;
+    qa?: boolean;
+    cite?: boolean;
+    userId?: string | null;
+    createdAt: number;
+  }): void {
+    getDb()
+      .prepare(
+        `INSERT INTO knowledge_bases (id, name, desc, tags, semantic, qa, cite, userId, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        a.id,
+        a.name,
+        a.desc ?? "",
+        JSON.stringify(a.tags ?? []),
+        a.semantic === false ? 0 : 1,
+        a.qa === false ? 0 : 1,
+        a.cite === false ? 0 : 1,
+        a.userId ?? null,
+        a.createdAt,
+        a.createdAt
+      );
+  },
+
+  updateKnowledgeBase(
+    id: string,
+    patch: Partial<Pick<StoredKnowledgeBase, "name" | "desc" | "tags" | "semantic" | "qa" | "cite">>,
+    userId?: string | null
+  ): void {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT * FROM knowledge_bases WHERE id = ? AND ${scope.sql}`)
+      .get(id, ...scope.params) as Record<string, unknown> | undefined;
+    if (!row) return;
+    const cur = rowToKnowledgeBase(row);
+    const next = { ...cur, ...patch, updatedAt: Date.now() };
+    getDb()
+      .prepare(
+        `UPDATE knowledge_bases SET name=?, desc=?, tags=?, semantic=?, qa=?, cite=?, updatedAt=? WHERE id=?`
+      )
+      .run(
+        next.name,
+        next.desc,
+        JSON.stringify(next.tags),
+        next.semantic ? 1 : 0,
+        next.qa ? 1 : 0,
+        next.cite ? 1 : 0,
+        next.updatedAt,
+        id
+      );
+  },
+
+  deleteKnowledgeBase(id: string, userId?: string | null): void {
+    const db = getDb();
+    const scope = scopeCond(userId);
+    db.prepare(`DELETE FROM kb_documents WHERE kbId = ? AND ${scope.sql}`).run(id, ...scope.params);
+    db.prepare(`DELETE FROM knowledge_bases WHERE id = ? AND ${scope.sql}`).run(id, ...scope.params);
+  },
+
+  listKbDocuments(kbId: string, userId?: string | null): StoredDocument[] {
+    // 先校验知识库归属（含本地历史），防止跨租户枚举
+    if (!this.getKnowledgeBase(kbId, userId)) return [];
+    const rows = getDb()
+      .prepare(
+        `SELECT d.* FROM kb_documents k JOIN documents d ON d.id = k.documentId
+         WHERE k.kbId = ? ORDER BY k.createdAt DESC`
+      )
+      .all(kbId) as Record<string, unknown>[];
+    return rows.map(rowToDocument);
+  },
+
+  addKbDocument(kbId: string, documentId: string, userId?: string | null): boolean {
+    if (!this.getKnowledgeBase(kbId, userId)) return false;
+    const scope = scopeCond(userId);
+    const doc = getDb()
+      .prepare(`SELECT id FROM documents WHERE id = ? AND ${scope.sql}`)
+      .get(documentId, ...scope.params);
+    if (!doc) return false;
+    getDb()
+      .prepare("INSERT OR IGNORE INTO kb_documents (kbId, documentId, createdAt) VALUES (?, ?, ?)")
+      .run(kbId, documentId, Date.now());
+    return true;
+  },
+
+  removeKbDocument(kbId: string, documentId: string, userId?: string | null): void {
+    if (!this.getKnowledgeBase(kbId, userId)) return;
+    const scope = scopeCond(userId);
+    getDb()
+      .prepare(
+        `DELETE FROM kb_documents WHERE kbId = ? AND documentId = ? AND documentId IN (SELECT id FROM documents WHERE ${scope.sql})`
+      )
+      .run(kbId, documentId, ...scope.params);
+  },
+
+  // ---------------- 通知 ----------------
+
+  listNotifications(limit = 30, userId?: string | null): StoredNotification[] {
+    const scope = scopeCond(userId);
+    const rows = getDb()
+      .prepare(`SELECT * FROM notifications WHERE ${scope.sql} ORDER BY createdAt DESC LIMIT ?`)
+      .all(...scope.params, limit) as Record<string, unknown>[];
+    return rows.map(rowToNotification);
+  },
+
+  addNotification(n: {
+    type?: string;
+    title: string;
+    body?: string;
+    link?: string | null;
+    userId?: string | null;
+  }): StoredNotification {
+    const rec: StoredNotification = {
+      id: `n-${Date.now()}-${randomUUID().slice(0, 8)}`,
+      type: n.type ?? "info",
+      title: n.title,
+      body: n.body ?? "",
+      link: n.link ?? null,
+      read: false,
+      userId: n.userId ?? null,
+      createdAt: Date.now(),
+    };
+    getDb()
+      .prepare(
+        "INSERT INTO notifications (id, type, title, body, link, read, userId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      )
+      .run(rec.id, rec.type, rec.title, rec.body, rec.link, 0, rec.userId, rec.createdAt);
+    return rec;
+  },
+
+  markNotificationsRead(ids?: string[], userId?: string | null): void {
+    const db = getDb();
+    const scope = scopeCond(userId);
+    if (!ids || ids.length === 0) {
+      db.prepare(`UPDATE notifications SET read = 1 WHERE read = 0 AND ${scope.sql}`).run(...scope.params);
+      return;
+    }
+    const placeholders = ids.map(() => "?").join(",");
+    db.prepare(
+      `UPDATE notifications SET read = 1 WHERE id IN (${placeholders}) AND ${scope.sql}`
+    ).run(...ids, ...scope.params);
+  },
+
+  unreadCount(userId?: string | null): number {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT COUNT(*) AS n FROM notifications WHERE read = 0 AND ${scope.sql}`)
+      .get(...scope.params) as { n: number };
+    return row.n;
+  },
+
+  // ---------------- 积分 ----------------
+
+  creditBalance(userId?: string | null): number {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger WHERE ${scope.sql}`)
+      .get(...scope.params) as { n: number };
+    return row.n;
+  },
+
+  creditLedger(
+    limit = 50,
+    userId?: string | null
+  ): Array<{ id: string; delta: number; reason: string; ref: string | null; createdAt: number }> {
+    const scope = scopeCond(userId);
+    const rows = getDb()
+      .prepare(`SELECT * FROM credit_ledger WHERE ${scope.sql} ORDER BY createdAt DESC LIMIT ?`)
+      .all(...scope.params, limit) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: r.id as string,
+      delta: r.delta as number,
+      reason: (r.reason as string) ?? "",
+      ref: (r.ref as string | null) ?? null,
+      createdAt: r.createdAt as number,
+    }));
+  },
+
+  addCredits(delta: number, reason: string, ref?: string | null, userId?: string | null): void {
+    if (!delta) return;
+    getDb()
+      .prepare("INSERT INTO credit_ledger (id, delta, reason, ref, userId, createdAt) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(`c-${Date.now()}-${randomUUID().slice(0, 8)}`, delta, reason, ref ?? null, userId ?? null, Date.now());
+  },
+
+  /** 今日是否已签到（按身份精确判定：登录只看本人，未登录只看本地，避免本地+本人合并误判） */
+  checkedInToday(userId?: string | null): boolean {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const cond = userId ? "userId = ?" : "userId IS NULL";
+    const row = getDb()
+      .prepare(
+        `SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ? AND ${cond}`
+      )
+      .get("每日签到", start.getTime(), ...(userId ? [userId] : [])) as { n: number };
+    return row.n > 0;
+  },
+
+  /* ─────────────────────────── 账号（本地版） ─────────────────────────── */
+
+  createUser(u: {
+    id: string;
+    email: string;
+    name: string;
+    passwordHash: string;
+    provider?: string;
+    providerUserId?: string;
+  }): void {
+    getDb()
+      .prepare(
+        "INSERT INTO users (id, email, name, passwordHash, provider, providerUserId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      )
+      .run(u.id, u.email, u.name, u.passwordHash, u.provider ?? "", u.providerUserId ?? "", Date.now());
+  },
+
+  findUserByEmail(email: string): {
+    id: string;
+    email: string;
+    name: string;
+    passwordHash: string;
+    provider: string;
+    providerUserId: string;
+    createdAt: number;
+  } | null {
+    const r = getDb().prepare("SELECT * FROM users WHERE email = ?").get(email) as
+      | Record<string, unknown>
+      | undefined;
+    return r
+      ? {
+          id: r.id as string,
+          email: r.email as string,
+          name: r.name as string,
+          passwordHash: r.passwordHash as string,
+          provider: (r.provider as string) ?? "",
+          providerUserId: (r.providerUserId as string) ?? "",
+          createdAt: r.createdAt as number,
+        }
+      : null;
+  },
+
+  /** 按 OAuth 三方身份查找用户 */
+  findUserByProvider(provider: string, providerUserId: string): {
+    id: string;
+    email: string;
+    name: string;
+    provider: string;
+    providerUserId: string;
+    createdAt: number;
+  } | null {
+    const r = getDb()
+      .prepare("SELECT * FROM users WHERE provider = ? AND providerUserId = ?")
+      .get(provider, providerUserId) as Record<string, unknown> | undefined;
+    return r
+      ? {
+          id: r.id as string,
+          email: r.email as string,
+          name: r.name as string,
+          provider: (r.provider as string) ?? "",
+          providerUserId: (r.providerUserId as string) ?? "",
+          createdAt: r.createdAt as number,
+        }
+      : null;
+  },
+
+  /** 为已有本地账号绑定 OAuth 身份（邮箱相同即视为同一人） */
+  setUserProvider(userId: string, provider: string, providerUserId: string): void {
+    getDb()
+      .prepare("UPDATE users SET provider = ?, providerUserId = ? WHERE id = ?")
+      .run(provider, providerUserId, userId);
+  },
+
+  findUserById(id: string): { id: string; email: string; name: string; createdAt: number } | null {
+    const r = getDb().prepare("SELECT id, email, name, createdAt FROM users WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return r
+      ? { id: r.id as string, email: r.email as string, name: r.name as string, createdAt: r.createdAt as number }
+      : null;
+  },
+
+  createSession(token: string, userId: string, expiresAt: number): void {
+    getDb()
+      .prepare("INSERT INTO sessions (token, userId, createdAt, expiresAt) VALUES (?, ?, ?, ?)")
+      .run(token, userId, Date.now(), expiresAt);
+  },
+
+  findSessionUser(token: string): { id: string; email: string; name: string; createdAt: number } | null {
+    const db = getDb();
+    const r = db
+      .prepare("SELECT * FROM sessions WHERE token = ? AND expiresAt > ?")
+      .get(token, Date.now()) as Record<string, unknown> | undefined;
+    if (!r) return null;
+    const u = db
+      .prepare("SELECT id, email, name, createdAt FROM users WHERE id = ?")
+      .get(r.userId as string) as Record<string, unknown> | undefined;
+    return u
+      ? { id: u.id as string, email: u.email as string, name: u.name as string, createdAt: u.createdAt as number }
+      : null;
+  },
+
+  /** 删除账号：用户 + 会话（级联消息）+ 网关用量；积分账本为全局记录，不随删号变动 */
+  async deleteUserAccount(userId: string): Promise<void> {
+    const db = getDb();
+    // 显式删除会话（SQLite 靠 FK 级联，PostgreSQL 无 FK 时需显式，双端语义一致）
+    db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM kb_documents WHERE kbId IN (SELECT id FROM knowledge_bases WHERE userId = ?)").run(userId);
+    db.prepare("DELETE FROM knowledge_bases WHERE userId = ?").run(userId);
+    // 文档对象文件一并清理（本地磁盘 / S3-R2 统一）
+    for (const d of db.prepare("SELECT filePath FROM documents WHERE userId = ?").all(userId) as {
+      filePath: string | null;
+    }[]) {
+      if (d.filePath) await deleteUploadFile(d.filePath);
+    }
+    db.prepare("DELETE FROM documents WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM notifications WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM credit_ledger WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM client_errors WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM conversations WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM gateway_usage WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  },
+
+  /** 账号数据导出（GDPR 风格）：资料 + 会话/消息 + 文档/知识库 + 积分 + 用量 */
+  getUserAccountExport(userId: string) {
+    const db = getDb();
+    const user = db.prepare("SELECT id, email, name, provider, createdAt FROM users WHERE id = ?").get(userId) as
+      | Record<string, unknown>
+      | undefined;
+    if (!user) return null;
+    const conversations = this.listConversations(undefined, userId).map((c) => ({
+      ...c,
+      messages: this.getMessages(c.id),
+    }));
+    const usage = db
+      .prepare(
+        `SELECT modelId, providerId, fallback, status, inputTokens, outputTokens, costUsd, credits, latencyMs, createdAt
+         FROM gateway_usage WHERE userId = ? ORDER BY createdAt DESC`
+      )
+      .all(userId);
+    const documents = this.listDocuments("", true, userId);
+    const knowledgeBases = this.listKnowledgeBases(userId);
+    const notifications = this.listNotifications(200, userId);
+    const credits = this.creditLedger(1000, userId);
+    return {
+      app: "opencanvas",
+      schema: "account-export-v1",
+      exportedAt: new Date().toISOString(),
+      account: { id: user.id, email: user.email, name: user.name, provider: user.provider, createdAt: user.createdAt },
+      conversations,
+      gatewayUsage: usage,
+      documents,
+      knowledgeBases,
+      notifications,
+      credits: { balance: this.creditBalance(userId), ledger: credits },
+      note: "模板市场/内置智能体/分享码为全局共享数据，不属于个人账号数据。",
+    };
+  },
+
+  deleteSession(token: string): void {
+    getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
   },
 };
 
@@ -253,6 +1169,256 @@ export function createCaseShare(rec: Omit<CaseShareRecord, "code">): string {
   return code;
 }
 
+/* ---------------- 可观测性：客户端错误 & 运行诊断 ---------------- */
+
+export interface ClientErrorInput {
+  message: string;
+  source?: string;
+  stack?: string;
+  url?: string;
+  userAgent?: string;
+  userId?: string | null;
+}
+
+export function logClientError(r: ClientErrorInput): void {
+  getDb()
+    .prepare(
+      `INSERT INTO client_errors (id, message, source, stack, url, userAgent, userId, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      randomUUID(),
+      (r.message ?? "").slice(0, 2000),
+      (r.source ?? "").slice(0, 100),
+      (r.stack ?? "").slice(0, 6000),
+      (r.url ?? "").slice(0, 500),
+      (r.userAgent ?? "").slice(0, 300),
+      r.userId ?? null,
+      Date.now()
+    );
+}
+
+export interface ClientErrorStats {
+  total: number;
+  last24h: number;
+  top: { message: string; count: number }[];
+  recent: { message: string; source: string; url: string; createdAt: number }[];
+}
+
+export function getClientErrorStats(): ClientErrorStats {
+  const db = getDb();
+  const total = (db.prepare("SELECT COUNT(*) AS n FROM client_errors").get() as { n: number }).n;
+  const last24h = (
+    db.prepare("SELECT COUNT(*) AS n FROM client_errors WHERE createdAt >= ?").get(Date.now() - 86_400_000) as {
+      n: number;
+    }
+  ).n;
+  const top = db
+    .prepare(
+      `SELECT message, COUNT(*) AS count FROM client_errors
+       GROUP BY message ORDER BY count DESC LIMIT 5`
+    )
+    .all() as { message: string; count: number }[];
+  const recent = db
+    .prepare(
+      `SELECT message, source, url, createdAt FROM client_errors ORDER BY createdAt DESC LIMIT 5`
+    )
+    .all() as { message: string; source: string; url: string; createdAt: number }[];
+  return { total, last24h, top, recent };
+}
+
+/* ---------------- 网关用量 & 成本 ---------------- */
+
+export interface GatewayUsageInput {
+  userId?: string | null;
+  sessionId?: string | null;
+  modelId: string;
+  providerId: string;
+  fallback?: boolean;
+  status?: "success" | "error";
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  credits?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface GatewayStatsPoint {
+  date: string; // YYYY-MM-DD
+  calls: number;
+  errors: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  credits: number;
+}
+
+export interface GatewayStats {
+  /** 今日 */
+  today: GatewayStatsPoint;
+  /** 近 7 天（含今日） */
+  week: GatewayStatsPoint[];
+  totals: GatewayStatsPoint;
+  /** 按模型聚合（近 7 天，按成本降序） */
+  byModel: { modelId: string; providerId: string; calls: number; costUsd: number; credits: number }[];
+  latest: { modelId: string; providerId: string; status: string; costUsd: number; createdAt: number }[];
+}
+
+export function logGatewayUsage(r: GatewayUsageInput): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO gateway_usage (id, userId, sessionId, modelId, providerId, fallback, status, inputTokens, outputTokens, costUsd, credits, latencyMs, error, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    randomUUID(),
+    r.userId ?? null,
+    r.sessionId ?? null,
+    r.modelId,
+    r.providerId,
+    r.fallback ? 1 : 0,
+    r.status ?? "success",
+    r.inputTokens ?? 0,
+    r.outputTokens ?? 0,
+    r.costUsd ?? 0,
+    r.credits ?? 0,
+    r.latencyMs ?? 0,
+    (r.error ?? "").slice(0, 500),
+    Date.now()
+  );
+}
+
+function toStatsPoint(rows: { date?: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[]): GatewayStatsPoint {
+  const out: GatewayStatsPoint = {
+    date: rows[0]?.date ?? "",
+    calls: 0,
+    errors: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    credits: 0,
+  };
+  for (const r of rows) {
+    out.calls += r.calls;
+    out.errors += r.errors;
+    out.inputTokens += r.inputTokens;
+    out.outputTokens += r.outputTokens;
+    out.costUsd += r.costUsd;
+    out.credits += r.credits;
+  }
+  return out;
+}
+
+const dateKey = (ts: number) => new Date(ts).toISOString().slice(0, 10);
+const dayStart = (ts: number) => {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+/** 用量统计：scope=null 当前显式 userId；scope="all" 全局（仅管理端调用） */
+export function getGatewayStats(userId: string | null, scopeAll = false): GatewayStats {
+  const db = getDb();
+  const where = scopeAll ? "" : userId ? "WHERE userId = ?" : "WHERE userId IS NULL";
+  const params = scopeAll ? [] : userId ? [userId] : [];
+
+  const today0 = dayStart(Date.now());
+  const todayRows = db
+    .prepare(
+      `SELECT COUNT(*) AS calls,
+              SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errors,
+              COALESCE(SUM(inputTokens),0) AS inputTokens,
+              COALESCE(SUM(outputTokens),0) AS outputTokens,
+              COALESCE(SUM(costUsd),0) AS costUsd,
+              COALESCE(SUM(credits),0) AS credits
+       FROM gateway_usage ${where} AND createdAt >= ?`
+    )
+    .all(...params, today0) as unknown as { calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[];
+  const today = { ...toStatsPoint(todayRows), date: dateKey(today0) };
+
+  // 近 7 天逐日
+  const week0 = today0 - 6 * 86_400_000;
+  const weekRows = db
+    .prepare(
+      `SELECT date(createdAt/1000, 'unixepoch') AS date,
+              COUNT(*) AS calls,
+              SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errors,
+              COALESCE(SUM(inputTokens),0) AS inputTokens,
+              COALESCE(SUM(outputTokens),0) AS outputTokens,
+              COALESCE(SUM(costUsd),0) AS costUsd,
+              COALESCE(SUM(credits),0) AS credits
+       FROM gateway_usage ${where} AND createdAt >= ?
+       GROUP BY date ORDER BY date`
+    )
+    .all(...params, week0) as unknown as { date: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[];
+  const byDay = new Map(weekRows.map((r) => [r.date, r]));
+  const week: GatewayStatsPoint[] = [];
+  for (let i = 0; i < 7; i++) {
+    const t = week0 + i * 86_400_000;
+    const k = dateKey(t);
+    const row = byDay.get(k);
+    week.push({ date: k, calls: row?.calls ?? 0, errors: row?.errors ?? 0, inputTokens: row?.inputTokens ?? 0, outputTokens: row?.outputTokens ?? 0, costUsd: row?.costUsd ?? 0, credits: row?.credits ?? 0 });
+  }
+
+  const totals = { ...toStatsPoint(weekRows), date: week[0]?.date ?? "" };
+
+  const byModel = db
+    .prepare(
+      `SELECT modelId, providerId,
+              COUNT(*) AS calls,
+              COALESCE(SUM(costUsd),0) AS costUsd,
+              COALESCE(SUM(credits),0) AS credits
+       FROM gateway_usage ${where} AND createdAt >= ?
+       GROUP BY modelId, providerId ORDER BY costUsd DESC LIMIT 8`
+    )
+    .all(...params, week0) as unknown as { modelId: string; providerId: string; calls: number; costUsd: number; credits: number }[];
+
+  const latest = db
+    .prepare(
+      `SELECT modelId, providerId, status, costUsd, createdAt
+       FROM gateway_usage ${where}
+       ORDER BY createdAt DESC LIMIT 5`
+    )
+    .all(...params) as unknown as { modelId: string; providerId: string; status: string; costUsd: number; createdAt: number }[];
+
+  return { today, week, totals, byModel, latest };
+}
+
+/** 产物分享（只读公开页：PPT / 文档 / 图片 / 研究报告） */
+export type ArtifactShareKind = "slides" | "docs" | "image" | "report";
+
+export interface ArtifactShareRecord {
+  code: string;
+  kind: ArtifactShareKind;
+  data: Record<string, unknown>;
+  createdAt: number;
+}
+
+export function createArtifactShare(kind: ArtifactShareKind, data: Record<string, unknown>): string {
+  const db = getDb();
+  const code = randomUUID().replace(/-/g, "").slice(0, 12);
+  db.prepare("INSERT INTO artifact_shares (code, kind, data, createdAt) VALUES (?, ?, ?, ?)").run(
+    code,
+    kind,
+    JSON.stringify(data),
+    Date.now()
+  );
+  return code;
+}
+
+export function getArtifactShare(code: string): ArtifactShareRecord | null {
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM artifact_shares WHERE code = ?").get(code) as
+    | { kind: string; data: string; createdAt: number }
+    | undefined;
+  if (!row) return null;
+  try {
+    return { code, kind: row.kind as ArtifactShareKind, data: JSON.parse(row.data) as Record<string, unknown>, createdAt: row.createdAt };
+  } catch {
+    return null;
+  }
+}
+
 export function getCaseShare(code: string): CaseShareRecord | null {
   const db = getDb();
   const row = db.prepare("SELECT data FROM case_shares WHERE code = ?").get(code) as
@@ -264,6 +1430,18 @@ export function getCaseShare(code: string): CaseShareRecord | null {
   } catch {
     return null;
   }
+}
+
+/** 全部公开分享码（SEO sitemap 用）：产物 / 案例 / 共享智能体 / 共享模板 */
+export function listShareCodes(): { code: string; kind: string; updatedAt: number }[] {
+  const db = getDb();
+  const rows = [
+    ...db.prepare("SELECT code, 'artifact' AS kind, createdAt AS updatedAt FROM artifact_shares").all(),
+    ...db.prepare("SELECT code, 'case' AS kind, createdAt AS updatedAt FROM case_shares").all(),
+    ...db.prepare("SELECT shareCode AS code, 'agent' AS kind, updatedAt FROM agents WHERE shared = 1 AND shareCode IS NOT NULL").all(),
+    ...db.prepare("SELECT shareCode AS code, 'template' AS kind, updatedAt FROM prompt_templates WHERE shared = 1 AND shareCode IS NOT NULL").all(),
+  ] as { code: string; kind: string; updatedAt: number }[];
+  return rows.filter((r) => r.code);
 }
 
 /* ---------------- 会员 & 订单 ---------------- */

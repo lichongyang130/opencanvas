@@ -1,4 +1,4 @@
-import type { SlideDeck, ThemeId } from "./types";
+import type { SlideDeck, SlideOutline, ThemeId } from "./types";
 
 /** 演示模型（无密钥）时返回的示例 PPT，让 PPT 功能零配置可体验 */
 export function buildSampleDeck(topic: string, theme: ThemeId = "violet"): SlideDeck {
@@ -92,4 +92,38 @@ export function buildSampleDeck(topic: string, theme: ThemeId = "violet"): Slide
       },
     ],
   };
+}
+
+/** 演示路径：由示例 PPT 生成一份大纲，让「大纲先行」零配置可体验 */
+export function buildSampleOutline(topic: string): SlideOutline {
+  const t = topic.trim() || "AI 智能体工作空间产品发布";
+  return {
+    title: t,
+    sections: [
+      { title: "行业背景", bullets: ["AI 创作需求爆发", "工具分散割裂", "迫切需要一站式方案"] },
+      { title: "市场机会", bullets: ["目标用户规模", "市场规模与增速", "切入时机与差异化"] },
+      { title: "产品方案", bullets: ["对话即成品", "研究/PPT/图/文档联动", "品牌资产一致"] },
+      { title: "核心能力", bullets: ["深度研究", "一键 PPT", "图片与多模态创作"] },
+      { title: "技术底座", bullets: ["统一模型网关", "Agent 编排", "积分计费透明"] },
+      { title: "总结与行动", bullets: ["价值总结", "近期里程碑", "下一步行动"] },
+    ],
+  };
+}
+
+/** 演示路径：把已确认大纲映射到示例 PPT（保留版式与示例内容，替换标题/要点） */
+export function applyOutlineToSample(deck: SlideDeck, outline: SlideOutline): SlideDeck {
+  const sections = outline.sections;
+  const slides = deck.slides.map((s, i) => {
+    // cover/toc/end 保留；内容页按大纲顺序填充
+    if (s.layout === "cover" || s.layout === "toc" || s.layout === "end") return s;
+    const idx = Math.min(i - 2, sections.length - 1);
+    const sec = sections[Math.max(0, idx)];
+    if (!sec) return s;
+    return {
+      ...s,
+      title: sec.title,
+      bullets: sec.bullets.length > 0 ? sec.bullets : s.bullets,
+    };
+  });
+  return { ...deck, title: outline.title, slides };
 }

@@ -5,6 +5,7 @@ import { X, Package, Loader2, Check, FileText, MessageSquare, Presentation, Imag
 import { ASSET_PACKS } from "@/lib/packs";
 import { useChatStore } from "@/lib/store/chat";
 import type { WorkspaceMode } from "@/lib/store/chat";
+import { useI18n } from "@/lib/i18n";
 
 const MODE_ICON: Record<WorkspaceMode, typeof MessageSquare> = {
   chat: MessageSquare,
@@ -16,6 +17,7 @@ const MODE_ICON: Record<WorkspaceMode, typeof MessageSquare> = {
 };
 
 export function PacksModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { tt } = useI18n();
   const [packId, setPackId] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
   const [running, setRunning] = useState(false);
@@ -47,8 +49,8 @@ export function PacksModal({ open, onClose }: { open: boolean; onClose: () => vo
           <div className="flex items-center gap-2">
             <Package className="h-5 w-5 text-brand-600" />
             <div>
-              <div className="text-sm font-semibold">一键素材包</div>
-              <div className="text-xs text-stone-400">一个主题，自动产出整套素材（文档 + 文案 + PPT + 配图）</div>
+              <div className="text-sm font-semibold">{tt("一键素材包")}</div>
+              <div className="text-xs text-stone-400">{tt("一个主题，自动产出整套素材（文档 + 文案 + PPT + 配图）")}</div>
             </div>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600">
@@ -112,13 +114,13 @@ export function PacksModal({ open, onClose }: { open: boolean; onClose: () => vo
                 );
               })}
             </div>
-            <label className="mb-1.5 block text-xs font-medium text-stone-500">你的主题 / 产品名</label>
+            <label className="mb-1.5 block text-xs font-medium text-stone-500">{tt("你的主题 / 产品名")}</label>
             <input
               autoFocus
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void start()}
-              placeholder="例如：一款面向自由职业者的 AI 记账 App"
+              placeholder={tt("例如：一款面向自由职业者的 AI 记账 App")}
               className="w-full rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-400"
             />
             <button

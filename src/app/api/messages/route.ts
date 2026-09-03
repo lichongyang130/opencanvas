@@ -11,6 +11,7 @@ export async function POST(req: Request) {
     role?: string;
     content?: string;
     error?: boolean;
+    refs?: unknown;
   };
   if (!body.id || !body.conversationId || !body.role || body.content === undefined) {
     return Response.json({ error: "参数不完整" }, { status: 400 });
@@ -21,6 +22,19 @@ export async function POST(req: Request) {
     role: body.role,
     content: body.content,
     error: body.error ?? false,
+    refs: body.refs ?? null,
   });
+  return Response.json({ ok: true });
+}
+
+/** 删除消息：DELETE /api/messages?conversationId=..&ids=a,b（重新生成/编辑重发用） */
+export async function DELETE(req: Request) {
+  const url = new URL(req.url);
+  const conversationId = url.searchParams.get("conversationId");
+  const ids = (url.searchParams.get("ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!conversationId || ids.length === 0) {
+    return Response.json({ error: "参数不完整" }, { status: 400 });
+  }
+  repo.deleteMessages(conversationId, ids);
   return Response.json({ ok: true });
 }

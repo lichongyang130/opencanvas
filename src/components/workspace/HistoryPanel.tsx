@@ -14,6 +14,7 @@ import {
 import { useChatStore, MODE_LABELS, type WorkspaceMode } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 const MODE_ICONS: Record<WorkspaceMode, typeof MessageSquare> = {
   chat: MessageSquare,
@@ -35,8 +36,9 @@ function formatTime(ts: number) {
 }
 
 /** 会话历史面板：搜索 + 列表 + 升级方案（对应 04 三栏工作台左栏） */
-export function HistoryPanel() {
-  const { conversations, activeId, selectConversation, newConversation } = useChatStore();
+export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
+  const { tt } = useI18n();
+  const { conversations, activeId, selectConversation, newConversation, historyLimit } = useChatStore();
   const [query, setQuery] = useState("");
 
   const list = useMemo(() => {
@@ -44,21 +46,21 @@ export function HistoryPanel() {
     return conversations
       .filter((c) => !c.archived)
       .filter((c) => !q || c.title.toLowerCase().includes(q))
-      .slice(0, 50);
-  }, [conversations, query]);
+      .slice(0, historyLimit);
+  }, [conversations, query, historyLimit]);
 
   const startNew = () => {
-    void newConversation("chat").then((id) => selectConversation(id));
+    void newConversation().then((id) => selectConversation(id)); onNavigate?.();
   };
 
   return (
-    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-[#e8ddca] bg-[#fbf7ef] md:flex">
+    <aside className="hidden w-[248px] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-[var(--oc-bg)] md:flex">
       {/* 标题 */}
       <div className="flex items-center justify-between px-4 pb-1 pt-4">
-        <h2 className="text-[15px] font-semibold text-stone-800">对话历史</h2>
+        <h2 className="text-[15px] font-semibold text-stone-800">{tt("对话历史")}</h2>
         <button
           onClick={startNew}
-          title="新建对话"
+          title={tt("新建对话")}
           className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
         >
           <Sparkles className="h-4 w-4" />
@@ -72,62 +74,89 @@ export function HistoryPanel() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索"
+            placeholder={tt("搜索")}
             className="w-full bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-400"
           />
         </div>
       </div>
 
-      {/* 列表 */}
+      {/* 列表（按时间分组：今天 / 昨天 / 7 天内 / 更早） */}
       <div className="flex-1 space-y-0.5 overflow-y-auto px-3 py-1">
         {list.length === 0 && (
           <p className="px-2 py-4 text-center text-xs text-stone-400">
-            {query ? "没有匹配的对话" : "暂无历史对话"}
+            {query ? tt("没有匹配的对话") : tt("暂无历史对话")}
           </p>
         )}
-        {list.map((c) => {
-          const Icon = MODE_ICONS[c.mode] ?? MessageSquare;
-          const active = c.id === activeId;
-          return (
-            <button
-              key={c.id}
-              onClick={() => void selectConversation(c.id)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition",
-                active
-                  ? "border border-orange-200 bg-orange-50"
-                  : "border border-transparent hover:bg-white hover:shadow-sm"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                  active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-500"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-stone-700">
-                  {c.title}
-                </span>
-                <span className="mt-0.5 block text-[11px] text-stone-400">
-                  {MODE_LABELS[c.mode]}
-                </span>
-              </span>
-              <span className="shrink-0 text-[11px] text-stone-400">
-                {formatTime(c.createdAt)}
-              </span>
-            </button>
-          );
-        })}
+        {(() => {
+          const now = new Date();
+          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          const groups: { label: string; items: typeof list }[] = [
+            { label: tt("今天"), items: [] },
+            { label: tt("昨天"), items: [] },
+            { label: tt("7 天内"), items: [] },
+            { label: tt("更早"), items: [] },
+          ];
+          for (const c of list) {
+            const t = c.createdAt;
+            if (t >= startOfDay) groups[0].items.push(c);
+            else if (t >= startOfDay - 86_400_000) groups[1].items.push(c);
+            else if (t >= startOfDay - 7 * 86_400_000) groups[2].items.push(c);
+            else groups[3].items.push(c);
+          }
+          const rows: React.ReactNode[] = [];
+          for (const g of groups) {
+            if (g.items.length === 0) continue;
+            rows.push(
+              <p key={g.label} className="px-2 pb-0.5 pt-2.5 text-[10.5px] font-medium uppercase tracking-wide text-stone-400">
+                {g.label}
+              </p>
+            );
+            for (const c of g.items) {
+              const Icon = MODE_ICONS[c.mode] ?? MessageSquare;
+              const active = c.id === activeId;
+              rows.push(
+                <button
+                  key={c.id}
+                  onClick={() => { void selectConversation(c.id); onNavigate?.(); }}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition",
+                    active
+                      ? "border border-orange-200 bg-orange-50"
+                      : "border border-transparent hover:bg-white hover:shadow-sm"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                      active ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-500"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium text-stone-700">
+                      {c.title}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-stone-400">
+                      {MODE_LABELS[c.mode]}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-stone-400">
+                    {formatTime(c.createdAt)}
+                  </span>
+                </button>
+              );
+            }
+          }
+          return rows;
+        })()}
       </div>
 
       {/* 升级方案 */}
       <div className="border-t border-[#eee4d3] p-3">
         <button
-          onClick={() => toast("专业版即将上线，敬请期待", "info")}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e3d8c6] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-brand-600"
+          onClick={() => toast(tt("专业版即将上线，敬请期待"), "info")}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oc-border-strong)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-brand-600"
         >
           <Sparkles className="h-4 w-4 text-orange-500" />
           升级方案
