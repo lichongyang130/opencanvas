@@ -2,6 +2,25 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第二十二轮：AI 视频生成（B 类功能 mock 交付 · 演示引擎零凭据可用）
+
+**视频工作台（复用图像网关模式，前后端全链路真实）**
+- `src/lib/gateway/video/`：types（VideoAdapter/结果/模型元数据）→ `gif.ts`（纯 Node 零依赖 GIF89a 编码器）→ `demo-video.ts`（提示词散列配色 + 16 帧程序化动画：对角渐变/三光斑/扫描线，256 色索引帧直接编码）→ `index.ts`（模型清单：demo-video / FAL Kling / 万相 wanx2.1，适配器骨架+状态）
+- `/tools/video`：描述输入/4 条预设/生成进度条/预览循环播放/下载 GIF/引擎状态面板（可用/待接入角标）
+- `POST /api/video`：审核（复用 checkText）→ 生成 → `gateway_usage` 归属记账（demo 免费，真实模型按 credits 扣）；`GET /api/video/status` 返回供应商与模型
+- 工具中心新增「AI 视频生成」入口（25 个工具）
+
+**GIF 编码器两个关键修复（独立解码器 + ImageMagick 双层验证）**
+- LZW 码宽 off-by-one：GIF 解码器表滞后编码器一条目，升位须在 `next == 2^codeSize + 1`（而非 `2^codeSize`），否则大图在第 2 个字典边界后错位、尾帧裁断/色表越界
+- 调色板统计越界读（末像素寄生色）修正；>256 色 RGB 帧截断问题改为「256 色参数化调色板（16 色相 × 16 亮度）+ 索引帧」直接编码，动画色彩零失真
+
+**验证**
+- `scripts/e2e-video.mjs`：7/7（health→status→匿名生成(GIF 字节校验 480×270)→注册→登录态生成→scope=me 用量归属→审核 400→删号）
+- 独立 LZW 解码器逐帧校验 16 帧 ×129,600 索引全等；ImageMagick `identify -verbose` 全通过
+- `next build` 0 error（新增 /api/video、/api/video/status、/tools/video）；tsc=0、eslint=0
+
+**边界**：真实文生视频（FAL/万相）需 Key，适配器骨架与模型信息已就位，前端自动复用同一计费通道。
+
 ## 2026-09-03 · 第二十一轮：生产部署验证（build + start 回归，在线预览）
 
 - `next build` 0 error（48 API + 12 页）→ `next start`（0.0.0.0:3008）生产回归全 200
