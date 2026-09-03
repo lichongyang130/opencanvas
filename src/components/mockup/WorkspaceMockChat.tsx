@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ShellSidebar } from "./ShellSidebar";
 import { Markdown } from "@/components/workspace/Markdown";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
+import { ArtifactPanel } from "@/components/workspace/ArtifactPanel";
 import { SettingsModal } from "@/components/workspace/SettingsModal";
 import { useChatStore, type UIMessage } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
@@ -144,8 +145,12 @@ export default function WorkspaceMockChat() {
     setModel,
     settingsOpen,
     setSettingsOpen,
+    artifactOpen,
+    setArtifactOpen,
   } = useChatStore();
   const [input, setInput] = useState("");
+  /** AI 创作画布显隐（默认收起，完全由顶栏的四个小方块控制） */
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const convo = conversations.find((c) => c.id === activeId);
   const messages = convo?.messages ?? [];
@@ -160,6 +165,17 @@ export default function WorkspaceMockChat() {
     if (!el || !sending) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [lastContent, sending]);
+
+  // 画布内部点「关闭」时（store 被置为 false）同步收起
+  useEffect(() => {
+    if (!artifactOpen) setCanvasOpen(false);
+  }, [artifactOpen]);
+
+  const toggleCanvas = () => {
+    const next = !canvasOpen;
+    setCanvasOpen(next);
+    setArtifactOpen(next);
+  };
 
   const startNew = () => {
     void newConversation("chat").then((id) => selectConversation(id));
@@ -206,9 +222,14 @@ export default function WorkspaceMockChat() {
               <Settings className="h-[18px] w-[18px]" />
             </button>
             <button
-              onClick={() => router.push("/apps")}
-              title="更多应用"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+              onClick={toggleCanvas}
+              title={canvasOpen ? "隐藏 AI 画布" : "显示 AI 画布"}
+              aria-pressed={canvasOpen}
+              className={
+                canvasOpen
+                  ? "flex h-9 w-9 items-center justify-center rounded-lg bg-[#fdeee1] text-[#c05f3c] transition hover:bg-[#fbe3d2]"
+                  : "flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+              }
             >
               <LayoutGrid className="h-[18px] w-[18px]" />
             </button>
@@ -221,116 +242,124 @@ export default function WorkspaceMockChat() {
           </div>
         </header>
 
-        {/* 对话流 */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-10 py-6">
-          <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-7">
-            {messages.length === 0 ? (
-              <>
-                {/* 欢迎 */}
-                <AIBubble
-                  msg={{
-                    id: `welcome-0`,
-                    role: "assistant",
-                    content: "你好，Alex! 👋\n\n我是你的 AI 助手，有什么可以帮你的吗？你可以问我任何问题，或者让我帮你完成各种任务。",
-                  }}
-                />
-              </>
-            ) : (
-              messages.map((m) =>
-                m.role === "user" ? <UserBubble key={m.id} msg={m} /> : <AIBubble key={m.id} msg={m} />
-              )
-            )}
-            {sending && messages[messages.length - 1]?.role !== "assistant" && (
-              <div className="flex items-start gap-3">
-                <AILogo />
-                <div className="rounded-xl rounded-tl-sm border border-[#e9e4d9] bg-white px-4 py-3 text-[14px] text-stone-400 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-                  正在思考…
-                </div>
+        {/* 对话区 + AI 创作画布 */}
+        <div className="relative flex min-h-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {/* 对话流 */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-10 py-6">
+              <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-7">
+                {messages.length === 0 ? (
+                  <>
+                    {/* 欢迎 */}
+                    <AIBubble
+                      msg={{
+                        id: `welcome-0`,
+                        role: "assistant",
+                        content: "你好，Alex! 👋\n\n我是你的 AI 助手，有什么可以帮你的吗？你可以问我任何问题，或者让我帮你完成各种任务。",
+                      }}
+                    />
+                  </>
+                ) : (
+                  messages.map((m) =>
+                    m.role === "user" ? <UserBubble key={m.id} msg={m} /> : <AIBubble key={m.id} msg={m} />
+                  )
+                )}
+                {sending && messages[messages.length - 1]?.role !== "assistant" && (
+                  <div className="flex items-start gap-3">
+                    <AILogo />
+                    <div className="rounded-xl rounded-tl-sm border border-[#e9e4d9] bg-white px-4 py-3 text-[14px] text-stone-400 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      正在思考…
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* 快捷建议 + 输入舱 */}
-        <div className="shrink-0 px-10 pb-6">
-          <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-4">
-            {/* 快捷建议 */}
-            <div className="flex flex-wrap items-center gap-2">
-              {QUICK_SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setInput(s)}
-                  className="rounded-full border border-[#ece6db] bg-white px-3.5 py-1.5 text-[12.5px] text-stone-500 shadow-sm transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
-                >
-                  {s}
-                </button>
-              ))}
-              <button className="ml-1 flex items-center gap-1 rounded-full px-2 py-1.5 text-[12px] text-stone-400 transition hover:text-[#c05f3c]">
-                换一批 <RefreshCw className="h-3.5 w-3.5" />
-              </button>
             </div>
 
-            {/* 输入舱 */}
-            <div className="rounded-2xl border border-[#ece6db] bg-white p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)]">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                rows={2}
-                placeholder="输入你的问题或需求，按 Enter 发送，Shift + Enter 换行"
-                className="w-full resize-none bg-transparent text-[14px] leading-7 text-stone-800 outline-none placeholder:text-stone-400"
-              />
-              <div className="mt-1 flex items-center justify-between">
+            {/* 快捷建议 + 输入舱 */}
+            <div className="shrink-0 px-10 pb-6">
+              <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-4">
+                {/* 快捷建议 */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
-                    <BrainCircuit className="h-4 w-4" /> 深度思考 <ChevronDown className="h-3 w-3 text-stone-400" />
-                  </button>
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
-                    <Globe className="h-4 w-4" /> 联网搜索
-                  </button>
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
-                    <FileText className="h-4 w-4" /> 上传文件
-                  </button>
-                  <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
-                    <Bot className="h-4 w-4" /> 选择智能体
+                  {QUICK_SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setInput(s)}
+                      className="rounded-full border border-[#ece6db] bg-white px-3.5 py-1.5 text-[12.5px] text-stone-500 shadow-sm transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                  <button className="ml-1 flex items-center gap-1 rounded-full px-2 py-1.5 text-[12px] text-stone-400 transition hover:text-[#c05f3c]">
+                    换一批 <RefreshCw className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <ModelSelector
-                    value={model}
-                    onChange={(id, provider) => setModel(id, provider)}
+
+                {/* 输入舱 */}
+                <div className="rounded-2xl border border-[#ece6db] bg-white p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)]">
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    rows={2}
+                    placeholder="输入你的问题或需求，按 Enter 发送，Shift + Enter 换行"
+                    className="w-full resize-none bg-transparent text-[14px] leading-7 text-stone-800 outline-none placeholder:text-stone-400"
                   />
-                  <button
-                    onClick={() => router.push("/settings")}
-                    title="设置中心（模型密钥 / 备份）"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100"
-                  >
-                    <Settings className="h-[18px] w-[18px]" />
-                  </button>
-                  {sending ? (
-                    <button
-                      onClick={stopGeneration}
-                      className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-700 text-white shadow-md transition hover:bg-stone-800"
-                    >
-                      <span className="block h-3.5 w-3.5 rounded-sm bg-white" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={sendMessage}
-                      className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-md shadow-orange-200 transition hover:brightness-105 active:scale-95"
-                    >
-                      <ArrowUp className="h-5 w-5" strokeWidth={2.4} />
-                    </button>
-                  )}
+                  <div className="mt-1 flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                        <BrainCircuit className="h-4 w-4" /> 深度思考 <ChevronDown className="h-3 w-3 text-stone-400" />
+                      </button>
+                      <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                        <Globe className="h-4 w-4" /> 联网搜索
+                      </button>
+                      <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                        <FileText className="h-4 w-4" /> 上传文件
+                      </button>
+                      <button className="flex items-center gap-1.5 rounded-full border border-[#ece6db] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]">
+                        <Bot className="h-4 w-4" /> 选择智能体
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ModelSelector
+                        value={model}
+                        onChange={(id, provider) => setModel(id, provider)}
+                      />
+                      <button
+                        onClick={() => router.push("/settings")}
+                        title="设置中心（模型密钥 / 备份）"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100"
+                      >
+                        <Settings className="h-[18px] w-[18px]" />
+                      </button>
+                      {sending ? (
+                        <button
+                          onClick={stopGeneration}
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-700 text-white shadow-md transition hover:bg-stone-800"
+                        >
+                          <span className="block h-3.5 w-3.5 rounded-sm bg-white" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={sendMessage}
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-md shadow-orange-200 transition hover:brightness-105 active:scale-95"
+                        >
+                          <ArrowUp className="h-5 w-5" strokeWidth={2.4} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* AI 创作画布：点顶栏四个小方块显示 / 隐藏 */}
+          {canvasOpen && <ArtifactPanel />}
         </div>
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
