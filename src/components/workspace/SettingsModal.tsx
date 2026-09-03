@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
+  BarChart3,
   Check,
   ChevronDown,
   ClipboardList,
@@ -953,6 +955,26 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                       <code className="rounded bg-white px-1 py-0.5 text-[10px]">OAUTH_REDIRECT_BASE</code>。
                     </div>
                   </SectionCard>
+
+                  {/* 网关增强：降级 / 多 Key / 限流 */}
+                  <SectionCard
+                    icon={Zap}
+                    iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
+                    title="网关增强（降级 · 多 Key · 限流）"
+                    desc="服务端 .env 配置，保存后无需改代码"
+                  >
+                    <GatewayTuningCard />
+                  </SectionCard>
+
+                  {/* 用量与成本看板 */}
+                  <SectionCard
+                    icon={BarChart3}
+                    iconBg="bg-gradient-to-br from-sky-500 to-blue-600"
+                    title="用量与成本看板"
+                    desc="每次模型调用的 tokens / 成本 / 积分（网关自动记录）"
+                  >
+                    <GatewayStatsCard />
+                  </SectionCard>
                 </>
               )}
 
@@ -1624,5 +1646,249 @@ function ThemeCard() {
         </button>
       </div>
     </SectionCard>
+  );
+}
+
+/* ---------------- 网关增强 & 成本看板 ---------------- */
+
+interface GatewayConfig {
+  fallback: boolean;
+  rateLimitPerMin: number;
+  providers: Record<string, boolean>;
+  adminEnabled: boolean;
+}
+
+interface GatewayStatsResp {
+  scope: "me" | "all";
+  stats: {
+    today: { date: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number };
+    week: { date: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[];
+    totals: { date: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number };
+    byModel: { modelId: string; providerId: string; calls: number; costUsd: number; credits: number }[];
+    latest: { modelId: string; providerId: string; status: string; costUsd: number; createdAt: number }[];
+  };
+}
+
+function GatewayTuningCard() {
+  const [cfg, setCfg] = useState<GatewayConfig | null>(null);
+
+  useEffect(() => {
+    fetch("/api/gateway/config")
+      .then((r) => r.json())
+      .then((d: GatewayConfig) => setCfg(d))
+      .catch(() => setCfg(null));
+  }, []);
+
+  if (!cfg) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-stone-400">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> 读取网关配置…
+      </div>
+    );
+  }
+
+  const items = [
+    {
+      label: "跨供应商降级",
+      ok: cfg.fallback,
+      desc: cfg.fallback
+        ? "上游失败且未输出时，自动沿 fallback 链切换（如 GPT-4o mini → DeepSeek → Qwen）"
+        : "已关闭（GATEWAY_FALLBACK=0）",
+    },
+    {
+      label: "多 Key 轮询",
+      ok: Object.values(cfg.providers).some(Boolean),
+      desc: "环境变量 USE `OPENAI_API_KEYS=a,b,c` 逗号分隔即可自动轮换，401/429 自动换 key 重试",
+    },
+    {
+      label: "限流",
+      ok: cfg.rateLimitPerMin > 0,
+      desc:
+        cfg.rateLimitPerMin > 0
+          ? `${cfg.rateLimitPerMin} 次/分钟/用户（未登录按 IP）`
+          : "已关闭（GATEWAY_RATE_LIMIT=0）",
+    },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {items.map((it) => (
+        <div key={it.label} className="flex items-start justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/60 px-3.5 py-3">
+          <div className="min-w-0">
+            <p className="text-[12.5px] font-semibold text-stone-700">{it.label}</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-stone-400">{it.desc}</p>
+          </div>
+          <StatusPill
+            text={it.ok ? "已启用" : "已关闭"}
+            kind={it.ok ? "ok" : "fail"}
+            icon={it.ok ? <Check className="h-3 w-3" /> : undefined}
+          />
+        </div>
+      ))}
+      <pre className="overflow-x-auto rounded-lg bg-stone-900 px-3.5 py-3 text-[10.5px] leading-5 text-stone-300">
+{`GATEWAY_FALLBACK=1        # 自动降级（默认开）
+GATEWAY_RATE_LIMIT=60     # 限流：次/分钟/用户（0 关闭）
+OPENAI_API_KEYS=a,b,c     # 多 Key 轮询（各供应商同款 *_KEYS）
+GATEWAY_ADMIN_KEY=admin-xxx  # 成本看板「全局视角」密钥`}
+      </pre>
+    </div>
+  );
+}
+
+function GatewayStatsCard() {
+  const [stats, setStats] = useState<GatewayStatsResp | null>(null);
+  const [scope, setScope] = useState<"me" | "all">("me");
+  const [adminKey, setAdminKey] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async (s: "me" | "all" = scope, key = adminKey) => {
+    setBusy(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (s === "all" && key) headers["x-admin-key"] = key;
+      const r = await fetch(`/api/gateway/stats?scope=${s}`, { headers });
+      const j = (await r.json()) as GatewayStatsResp & { error?: string };
+      if (!r.ok) throw new Error(j.error ?? "加载失败");
+      setStats(j);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "加载用量失败", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void load("me", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fmtUsd = (v: number) => `$${v.toFixed(4)}`;
+  const weekMax = Math.max(1, ...(stats?.stats.week.map((d) => d.calls) ?? [1]));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => { setScope("me"); void load("me", adminKey); }}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[11px] transition",
+              scope === "me" ? "border-sky-300 bg-sky-50 text-sky-700" : "border-stone-200 text-stone-400 hover:border-stone-300"
+            )}
+          >
+            我的用量
+          </button>
+          <button
+            onClick={() => { setScope("all"); void load("all", adminKey); }}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[11px] transition",
+              scope === "all" ? "border-sky-300 bg-sky-50 text-sky-700" : "border-stone-200 text-stone-400 hover:border-stone-300"
+            )}
+          >
+            全局视角
+          </button>
+          {scope === "all" && (
+            <input
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              placeholder="GATEWAY_ADMIN_KEY"
+              className="w-36 rounded-lg border border-stone-200 px-2 py-1 text-[11px] outline-none focus:border-sky-300"
+            />
+          )}
+        </div>
+        <button
+          onClick={() => void load(scope, adminKey)}
+          disabled={busy}
+          className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-[11px] text-stone-500 transition hover:border-sky-300 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} 刷新
+        </button>
+      </div>
+
+      {!stats ? (
+        <div className="flex items-center gap-2 py-6 text-xs text-stone-400">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> 加载用量数据…
+        </div>
+      ) : (
+        <>
+          {/* 今日概览 */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: "今日调用", value: String(stats.stats.today.calls) },
+              { label: "今日成本", value: fmtUsd(stats.stats.today.costUsd) },
+              { label: "今日积分", value: String(stats.stats.today.credits) },
+              {
+                label: "7 天成本",
+                value: fmtUsd(stats.stats.totals.costUsd),
+              },
+            ].map((x) => (
+              <div key={x.label} className="rounded-xl border border-stone-100 bg-white px-3 py-2.5">
+                <p className="text-[10px] text-stone-400">{x.label}</p>
+                <p className="mt-0.5 text-[15px] font-semibold text-stone-700">{x.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 近 7 天柱状 */}
+          <div className="rounded-xl border border-stone-100 p-3">
+            <p className="mb-2 text-[11px] font-medium text-stone-500">近 7 天调用次数</p>
+            <div className="flex h-16 items-end gap-1.5">
+              {stats.stats.week.map((d) => (
+                <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
+                  <div
+                    className="w-full rounded-t bg-sky-200/80 transition-all"
+                    style={{ height: `${Math.max(3, (d.calls / weekMax) * 100)}%` }}
+                    title={`${d.date}: ${d.calls} 次`}
+                  />
+                  <span className="text-[9px] text-stone-400">{d.date.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 按模型 */}
+          {stats.stats.byModel.length > 0 && (
+            <div className="rounded-xl border border-stone-100 p-3">
+              <p className="mb-2 text-[11px] font-medium text-stone-500">按模型（近 7 天成本）</p>
+              <div className="space-y-1.5">
+                {stats.stats.byModel.map((m) => (
+                  <div key={m.modelId + m.providerId} className="flex items-center justify-between gap-2 text-[11.5px]">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Activity className="h-3 w-3 shrink-0 text-sky-400" />
+                      <span className="truncate text-stone-600">{m.modelId}</span>
+                      <span className="shrink-0 rounded bg-stone-100 px-1 py-px text-[9.5px] text-stone-400">{m.providerId}</span>
+                    </span>
+                    <span className="shrink-0 text-stone-500">
+                      {m.calls} 次 · {fmtUsd(m.costUsd)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 最近调用 */}
+          {stats.stats.latest.length > 0 && (
+            <div className="rounded-xl border border-stone-100 p-3">
+              <p className="mb-2 text-[11px] font-medium text-stone-500">最近调用</p>
+              <div className="space-y-1">
+                {stats.stats.latest.map((l, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-stone-500">
+                    <span className="min-w-0 truncate">{l.modelId}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className={cn("rounded-full px-1.5 py-px text-[9.5px]", l.status === "success" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
+                        {l.status}
+                      </span>
+                      <span className="text-stone-400">{fmtUsd(l.costUsd)}</span>
+                      <span className="text-stone-300">{new Date(l.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

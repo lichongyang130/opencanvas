@@ -1039,6 +1039,163 @@ export function createCaseShare(rec: Omit<CaseShareRecord, "code">): string {
   return code;
 }
 
+/* ---------------- 网关用量 & 成本 ---------------- */
+
+export interface GatewayUsageInput {
+  userId?: string | null;
+  sessionId?: string | null;
+  modelId: string;
+  providerId: string;
+  fallback?: boolean;
+  status?: "success" | "error";
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  credits?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface GatewayStatsPoint {
+  date: string; // YYYY-MM-DD
+  calls: number;
+  errors: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  credits: number;
+}
+
+export interface GatewayStats {
+  /** 今日 */
+  today: GatewayStatsPoint;
+  /** 近 7 天（含今日） */
+  week: GatewayStatsPoint[];
+  totals: GatewayStatsPoint;
+  /** 按模型聚合（近 7 天，按成本降序） */
+  byModel: { modelId: string; providerId: string; calls: number; costUsd: number; credits: number }[];
+  latest: { modelId: string; providerId: string; status: string; costUsd: number; createdAt: number }[];
+}
+
+export function logGatewayUsage(r: GatewayUsageInput): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO gateway_usage (id, userId, sessionId, modelId, providerId, fallback, status, inputTokens, outputTokens, costUsd, credits, latencyMs, error, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    randomUUID(),
+    r.userId ?? null,
+    r.sessionId ?? null,
+    r.modelId,
+    r.providerId,
+    r.fallback ? 1 : 0,
+    r.status ?? "success",
+    r.inputTokens ?? 0,
+    r.outputTokens ?? 0,
+    r.costUsd ?? 0,
+    r.credits ?? 0,
+    r.latencyMs ?? 0,
+    (r.error ?? "").slice(0, 500),
+    Date.now()
+  );
+}
+
+function toStatsPoint(rows: { date?: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[]): GatewayStatsPoint {
+  const out: GatewayStatsPoint = {
+    date: rows[0]?.date ?? "",
+    calls: 0,
+    errors: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    credits: 0,
+  };
+  for (const r of rows) {
+    out.calls += r.calls;
+    out.errors += r.errors;
+    out.inputTokens += r.inputTokens;
+    out.outputTokens += r.outputTokens;
+    out.costUsd += r.costUsd;
+    out.credits += r.credits;
+  }
+  return out;
+}
+
+const dateKey = (ts: number) => new Date(ts).toISOString().slice(0, 10);
+const dayStart = (ts: number) => {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+/** 用量统计：scope=null 当前显式 userId；scope="all" 全局（仅管理端调用） */
+export function getGatewayStats(userId: string | null, scopeAll = false): GatewayStats {
+  const db = getDb();
+  const where = scopeAll ? "" : userId ? "WHERE userId = ?" : "WHERE userId IS NULL";
+  const params = scopeAll ? [] : userId ? [userId] : [];
+
+  const today0 = dayStart(Date.now());
+  const todayRows = db
+    .prepare(
+      `SELECT COUNT(*) AS calls,
+              SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errors,
+              COALESCE(SUM(inputTokens),0) AS inputTokens,
+              COALESCE(SUM(outputTokens),0) AS outputTokens,
+              COALESCE(SUM(costUsd),0) AS costUsd,
+              COALESCE(SUM(credits),0) AS credits
+       FROM gateway_usage ${where} AND createdAt >= ?`
+    )
+    .all(...params, today0) as unknown as { calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[];
+  const today = { ...toStatsPoint(todayRows), date: dateKey(today0) };
+
+  // 近 7 天逐日
+  const week0 = today0 - 6 * 86_400_000;
+  const weekRows = db
+    .prepare(
+      `SELECT date(createdAt/1000, 'unixepoch') AS date,
+              COUNT(*) AS calls,
+              SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errors,
+              COALESCE(SUM(inputTokens),0) AS inputTokens,
+              COALESCE(SUM(outputTokens),0) AS outputTokens,
+              COALESCE(SUM(costUsd),0) AS costUsd,
+              COALESCE(SUM(credits),0) AS credits
+       FROM gateway_usage ${where} AND createdAt >= ?
+       GROUP BY date ORDER BY date`
+    )
+    .all(...params, week0) as unknown as { date: string; calls: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number; credits: number }[];
+  const byDay = new Map(weekRows.map((r) => [r.date, r]));
+  const week: GatewayStatsPoint[] = [];
+  for (let i = 0; i < 7; i++) {
+    const t = week0 + i * 86_400_000;
+    const k = dateKey(t);
+    const row = byDay.get(k);
+    week.push({ date: k, calls: row?.calls ?? 0, errors: row?.errors ?? 0, inputTokens: row?.inputTokens ?? 0, outputTokens: row?.outputTokens ?? 0, costUsd: row?.costUsd ?? 0, credits: row?.credits ?? 0 });
+  }
+
+  const totals = { ...toStatsPoint(weekRows), date: week[0]?.date ?? "" };
+
+  const byModel = db
+    .prepare(
+      `SELECT modelId, providerId,
+              COUNT(*) AS calls,
+              COALESCE(SUM(costUsd),0) AS costUsd,
+              COALESCE(SUM(credits),0) AS credits
+       FROM gateway_usage ${where} AND createdAt >= ?
+       GROUP BY modelId, providerId ORDER BY costUsd DESC LIMIT 8`
+    )
+    .all(...params, week0) as unknown as { modelId: string; providerId: string; calls: number; costUsd: number; credits: number }[];
+
+  const latest = db
+    .prepare(
+      `SELECT modelId, providerId, status, costUsd, createdAt
+       FROM gateway_usage ${where}
+       ORDER BY createdAt DESC LIMIT 5`
+    )
+    .all(...params) as unknown as { modelId: string; providerId: string; status: string; costUsd: number; createdAt: number }[];
+
+  return { today, week, totals, byModel, latest };
+}
+
 /** 产物分享（只读公开页：PPT / 文档 / 图片 / 研究报告） */
 export type ArtifactShareKind = "slides" | "docs" | "image" | "report";
 

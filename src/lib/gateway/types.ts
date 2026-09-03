@@ -26,6 +26,8 @@ export interface ModelInfo {
   providerLabel: string;
   region: Region;
   capabilities: ModelCapability[];
+  /** 降级模型 id（跨供应商降级链，如 gpt-4o-mini → deepseek-chat） */
+  fallback?: string;
   /** 输入价格（美元 / 百万 token），用于成本核算 */
   inputPricePerMtok: number;
   /** 输出价格（美元 / 百万 token） */
@@ -55,4 +57,14 @@ export interface ProviderAdapter {
   /** 是否已配置密钥（demo 永远可用） */
   isConfigured(): boolean;
   streamChat(params: ChatCompletionParams): AsyncGenerator<string, void, unknown>;
+}
+
+/** 模型降级链入参：网关在候选模型中找可用供应商（跨供应商降级） */
+export interface GatewayContext {
+  /** 登录用户 id（限流/日志归属） */
+  userId?: string | null;
+  /** 会话 id（日志关联） */
+  sessionId?: string | null;
+  /** 请求方 IP（未登录限流兜底） */
+  ip?: string | null;
 }

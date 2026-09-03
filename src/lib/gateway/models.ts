@@ -19,6 +19,7 @@ export const MODELS: ModelInfo[] = [
   // —— 海外 ——
   {
     id: "gpt-4o-mini",
+    fallback: "deepseek-chat",
     label: "GPT-4o mini",
     provider: "openai",
     providerLabel: "OpenAI",
@@ -29,6 +30,7 @@ export const MODELS: ModelInfo[] = [
   },
   {
     id: "gpt-4o",
+    fallback: "qwen-max",
     label: "GPT-4o",
     provider: "openai",
     providerLabel: "OpenAI",
@@ -39,6 +41,7 @@ export const MODELS: ModelInfo[] = [
   },
   {
     id: "claude-3-5-sonnet-20241022",
+    fallback: "qwen-max",
     label: "Claude 3.5 Sonnet",
     provider: "anthropic",
     providerLabel: "Anthropic",
@@ -50,6 +53,7 @@ export const MODELS: ModelInfo[] = [
   // —— 国内 ——
   {
     id: "deepseek-chat",
+    fallback: "qwen-plus",
     label: "DeepSeek Chat (V3)",
     provider: "deepseek",
     providerLabel: "DeepSeek",
@@ -60,6 +64,7 @@ export const MODELS: ModelInfo[] = [
   },
   {
     id: "qwen-plus",
+    fallback: "deepseek-chat",
     label: "通义千问 Qwen-Plus",
     provider: "dashscope",
     providerLabel: "阿里云百炼",
@@ -70,6 +75,7 @@ export const MODELS: ModelInfo[] = [
   },
   {
     id: "qwen-max",
+    fallback: "qwen-plus",
     label: "通义千问 Qwen-Max",
     provider: "dashscope",
     providerLabel: "阿里云百炼",
@@ -122,4 +128,22 @@ export function resolveModel(
     };
   }
   return { model: MODELS[0], providerId: "demo" };
+}
+
+/**
+ * 模型降级链：当前模型 → fallback → 再 fallback（去重，最多 3 个候选）。
+ * 跨供应商生效（gpt-4o-mini → deepseek-chat → qwen-plus）。
+ */
+export function fallbackChain(id: string): { model: ModelInfo; providerId: ProviderId }[] {
+  const chain: { model: ModelInfo; providerId: ProviderId }[] = [];
+  const seen = new Set<string>();
+  let cur = getModel(id);
+  for (let i = 0; i < 3; i++) {
+    if (seen.has(cur.id)) break;
+    seen.add(cur.id);
+    chain.push(resolveModel(cur.id));
+    if (!cur.fallback) break;
+    cur = getModel(cur.fallback);
+  }
+  return chain;
 }

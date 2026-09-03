@@ -11,6 +11,7 @@ import { buildOutlinePrompt } from "@/lib/slides/prompt";
 import { parseSlideOutline } from "@/lib/slides/parse";
 import { buildSampleOutline } from "@/lib/slides/sample";
 import type { SlideOutline } from "@/lib/slides/types";
+import { getUserFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,11 @@ export async function POST(req: Request) {
 
   const modelId = body.model ?? "demo";
   const overrides = body.overrides;
+  const authUser = getUserFromRequest(req);
+  const gatewayCtx = {
+    userId: authUser?.id ?? null,
+    ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+  };
   const { providerId } = resolveModel(modelId, body.provider ?? null);
   const providers = overrides ? buildProviders(overrides) : getProviders();
   const providerReady = modelId === "demo" ? false : providers[providerId].isConfigured();
@@ -68,7 +74,8 @@ export async function POST(req: Request) {
             messages,
             { onToken: (delta) => { raw += delta; } },
             overrides,
-            providerId
+            providerId,
+            gatewayCtx
           );
           send({ type: "status", message: "正在整理大纲…" });
           outline = parseSlideOutline(raw, topic);

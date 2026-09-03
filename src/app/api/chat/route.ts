@@ -5,6 +5,7 @@ import {
   type ProviderOverrides,
 } from "@/lib/gateway";
 import { checkText, createOutputGuard } from "@/lib/moderation";
+import { getUserFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
   const model = body.model ?? "demo";
   const messages = body.messages ?? [];
   const overrides = body.overrides;
+  const authUser = getUserFromRequest(req);
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(JSON.stringify({ error: "messages 不能为空" }), { status: 400 });
@@ -64,7 +66,11 @@ export async function POST(req: Request) {
             signal: req.signal,
           },
           overrides,
-          body.provider ?? null
+          body.provider ?? null,
+          {
+            userId: authUser?.id ?? null,
+            ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+          }
         );
         controller.enqueue(
           sse({ type: "usage", credits: result.credits, costUsd: result.costUsd })

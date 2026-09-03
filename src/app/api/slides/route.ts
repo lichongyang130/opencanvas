@@ -11,6 +11,7 @@ import { buildSlidesPrompt, themeOrDefault } from "@/lib/slides/prompt";
 import { parseSlideDeck, parseSingleSlide } from "@/lib/slides/parse";
 import { applyOutlineToSample, buildSampleDeck } from "@/lib/slides/sample";
 import type { Slide, SlideDeck, SlideOutline } from "@/lib/slides/types";
+import { getUserFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,11 @@ export async function POST(req: Request) {
       ? body.outline
       : null;
   const rewriteMode = body.mode === "rewrite" && body.slide;
+  const authUser = getUserFromRequest(req);
+  const gatewayCtx = {
+    userId: authUser?.id ?? null,
+    ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+  };
 
   if (!topic && !rewriteMode) {
     return new Response(JSON.stringify({ error: "topic 不能为空" }), { status: 400 });
@@ -93,7 +99,8 @@ export async function POST(req: Request) {
             ],
             { onToken: (delta) => { raw += delta; } },
             overrides,
-            providerId
+            providerId,
+            gatewayCtx
           );
           const slide = parseSingleSlide(raw);
           send({ type: "slide", slide });
@@ -143,7 +150,8 @@ export async function POST(req: Request) {
               },
             },
             overrides,
-            providerId
+            providerId,
+            gatewayCtx
           );
 
           send({ type: "status", message: "正在解析与排版…" });

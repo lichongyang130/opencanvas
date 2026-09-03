@@ -152,6 +152,22 @@ export function getDb(): DatabaseSync {
       read      INTEGER NOT NULL DEFAULT 0,
       createdAt REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS gateway_usage (
+      id          TEXT PRIMARY KEY,
+      userId      TEXT,
+      sessionId   TEXT,
+      modelId     TEXT NOT NULL,
+      providerId  TEXT NOT NULL,
+      fallback    INTEGER NOT NULL DEFAULT 0,
+      status      TEXT NOT NULL DEFAULT 'success',
+      inputTokens INTEGER NOT NULL DEFAULT 0,
+      outputTokens INTEGER NOT NULL DEFAULT 0,
+      costUsd     REAL NOT NULL DEFAULT 0,
+      credits     INTEGER NOT NULL DEFAULT 0,
+      latencyMs   INTEGER NOT NULL DEFAULT 0,
+      error       TEXT DEFAULT '',
+      createdAt   REAL NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS credit_ledger (
       id        TEXT PRIMARY KEY,
       delta     INTEGER NOT NULL,
@@ -160,6 +176,9 @@ export function getDb(): DatabaseSync {
       createdAt REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_credit_ledger_created ON credit_ledger(createdAt);
+    CREATE INDEX IF NOT EXISTS idx_gateway_usage_created ON gateway_usage(createdAt);
+    CREATE INDEX IF NOT EXISTS idx_gateway_usage_user ON gateway_usage(userId, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_gateway_usage_model ON gateway_usage(modelId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_kb_docs_kb ON kb_documents(kbId);
     CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(createdAt);
     CREATE INDEX IF NOT EXISTS idx_agents_updated ON agents(updatedAt);
