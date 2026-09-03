@@ -2,6 +2,20 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第十三轮：可观测性与 SEO（C 类首批）
+
+**可观测性（C 类首批，无需外部服务）**
+- `GET /api/health`：DB 可达性 / Node / 运行时长 / 供应商配置状态（不含密钥）
+- `POST /api/logs/client`：全局采集 window.onerror / unhandledrejection（10 秒节流、URL 脱敏只留路径）
+- `GET /api/logs/client/stats`：登录可见错误统计（累计 / 24h / Top / 最近错误）
+- 根布局挂 Observability；设置「数据管理 → 运行诊断」展示健康状态与错误摘要；新表 `client_errors`
+
+**SEO（C 类第二批）**
+- `robots.txt`：收录全站，排除 /api 与 /chat；`sitemap.xml`：静态页 + 公开分享页自动收录
+- 全局 metadata：OpenGraph / Twitter Card / canonical / metadataBase（`NEXT_PUBLIC_SITE_URL` 可配）
+- `/s/:code` 拆为 server wrapper（generateMetadata 动态标题/描述/OG）+ client ShareView（首屏复用服务端解析）
+- 分享类型/常量独立 `share-types`（客户端不再引入 node:crypto，修复 /s/ 页面 500）
+
 ## 2026-09-03 · 第十二轮：合规基础（A7）
 
 **隐私政策 / 用户协议**
