@@ -83,7 +83,10 @@ export async function embedTexts(
     provider === "dashscope"
       ? overrides?.dashscope?.apiKey?.trim() || process.env.DASHSCOPE_API_KEY!.trim()
       : overrides?.openai?.apiKey?.trim() || process.env.OPENAI_API_KEY!.trim();
-  const base = provider === "dashscope" ? DASH_BASE : OPENAI_BASE;
+  const base =
+    provider === "dashscope"
+      ? overrides?.dashscope?.baseUrl?.trim() || DASH_BASE
+      : overrides?.openai?.baseUrl?.trim() || OPENAI_BASE;
 
   const vectors = await callEmbeddings(base, apiKey, model, texts);
   const inputTokens = texts.reduce((n, t) => n + Math.ceil(t.length / 3.5), 0);

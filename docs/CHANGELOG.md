@@ -2,6 +2,14 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第二十一轮：生产部署验证（build + start 回归，在线预览）
+
+- `next build` 0 error（48 API + 12 页）→ `next start`（0.0.0.0:3008）生产回归全 200
+- 页面/静态 14 项、health、双语（en cookie）、匿名导出与错误统计隔离、注册→上传→下载→KB（tfidf）→分享页→删号 全通过
+- 向量检索生产实测：BYOK overrides 指向本地 mock → `engine=embedding` + gateway_usage 记账（query+doc 块共 2 次调用）
+- **修复**：`embedTexts` 未尊重 `overrides.{provider}.baseUrl`（硬编码官方端点，中转/本地网关不可用）→ 支持 baseUrl 覆盖
+- `docs/DEPLOY_CHECK.md`：部署验证清单与回归矩阵
+
 ## 2026-09-03 · 第二十轮：网关计费端到端验证（B 类真实凭据批 · 无凭据可复验）
 
 **本地兼容 Mock + 真实代码路径 E2E**
