@@ -29,9 +29,10 @@ import { cn } from "@/lib/utils";
 import { SlideDeckView } from "./SlideDeckView";
 import { ReportView } from "./ReportView";
 import { DocView } from "./DocView";
+import { useI18n } from "@/lib/i18n";
 
 /** 产物分享：生成公开只读链接并复制 */
-async function shareArtifact(kind: "slides" | "docs" | "image" | "report", payload: Record<string, unknown>) {
+async function shareArtifact(kind: "slides" | "docs" | "image" | "report", payload: Record<string, unknown>, tt: (s: string) => string) {
   try {
     const r = await fetch("/api/shares", {
       method: "POST",
@@ -39,15 +40,16 @@ async function shareArtifact(kind: "slides" | "docs" | "image" | "report", paylo
       body: JSON.stringify({ kind, data: payload }),
     });
     const j = (await r.json()) as { url?: string; error?: string };
-    if (!j.url) throw new Error(j.error || "生成失败");
+    if (!j.url) throw new Error(j.error || tt("生成失败"));
     await navigator.clipboard?.writeText(`${location.origin}${j.url}`);
-    toast("分享链接已复制，任何人可查看（只读）", "success");
+    toast(tt("分享链接已复制，任何人可查看（只读）"), "success");
   } catch (err) {
-    toast(err instanceof Error ? err.message : "分享失败，请重试", "error");
+    toast(err instanceof Error ? err.message : tt("分享失败，请重试"), "error");
   }
 }
 
 function ImageGallery({ images }: { images: UIImage[] }) {
+  const { tt } = useI18n();
   const [zoom, setZoom] = useState<UIImage | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // 正在处理的图 id
   const downloadRef = useRef<HTMLAnchorElement>(null);
@@ -65,7 +67,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
 
   /** 图生图：以该图为参考生成变体（自动选模型：FLUX dev / 万相 i2i） */
   const createVariant = async (img: UIImage) => {
-    const style = window.prompt("描述变体风格（留空 = 保持原图风格微调）", "");
+    const style = window.prompt(tt("描述变体风格（留空 = 保持原图风格微调）"), "");
     if (style === null) return;
     const prompt = style.trim() || `基于参考图生成风格一致的变体`;
     setBusy(img.id);
@@ -77,7 +79,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
         body: JSON.stringify({ model: "auto", prompt, size: "1024x1024", imageUrl: img.url, overrides: ov }),
       });
       const data = (await res.json()) as { url?: string; model?: string; error?: string };
-      if (!res.ok || !data.url) throw new Error(data.error ?? "变体生成失败");
+      if (!res.ok || !data.url) throw new Error(data.error ?? tt("变体生成失败"));
       const next: UIImage = {
         id: crypto.randomUUID(),
         prompt: `变体：${prompt}`,
@@ -88,7 +90,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
       addImages([next]);
       toast(`已生成变体（${data.model}）`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "变体生成失败", "error");
+      toast(err instanceof Error ? err.message : tt("变体生成失败"), "error");
     } finally {
       setBusy(null);
     }
@@ -105,10 +107,10 @@ function ImageGallery({ images }: { images: UIImage[] }) {
         body: JSON.stringify({ ...body, overrides: ov }),
       });
       const data = (await res.json()) as { url?: string; model?: string; error?: string; credits?: number };
-      if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
+      if (!res.ok || !data.url) throw new Error(data.error ?? tt("图像生成失败"));
       const next: UIImage = {
         id: crypto.randomUUID(),
-        prompt: String(body.label ?? body.prompt ?? "图像"),
+        prompt: String(body.label ?? body.prompt ?? tt("图像")),
         model: data.model ?? "auto",
         url: data.url,
         createdAt: Date.now(),
@@ -116,7 +118,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
       addImages([next]);
       toast(`已完成（${data.model}）${data.credits ? `，消耗 ${data.credits} 积分` : ""}`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "图像生成失败", "error");
+      toast(err instanceof Error ? err.message : tt("图像生成失败"), "error");
     } finally {
       setBusy(null);
     }
@@ -127,7 +129,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
     setBusy(img.id);
     try {
       let url: string | null = null;
-      let src = "本地 AI";
+      let src = tt("本地 AI");
       // 1) 服务端 remove.bg
       const res = await fetch("/api/images/remove-bg", {
         method: "POST",
@@ -156,10 +158,10 @@ function ImageGallery({ images }: { images: UIImage[] }) {
         url = await new Promise<string>((resolve, reject) => {
           const r = new FileReader();
           r.onload = () => resolve(String(r.result));
-          r.onerror = () => reject(new Error("读取结果失败"));
+          r.onerror = () => reject(new Error(tt("读取结果失败")));
           r.readAsDataURL(blob);
         });
-        src = "本地 AI";
+        src = tt("本地 AI");
       }
       const next: UIImage = {
         id: crypto.randomUUID(),
@@ -171,7 +173,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
       addImages([next]);
       toast(`背景已移除（${src}）`, "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "背景移除失败", "error");
+      toast(err instanceof Error ? err.message : tt("背景移除失败"), "error");
     } finally {
       setBusy(null);
     }
@@ -194,7 +196,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                 </div>
                 <button
                   onClick={() => download(img)}
-                  title="下载/打开"
+                  title={tt("下载/打开")}
                   className="shrink-0 rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
                 >
                   <Download className="h-3.5 w-3.5" />
@@ -205,14 +207,14 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                 <button
                   onClick={() => void createVariant(img)}
                   disabled={busy === img.id}
-                  title="以该图为参考生成变体"
+                  title={tt("以该图为参考生成变体")}
                   className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-sky-50 hover:text-sky-600 disabled:opacity-40"
                 >
                   {busy === img.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} 变体
                 </button>
                 <button
                   onClick={() => {
-                    const cmd = window.prompt("输入编辑指令（如：把背景换成沙滩 / 去掉路人）", "");
+                    const cmd = window.prompt(tt("输入编辑指令（如：把背景换成沙滩 / 去掉路人）"), "");
                     if (cmd?.trim()) {
                       void imageCall(img, {
                         model: "wanx2.1-imageedit",
@@ -225,25 +227,25 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                     }
                   }}
                   disabled={busy === img.id}
-                  title="AI 指令编辑（万相 imageedit，需 DASHSCOPE_KEY）"
+                  title={tt("AI 指令编辑（万相 imageedit，需 DASHSCOPE_KEY）")}
                   className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40"
                 >
                   <Pencil className="mr-0.5 inline h-3 w-3" /> 编辑
                 </button>
                 <button
                   onClick={() => {
-                    const dir = window.prompt("扩展方向：四周 / 上 / 下 / 左 / 右", "四周");
+                    const dir = window.prompt(tt("扩展方向：四周 / 上 / 下 / 左 / 右"), tt("四周"));
                     if (!dir?.trim()) return;
                     const d = dir.trim();
                     const scales =
-                      d.includes("上") || d.includes("左") || d.includes("右") || d.includes("下")
-                        ? d.includes("上") && !["左", "右", "下"].some((x) => d.includes(x))
+                      d.includes(tt("上")) || d.includes(tt("左")) || d.includes(tt("右")) || d.includes(tt("下"))
+                        ? d.includes(tt("上")) && ![tt("左"), tt("右"), tt("下")].some((x) => d.includes(x))
                           ? { top: 1.5 }
-                          : d.includes("下") && !["左", "右", "上"].some((x) => d.includes(x))
+                          : d.includes(tt("下")) && ![tt("左"), tt("右"), tt("上")].some((x) => d.includes(x))
                             ? { bottom: 1.5 }
-                            : d.includes("左") && !["右", "上", "下"].some((x) => d.includes(x))
+                            : d.includes(tt("左")) && ![tt("右"), tt("上"), tt("下")].some((x) => d.includes(x))
                               ? { left: 1.5 }
-                              : d.includes("右") && !["左", "上", "下"].some((x) => d.includes(x))
+                              : d.includes(tt("右")) && ![tt("左"), tt("上"), tt("下")].some((x) => d.includes(x))
                                 ? { right: 1.5 }
                                 : { top: 1.5, bottom: 1.5, left: 1.5, right: 1.5 }
                         : { top: 1.5, bottom: 1.5, left: 1.5, right: 1.5 };
@@ -258,14 +260,14 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                     });
                   }}
                   disabled={busy === img.id}
-                  title="智能扩图（万相 expand）"
+                  title={tt("智能扩图（万相 expand）")}
                   className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-teal-50 hover:text-teal-600 disabled:opacity-40"
                 >
                   <Maximize className="mr-0.5 inline h-3 w-3" /> 扩图
                 </button>
                 <button
                   onClick={() => {
-                    const style = window.prompt("输入目标风格（如：水彩 / 赛博朋克 / 法式绘本）", "水彩");
+                    const style = window.prompt(tt("输入目标风格（如：水彩 / 赛博朋克 / 法式绘本）"), tt("水彩"));
                     if (style?.trim()) {
                       void imageCall(img, {
                         model: "wanx2.1-imageedit",
@@ -278,17 +280,17 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                     }
                   }}
                   disabled={busy === img.id}
-                  title="风格化重绘（万相 stylization_all）"
+                  title={tt("风格化重绘（万相 stylization_all）")}
                   className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-fuchsia-50 hover:text-fuchsia-600 disabled:opacity-40"
                 >
                   <Palette className="mr-0.5 inline h-3 w-3" /> 风格
                 </button>
                 <button
                   onClick={() => {
-                    if (!window.confirm("以该图为参考，串行生成 3 个视角（正面 / 侧面 / 俯视）？")) return;
+                    if (!window.confirm(tt("以该图为参考，串行生成 3 个视角（正面 / 侧面 / 俯视）？"))) return;
                     void (async () => {
                       setBusy(img.id);
-                      const views = ["正面", "侧面", "俯视"];
+                      const views = [tt("正面"), tt("侧面"), tt("俯视")];
                       try {
                         for (const v of views) {
                           await imageCall(img, {
@@ -305,7 +307,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                     })();
                   }}
                   disabled={busy === img.id}
-                  title="同款组图：同一主体多视角（串行 3 张）"
+                  title={tt("同款组图：同一主体多视角（串行 3 张）")}
                   className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40"
                 >
                   <Layers className="mr-0.5 inline h-3 w-3" /> 组图
@@ -313,7 +315,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
                 <button
                   onClick={() => void removeBg(img)}
                   disabled={busy === img.id}
-                  title="去除背景（remove.bg 或本地 AI）"
+                  title={tt("去除背景（remove.bg 或本地 AI）")}
                   className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-violet-50 hover:text-violet-600 disabled:opacity-40"
                 >
                   <Scissors className="mr-0.5 inline h-3 w-3" /> 去背景
@@ -352,6 +354,7 @@ const CANVAS_WIDTH: Record<string, string> = {
 };
 
 export function ArtifactPanel() {
+  const { tt } = useI18n();
   const {
     conversations,
     activeId,
@@ -414,16 +417,16 @@ export function ArtifactPanel() {
               <button
                 onClick={() => {
                   if (mode === "slides" && convo?.deck) {
-                    void shareArtifact("slides", { deck: convo.deck, title: convo.deck.title });
+                    void shareArtifact("slides", { deck: convo.deck, title: convo.deck.title }, tt);
                   } else if (mode === "docs" && convo?.doc) {
-                    void shareArtifact("docs", { doc: convo.doc, title: convo.doc.title });
+                    void shareArtifact("docs", { doc: convo.doc, title: convo.doc.title }, tt);
                   } else if (mode === "image" && convo?.images) {
-                    void shareArtifact("image", { images: convo.images, title: convo.title });
+                    void shareArtifact("image", { images: convo.images, title: convo.title }, tt);
                   } else if (mode === "research" && convo?.report) {
-                    void shareArtifact("report", { report: convo.report, title: convo.report.topic });
+                    void shareArtifact("report", { report: convo.report, title: convo.report.topic }, tt);
                   }
                 }}
-                title="生成公开只读链接（复制后可分享给任何人）"
+                title={tt("生成公开只读链接（复制后可分享给任何人）")}
                 className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100 hover:text-brand-600"
               >
                 <Share2 className="h-3.5 w-3.5" /> 分享
@@ -431,7 +434,7 @@ export function ArtifactPanel() {
             )}
           <button
             onClick={() => setArtifactOpen(false)}
-            title="关闭画布"
+            title={tt("关闭画布")}
             className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
           >
             <X className="h-4 w-4" />
@@ -445,14 +448,14 @@ export function ArtifactPanel() {
       ) : mode === "image" && sending ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-stone-400">
           <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
-          <p className="text-sm">正在生成图像…</p>
+          <p className="text-sm">{tt("正在生成图像…")}</p>
         </div>
       ) : mode === "image" ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center text-stone-400">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100">
             <ImageIcon className="h-6 w-6" />
           </div>
-          <p className="text-sm">在左侧描述你想要的画面<br />生成的图片会展示在这里</p>
+          <p className="text-sm">{tt("在左侧描述你想要的画面")}<br />{tt("生成的图片会展示在这里")}</p>
         </div>
       ) : /* 深度研究报告 */
       mode === "research" && convo?.report ? (
@@ -460,15 +463,15 @@ export function ArtifactPanel() {
       ) : mode === "research" && convo?.researchStatus === "loading" ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-stone-400">
           <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
-          <p className="text-sm">{convo.researchMessage ?? "正在研究…"}</p>
-          <p className="text-xs">深度研究通常需要 20~60 秒</p>
+          <p className="text-sm">{convo.researchMessage ?? tt("正在研究…")}</p>
+          <p className="text-xs">{tt("深度研究通常需要 20~60 秒")}</p>
         </div>
       ) : mode === "research" ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center text-stone-400">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100">
             <Search className="h-6 w-6" />
           </div>
-          <p className="text-sm">在左侧输入研究主题<br />生成带引用的研究报告，可一键转 PPT</p>
+          <p className="text-sm">{tt("在左侧输入研究主题")}<br />{tt("生成带引用的研究报告，可一键转 PPT")}</p>
         </div>
       ) : /* 文档工作台 */
       mode === "docs" && convo?.doc ? (
@@ -476,14 +479,14 @@ export function ArtifactPanel() {
       ) : mode === "docs" && sending ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-stone-400">
           <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
-          <p className="text-sm">AI 正在撰写文档…</p>
+          <p className="text-sm">{tt("AI 正在撰写文档…")}</p>
         </div>
       ) : mode === "docs" ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center text-stone-400">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100">
             <FileTextIcon className="h-6 w-6" />
           </div>
-          <p className="text-sm">在左侧描述要写的文档<br />生成后可在这里编辑、AI 续写、导出 Word</p>
+          <p className="text-sm">{tt("在左侧描述要写的文档")}<br />{tt("生成后可在这里编辑、AI 续写、导出 Word")}</p>
         </div>
       ) : /* PPT 工作台 */
       mode === "slides" && convo?.deck ? (
@@ -491,15 +494,15 @@ export function ArtifactPanel() {
       ) : mode === "slides" && convo?.deckStatus === "loading" ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-stone-400">
           <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
-          <p className="text-sm">{convo.deckMessage ?? "正在生成…"}</p>
-          <p className="text-xs">PPT 生成通常需要 10~30 秒</p>
+          <p className="text-sm">{convo.deckMessage ?? tt("正在生成…")}</p>
+          <p className="text-xs">{tt("PPT 生成通常需要 10~30 秒")}</p>
         </div>
       ) : mode === "slides" ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center text-stone-400">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100">
             <LayoutDashboard className="h-6 w-6" />
           </div>
-          <p className="text-sm">在左侧输入 PPT 主题<br />例如「AI 写作助手产品发布会」</p>
+          <p className="text-sm">{tt("在左侧输入 PPT 主题")}<br />{tt("例如「AI 写作助手产品发布会」")}</p>
         </div>
       ) : /* 代码沙箱（多产物 Tab：代码预览 ↔ 对话文档） */
       mode === "chat" && convo?.codePreview && lastAssistant ? (
@@ -552,14 +555,14 @@ export function ArtifactPanel() {
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-rose-100 shadow-inner">
             <LayoutDashboard className="h-7 w-7 text-orange-400" />
           </div>
-          <p className="text-[15px] font-medium text-stone-600">AI 创作画布已就绪</p>
+          <p className="text-[15px] font-medium text-stone-600">{tt("AI 创作画布已就绪")}</p>
           <p className="mt-2 text-[13px] leading-6 text-stone-400">
             对话生成的文档、PPT、图片与研究报告
             <br />
             会实时呈现在这里
           </p>
           <div className="mt-6 grid w-full gap-2">
-            {["生成 PPT", "撰写文档", "AI 绘图"].map((t) => (
+            {[tt("生成 PPT"), tt("撰写文档"), tt("AI 绘图")].map((t) => (
               <span
                 key={t}
                 className="rounded-xl border border-stone-200/80 bg-white/80 px-4 py-2.5 text-left text-xs text-stone-500 shadow-sm"
@@ -579,6 +582,7 @@ export function ArtifactPanel() {
 
 /** 聊天产物多 Tab：代码沙箱预览 ↔ 最新回复文档 */
 function ChatArtifacts({ code, doc }: { code: React.ReactNode; doc: React.ReactNode }) {
+  const { tt } = useI18n();
   const [tab, setTab] = useState<"code" | "doc">("code");
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -618,6 +622,7 @@ function CodePreview({
   history: { html: string; lang: string; createdAt: number }[];
   onClose: () => void;
 }) {
+  const { tt } = useI18n();
   const [copied, setCopied] = useState(false);
   const [runId, setRunId] = useState(0);
   const [histOpen, setHistOpen] = useState(false);
@@ -657,7 +662,7 @@ function CodePreview({
           {history.length > 0 && (
             <button
               onClick={() => setHistOpen((v) => !v)}
-              title="版本历史"
+              title={tt("版本历史")}
               className={cn(
                 "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] transition hover:bg-stone-100",
                 histOpen ? "bg-stone-100 text-stone-700" : "text-stone-500"
@@ -668,29 +673,29 @@ function CodePreview({
           )}
           <button
             onClick={() => setRunId((v) => v + 1)}
-            title="重新加载预览"
+            title={tt("重新加载预览")}
             className="rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
           >
             重新运行
           </button>
           <button
             onClick={() => void copy()}
-            title="复制源码"
+            title={tt("复制源码")}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "已复制" : "复制"}
+            {copied ? tt("已复制") : tt("复制")}
           </button>
           <button
             onClick={openInTab}
-            title="新窗口打开"
+            title={tt("新窗口打开")}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-stone-500 transition hover:bg-stone-100"
           >
             <ExternalLink className="h-3.5 w-3.5" /> 新窗口
           </button>
           <button
             onClick={onClose}
-            title="关闭预览"
+            title={tt("关闭预览")}
             className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
           >
             <X className="h-4 w-4" />
@@ -707,7 +712,7 @@ function CodePreview({
       {history.length > 0 && (
         <div className="flex items-center gap-1.5 border-b border-stone-100 px-5 py-2">
           <History className="h-3.5 w-3.5 text-stone-400" />
-          <span className="text-[11px] text-stone-400">版本历史</span>
+          <span className="text-[11px] text-stone-400">{tt("版本历史")}</span>
           <div className="flex flex-wrap items-center gap-1">
             <button
               onClick={() => { setViewing(null); setHistOpen(false); }}
@@ -748,7 +753,7 @@ function CodePreview({
       <div className="min-h-0 flex-1 bg-[#f5f2ee] p-3">
         {histOpen ? (
           <div className="mx-auto max-w-md space-y-1.5 rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
-            <p className="text-[11.5px] font-medium text-stone-500">选择要查看的版本</p>
+            <p className="text-[11.5px] font-medium text-stone-500">{tt("选择要查看的版本")}</p>
             {history.map((h, i) => (
               <button
                 key={h.createdAt}
@@ -763,7 +768,7 @@ function CodePreview({
         ) : (
           <iframe
             key={runId}
-            title="AI 代码沙箱预览"
+            title={tt("AI 代码沙箱预览")}
             sandbox="allow-scripts allow-modals allow-forms allow-popups"
             srcDoc={current.html}
             className="h-full w-full rounded-xl border border-stone-200 bg-white shadow-inner"

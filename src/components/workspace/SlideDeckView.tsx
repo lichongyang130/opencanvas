@@ -8,8 +8,10 @@ import { SlideView } from "./SlideView";
 import { useChatStore } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 export function SlideDeckView({ deck }: { deck: SlideDeck }) {
+  const { tt } = useI18n();
   const { setDeckTheme, patchSlide, exportDeck, send, sending, generateSlideImages, rewriteSlide, addSlide, duplicateSlide, deleteSlide } =
     useChatStore();
   const [active, setActive] = useState(0);
@@ -84,7 +86,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
             )}
             <button
               onClick={() => window.print()}
-              title="导出 PDF（浏览器打印、另存为 PDF）"
+              title={tt("导出 PDF（浏览器打印、另存为 PDF）")}
               className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600 hover:border-brand-300"
             >
               <FileText className="h-3.5 w-3.5" /> PDF
@@ -140,7 +142,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
               </button>
               <div className="absolute right-1 top-1 hidden gap-0.5 group-hover/thumb:flex">
                 <button
-                  title="复制该页"
+                  title={tt("复制该页")}
                   onClick={() => {
                     duplicateSlide(i);
                   }}
@@ -149,7 +151,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
                   <Copy className="h-3 w-3" />
                 </button>
                 <button
-                  title="删除该页"
+                  title={tt("删除该页")}
                   onClick={() => {
                     deleteSlide(i);
                     setActive((a) => Math.max(0, a - (i <= a ? 1 : 0)));
@@ -182,12 +184,12 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
           <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
             <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-stone-400">
               <MessageSquareText className="h-3.5 w-3.5" /> 演讲者备注
-              <span className="font-normal">（导出 PPTX / 打印时保留）</span>
+              <span className="font-normal">{tt("（导出 PPTX / 打印时保留）")}</span>
             </div>
             <textarea
               value={deck.slides[idx]?.note ?? ""}
               onChange={(e) => patchSlide(idx, { note: e.target.value })}
-              placeholder="写本页演讲要点、时间控制、衔接词…"
+              placeholder={tt("写本页演讲要点、时间控制、衔接词…")}
               rows={3}
               className="w-full resize-y rounded-lg border border-stone-200 bg-stone-50/60 px-3 py-2 text-[12.5px] leading-relaxed text-stone-600 outline-none transition focus:border-brand-300 focus:bg-white"
             />
@@ -204,7 +206,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
               <button
                 onClick={() => void handleRewrite()}
                 disabled={rewriting || sending}
-                title="AI 用真实模型重写本页（需已配置 API Key）"
+                title={tt("AI 用真实模型重写本页（需已配置 API Key）")}
                 className="flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-stone-600 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-40"
               >
                 {rewriting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-sky-500" />}
@@ -220,7 +222,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
                 <Trash2 className="h-3 w-3" /> 删除本页
               </button>
             </div>
-            <span className="hidden lg:inline">点击文字可修改</span>
+            <span className="hidden lg:inline">{tt("点击文字可修改")}</span>
           </div>
         </div>
       </div>

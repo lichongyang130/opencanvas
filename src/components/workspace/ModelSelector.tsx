@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/store/chat";
 import { ProviderLogo } from "./ProviderLogo";
+import { useI18n } from "@/lib/i18n";
 type ProviderId = ProviderIdType;
 
 interface StatusMap {
@@ -45,6 +46,7 @@ function shortLabel(label: string) {
 }
 
 export function ModelSelector({ value, onChange }: { value: string; onChange: (id: string, provider?: string) => void }) {
+  const { tt } = useI18n();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<StatusMap | null>(null);
   const [local, setLocal] = useState<StatusMap>({ demo: true });
@@ -100,7 +102,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
           id,
           label: id,
           provider: p,
-          providerLabel: PROVIDER_NAME[p],
+          providerLabel: tt(PROVIDER_NAME[p]),
           region: p === "deepseek" || p === "dashscope" ? "china" : "global",
           capabilities: ["text"],
           inputPricePerMtok: 0.5,
@@ -124,12 +126,12 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
         body: JSON.stringify({ provider, overrides: getOverrides() }),
       });
       const data = (await res.json()) as { models?: string[]; error?: string };
-      if (!res.ok || !data.models) throw new Error(data.error ?? "获取失败");
+      if (!res.ok || !data.models) throw new Error(data.error ?? tt("获取失败"));
       const next = { ...loadDynamicModels(), [provider]: data.models };
       saveDynamicModels(next);
       setDynamic(next);
     } catch (e) {
-      setFetchError(`${PROVIDER_NAME[provider]}：${e instanceof Error ? e.message : "获取失败"}`);
+      setFetchError(`${tt(PROVIDER_NAME[provider])}：${e instanceof Error ? e.message : tt("获取失败")}`);
     } finally {
       setFetching(null);
     }
@@ -154,7 +156,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
         <span className="truncate leading-none">{short}</span>
         <span
           className={cn("h-1.5 w-1.5 shrink-0 rounded-full", online ? "bg-emerald-500" : "bg-stone-300")}
-          title={online ? "可用" : "未配置"}
+          title={online ? tt("可用") : tt("未配置")}
         />
         <ChevronDown
           className={cn(
@@ -172,14 +174,14 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-red-500 text-white">
                 <Zap className="h-3 w-3" />
               </span>
-              <span className="text-[13px] font-semibold text-stone-800">智能模型</span>
+              <span className="text-[13px] font-semibold text-stone-800">{tt("智能模型")}</span>
             </div>
             <div className="flex items-center gap-2 rounded-lg bg-stone-100 px-2.5 py-1.5">
               <Search className="h-3.5 w-3.5 text-stone-400" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="搜索模型…"
+                placeholder={tt("搜索模型…")}
                 className="w-full bg-transparent text-[12px] text-stone-700 outline-none placeholder:text-stone-400"
               />
             </div>
@@ -187,12 +189,12 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
 
           <div className="max-h-[56vh] overflow-y-auto p-1.5">
             {/* 演示模型 */}
-            {(!q.trim() || "演示模型".toLowerCase().includes(q.trim().toLowerCase())) && (
+            {(!q.trim() || tt("演示模型").toLowerCase().includes(q.trim().toLowerCase())) && (
               <>
-                <GroupHeader name={PROVIDER_NAME.demo} available />
+                <GroupHeader name={tt(PROVIDER_NAME.demo)} available />
                 <ModelRow
-                  label="演示模型"
-                  sub="免费"
+                  label={tt("演示模型")}
+                  sub={tt("免费")}
                   provider="demo"
                   active={value === "demo"}
                   available
@@ -212,7 +214,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
               return (
                 <div key={g.provider}>
                   <GroupHeader
-                    name={PROVIDER_NAME[g.provider]}
+                    name={tt(PROVIDER_NAME[g.provider])}
                     available={avail}
                     fetching={fetching === g.provider}
                     onFetch={avail ? () => void fetchModels(g.provider) : undefined}
@@ -221,7 +223,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                     <ModelRow
                       key={info.id}
                       label={info.label}
-                      sub={isDynamic ? "动态" : !avail ? "未配置" : REGION_LABEL[info.region]}
+                      sub={isDynamic ? tt("动态") : !avail ? tt("未配置") : tt(REGION_LABEL[info.region])}
                       provider={g.provider}
                       active={value === info.id}
                       available={avail}
@@ -270,6 +272,7 @@ function GroupHeader({
   fetching?: boolean;
   onFetch?: () => void;
 }) {
+  const { tt } = useI18n();
   return (
     <div className="mt-1.5 flex items-center justify-between rounded-lg bg-stone-50 px-2.5 py-1.5 first:mt-0">
       <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-stone-500">
@@ -280,7 +283,7 @@ function GroupHeader({
         <button
           onClick={onFetch}
           disabled={fetching}
-          title="从该供应商拉取最新模型列表"
+          title={tt("从该供应商拉取最新模型列表")}
           className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-white hover:text-orange-600 disabled:opacity-40"
         >
           {fetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}

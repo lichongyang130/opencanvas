@@ -19,6 +19,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 /** Markdown → HTML（只用于把历史 markdown 载入编辑器） */
 const mdToHtml = (md: string) => marked.parse(md, { async: false }) as string;
@@ -49,6 +50,7 @@ export function RichEditor({
   placeholder?: string;
   className?: string;
 }) {
+  const { tt } = useI18n();
   // 每次外部内容变化（AI 续写/切换会话）重新载入；编辑中收到的外部变更也接受（以外部为准）
   const lastEmitted = useRef("");
   // 仅初始载入一次（外部更新走下方 useEffect setContent）
@@ -60,7 +62,7 @@ export function RichEditor({
       attributes: {
         class:
           "prose-doc min-h-[240px] w-full px-5 py-4 text-[13.5px] leading-7 text-stone-700 outline-none",
-        placeholder: placeholder ?? "用富文本编辑，或在左侧对话里让 AI 生成…",
+        placeholder: placeholder ?? tt("用富文本编辑，或在左侧对话里让 AI 生成…"),
       },
     },
     onUpdate: ({ editor: ed }) => {
@@ -93,14 +95,14 @@ export function RichEditor({
         <button
           className={btn(editor.isActive("heading", { level: 1 }))}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          title="标题 1"
+          title={tt("标题 1")}
         >
           <Heading1 className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(editor.isActive("heading", { level: 2 }))}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          title="标题 2"
+          title={tt("标题 2")}
         >
           <Heading2 className="h-3.5 w-3.5" />
         </button>
@@ -108,21 +110,21 @@ export function RichEditor({
         <button
           className={btn(editor.isActive("bold"))}
           onClick={() => editor.chain().focus().toggleBold().run()}
-          title="加粗"
+          title={tt("加粗")}
         >
           <Bold className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(editor.isActive("italic"))}
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          title="斜体"
+          title={tt("斜体")}
         >
           <Italic className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(editor.isActive("strike"))}
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          title="删除线"
+          title={tt("删除线")}
         >
           <Strikethrough className="h-3.5 w-3.5" />
         </button>
@@ -130,28 +132,28 @@ export function RichEditor({
         <button
           className={btn(editor.isActive("bulletList"))}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          title="无序列表"
+          title={tt("无序列表")}
         >
           <List className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(editor.isActive("orderedList"))}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          title="有序列表"
+          title={tt("有序列表")}
         >
           <ListOrdered className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(editor.isActive("blockquote"))}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          title="引用"
+          title={tt("引用")}
         >
           <Quote className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(editor.isActive("codeBlock"))}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          title="代码块"
+          title={tt("代码块")}
         >
           <Code className="h-3.5 w-3.5" />
         </button>
@@ -159,18 +161,18 @@ export function RichEditor({
         <button
           className={btn(false)}
           onClick={() => editor.chain().focus().undo().run()}
-          title="撤销"
+          title={tt("撤销")}
         >
           <Undo2 className="h-3.5 w-3.5" />
         </button>
         <button
           className={btn(false)}
           onClick={() => editor.chain().focus().redo().run()}
-          title="重做"
+          title={tt("重做")}
         >
           <Redo2 className="h-3.5 w-3.5" />
         </button>
-        <span className="ml-auto pr-1 text-[10px] text-stone-300">Markdown 保存</span>
+        <span className="ml-auto pr-1 text-[10px] text-stone-300">{tt("Markdown 保存")}</span>
       </div>
 
       {/* 编辑区 */}

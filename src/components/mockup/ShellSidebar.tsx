@@ -18,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useChatStore } from "@/lib/store/chat";
+import { useI18n } from "@/lib/i18n";
 
 export type ShellActive = "chat" | "agents" | "knowledge" | "docs" | "templates" | "tools" | "apps";
 
@@ -33,6 +34,7 @@ const NAV = [
 ];
 
 export function ShellSidebar({ active }: { active: ShellActive }) {
+  const { tt } = useI18n();
   const router = useRouter();
   const { conversations, selectConversation } = useChatStore();
   const [collapsed, setCollapsed] = useState(true);
@@ -60,7 +62,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
       <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-white py-2">
         <button
           onClick={() => router.push("/")}
-          title="AI 对话"
+          title={tt("AI 对话")}
           className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-sm font-bold text-white shadow-sm"
         >
           O
@@ -69,7 +71,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
         {/* 展开按钮 */}
         <button
           onClick={() => setCollapsed(false)}
-          title="展开菜单"
+          title={tt("展开菜单")}
           className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
         >
           <ChevronRight className="h-4.5 w-4.5 h-[18px] w-[18px]" />
@@ -84,7 +86,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
             return (
               <button
                 key={item.label}
-                title={item.label}
+                title={tt(item.label)}
                 onClick={() => go(item.route, true)}
                 className={
                   isActive
@@ -102,7 +104,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
 
         {/* 用户 */}
         <button
-          title="会员中心"
+          title={tt("会员中心")}
           onClick={() => router.push("/membership")}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-100 transition hover:border-[var(--oc-brand)]"
         >
@@ -130,11 +132,11 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-lg font-bold text-white shadow-sm">
             O
           </span>
-          <span className="text-lg font-semibold tracking-tight text-stone-800">AI 对话</span>
+          <span className="text-lg font-semibold tracking-tight text-stone-800">{tt("AI 对话")}</span>
         </button>
         <button
           onClick={() => setCollapsed(true)}
-          title="收起菜单"
+          title={tt("收起菜单")}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -159,7 +161,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
                 className="h-[18px] w-[18px]"
                 strokeWidth={isActive ? 2.1 : 1.8}
               />
-              {item.label}
+              {tt(item.label)}
             </button>
           );
         })}
@@ -169,10 +171,10 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
 
       {/* 最近对话 */}
       <div className="flex-1 overflow-y-auto px-5">
-        <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
+        <p className="mb-2 text-xs font-medium text-stone-400">{tt("最近对话")}</p>
         <div className="-mx-2 flex flex-col gap-0.5">
           {recent.length === 0 && (
-            <p className="px-2 py-1 text-xs text-stone-300">暂无历史对话</p>
+            <p className="px-2 py-1 text-xs text-stone-300">{tt("暂无历史对话")}</p>
           )}
           {recent.map((r) => (
             <button

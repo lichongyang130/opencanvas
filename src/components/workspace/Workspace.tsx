@@ -12,8 +12,10 @@ import { Toaster } from "@/components/Toaster";
 import AuthBadge from "@/components/AuthBadge";
 import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 export function Workspace() {
+  const { tt } = useI18n();
   const {
     hydrated,
     hydrate,
@@ -123,11 +125,11 @@ export function Workspace() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNav(false)} />
           <div className="absolute inset-y-0 left-0 w-[288px] overflow-y-auto bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
-              <span className="text-xs font-medium text-stone-400">导航</span>
+              <span className="text-xs font-medium text-stone-400">{tt("导航")}</span>
               <button
                 onClick={() => setMobileNav(false)}
                 className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100"
-                title="关闭"
+                title={tt("关闭")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -144,12 +146,12 @@ export function Workspace() {
             <button
               onClick={() => setMobileNav(true)}
               className="rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 md:hidden"
-              title="打开导航"
+              title={tt("打开导航")}
             >
               <Menu className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-[15px] font-semibold text-stone-800">智能助手</span>
+              <span className="text-[15px] font-semibold text-stone-800">{tt("智能助手")}</span>
               {active &&
                 (editingTitle ? (
                   <input
@@ -169,7 +171,7 @@ export function Workspace() {
                       setTitleDraft(active.title);
                       setEditingTitle(true);
                     }}
-                    title="点击重命名当前任务"
+                    title={tt("点击重命名当前任务")}
                     className="max-w-[220px] truncate text-sm text-stone-400 transition hover:text-stone-600"
                   >
                     · {active.title}
@@ -191,21 +193,21 @@ export function Workspace() {
             )}
             <Link
               href="/"
-              title="返回首页"
+              title={tt("返回首页")}
               className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
             >
               <Home className="h-4 w-4" />
             </Link>
             <button
               onClick={() => setSettingsOpen(true)}
-              title="设置"
+              title={tt("设置")}
               className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
             >
               <Settings className="h-4 w-4" />
             </button>
             <button
               onClick={() => setArtifactOpen(!artifactOpen)}
-              title={artifactOpen ? "关闭产物画布" : "打开产物画布"}
+              title={artifactOpen ? tt("关闭产物画布") : tt("打开产物画布")}
               className={cn(
                 "rounded-lg p-1.5 transition",
                 artifactOpen

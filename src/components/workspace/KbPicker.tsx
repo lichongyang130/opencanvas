@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Check, ChevronDown, X } from "lucide-react";
 import { toast } from "@/lib/store/toast";
+import { useI18n } from "@/lib/i18n";
 
 interface KbItem {
   id: string;
@@ -16,6 +17,7 @@ interface KbItem {
  * 选中后当前会话发送消息时自动 RAG 检索该库并注入上下文（store.send 内实现）。
  */
 export default function KbPicker({ value, onChange }: { value?: string; onChange: (id: string | null) => void }) {
+  const { tt } = useI18n();
   const [open, setOpen] = useState(false);
   const [kbs, setKbs] = useState<KbItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ export default function KbPicker({ value, onChange }: { value?: string; onChange
           if (kbs.length === 0) void load();
           setOpen((v) => !v);
         }}
-        title="绑定知识库：发送消息时自动检索相关内容"
+        title={tt("绑定知识库：发送消息时自动检索相关内容")}
         className={`flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition ${
           value
             ? "border-[var(--oc-brand-border)] bg-[var(--oc-brand-tint)] text-[var(--oc-brand)]"
@@ -64,14 +66,14 @@ export default function KbPicker({ value, onChange }: { value?: string; onChange
         }`}
       >
         <BookOpen className="h-3.5 w-3.5" />
-        <span className="max-w-[140px] truncate">{value ? current?.name ?? "知识库" : "绑定知识库"}</span>
+        <span className="max-w-[140px] truncate">{value ? current?.name ?? tt("知识库") : tt("绑定知识库")}</span>
         {value ? (
           <X
             className="h-3 w-3 opacity-60 transition hover:opacity-100"
             onClick={(e) => {
               e.stopPropagation();
               onChange(null);
-              toast("已解除知识库绑定", "info");
+              toast(tt("已解除知识库绑定"), "info");
             }}
           />
         ) : (
@@ -87,7 +89,7 @@ export default function KbPicker({ value, onChange }: { value?: string; onChange
 
           {kbs.length === 0 && (
             <div className="px-3 py-4 text-center text-[11.5px] text-stone-400">
-              {loading ? "加载中…" : "还没有知识库"}
+              {loading ? tt("加载中…") : tt("还没有知识库")}
               <a href="/knowledge" className="mt-1 block text-[var(--oc-brand)] hover:underline">
                 去知识库创建 →
               </a>

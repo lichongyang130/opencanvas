@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { dict, type Dict, type Locale } from "./dicts";
+import { uiEn } from "./ui-en";
 
 /**
  * 轻量 i18n（中/英）：客户端 Provider + hooks。
@@ -46,12 +47,15 @@ function lookup(d: Dict, key: string): string | undefined {
 interface I18nValue {
   locale: Locale;
   t: TFunc;
+  /** 全文案翻译：对「中文原文」直接按当前语言返回（zh 原文 / en 查 uiEn） */
+  tt: (text: string) => string;
   setLocale: (l: Locale) => void;
 }
 
 const I18nContext = createContext<I18nValue>({
   locale: "zh",
   t: (k) => k,
+  tt: (text) => text,
   setLocale: () => {},
 });
 
@@ -80,7 +84,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       }
       return s;
     };
-    return { locale, t, setLocale };
+    const tt = (text: string) =>
+      locale === "en" ? uiEn[text] ?? text : text;
+    return { locale, t, tt, setLocale };
   }, [locale, setLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

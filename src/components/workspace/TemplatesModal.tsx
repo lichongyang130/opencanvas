@@ -41,6 +41,7 @@ import { toast } from "@/lib/store/toast";
 import { getOverrides } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { useI18n } from "@/lib/i18n";
 
 type Tab = "fav" | "recent" | "mine" | TemplateCategory;
 
@@ -68,6 +69,7 @@ const TAB_ICONS: Record<string, ReactNode> = {
 };
 
 export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { tt } = useI18n();
   const runTemplate = useChatStore((s) => s.runTemplate);
   const fillTemplate = useChatStore((s) => s.fillTemplate);
   const sending = useChatStore((s) => s.sending);
@@ -92,7 +94,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
   /** 导出全部自建提示词为 JSON 文件 */
   const exportPrompts = () => {
     if (custom.length === 0) {
-      toast("还没有自建提示词可导出", "info");
+      toast(tt("还没有自建提示词可导出"), "info");
       return;
     }
     const blob = new Blob([JSON.stringify({ app: "opencanvas-prompts", version: 1, exportedAt: Date.now(), prompts: custom.map(({ id: _id, builtin: _b, ...rest }) => rest) }, null, 2)], {
@@ -113,7 +115,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
       toast(`成功导入 ${n} 条提示词`, "success");
       setTab("mine");
     } else {
-      toast("没有有效的提示词数据", "error");
+      toast(tt("没有有效的提示词数据"), "error");
     }
   };
 
@@ -123,7 +125,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
     reader.onload = () => {
       const parsed = decodePrompts(String(reader.result ?? ""));
       if (!parsed) {
-        toast("文件格式不正确", "error");
+        toast(tt("文件格式不正确"), "error");
         return;
       }
       importPrompts(parsed.prompts);
@@ -197,23 +199,23 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
         }),
       });
       const j = (await r.json()) as { url?: string; error?: string };
-      if (!j.url) throw new Error(j.error || "生成失败");
+      if (!j.url) throw new Error(j.error || tt("生成失败"));
       await navigator.clipboard?.writeText(`${location.origin}${j.url}`);
-      toast("分享链接已复制", "success");
+      toast(tt("分享链接已复制"), "success");
     } catch {
-      toast("分享失败，请稍后重试", "error");
+      toast(tt("分享失败，请稍后重试"), "error");
     }
   };
 
   const sidebar: { id: Tab; label: string; icon: ReactNode; count?: number }[] = [
-    { id: "fav", label: "我的收藏", icon: TAB_ICONS.fav, count: favorites.length },
-    { id: "recent", label: "最近使用", icon: TAB_ICONS.recent, count: recent.length },
+    { id: "fav", label: tt("我的收藏"), icon: TAB_ICONS.fav, count: favorites.length },
+    { id: "recent", label: tt("最近使用"), icon: TAB_ICONS.recent, count: recent.length },
     ...CATEGORIES.map((c) => ({
       id: c.id as Tab,
       label: c.label,
       icon: <LayoutGrid className="h-4 w-4" />,
     })),
-    { id: "mine", label: "我的提示词", icon: TAB_ICONS.mine, count: custom.length },
+    { id: "mine", label: tt("我的提示词"), icon: TAB_ICONS.mine, count: custom.length },
   ];
 
   return (
@@ -293,7 +295,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索提示词、场景、关键词…"
+                placeholder={tt("搜索提示词、场景、关键词…")}
                 className="w-full bg-transparent text-sm outline-none placeholder:text-stone-300"
               />
               {query && (
@@ -313,12 +315,12 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                 <Wand2 className="h-8 w-8" />
                 <p className="text-sm">
                   {tab === "fav"
-                    ? "还没有收藏，点卡片上的 ☆ 收藏常用提示词"
+                    ? tt("还没有收藏，点卡片上的 ☆ 收藏常用提示词")
                     : tab === "recent"
-                      ? "使用过的提示词会出现在这里"
+                      ? tt("使用过的提示词会出现在这里")
                       : tab === "mine"
-                        ? "还没有自建提示词，点左下角「新建提示词」"
-                        : "没有匹配的提示词"}
+                        ? tt("还没有自建提示词，点左下角「新建提示词」")
+                        : tt("没有匹配的提示词")}
                 </p>
               </div>
             ) : (
@@ -351,16 +353,16 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                           {isMine && (
                             <>
                               <button
-                                title="生成独立分享链接（公开只读页，可打开 /s/ 地址）"
+                                title={tt("生成独立分享链接（公开只读页，可打开 /s/ 地址）")}
                                 onClick={async () => {
                                   try {
                                     const r = await fetch(`/api/templates/${t.id}/share`, { method: "POST" });
                                     const j = (await r.json()) as { url?: string; error?: string };
-                                    if (!j.url) throw new Error(j.error || "生成失败");
+                                    if (!j.url) throw new Error(j.error || tt("生成失败"));
                                     await navigator.clipboard?.writeText(`${location.origin}${j.url}`);
-                                    toast("独立分享链接已复制", "success");
+                                    toast(tt("独立分享链接已复制"), "success");
                                   } catch (err) {
-                                    toast(err instanceof Error ? err.message : "分享失败，请重试", "error");
+                                    toast(err instanceof Error ? err.message : tt("分享失败，请重试"), "error");
                                   }
                                 }}
                                 className="text-stone-300 transition hover:text-brand-500"
@@ -368,12 +370,12 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                                 <Share2 className="h-4 w-4" />
                               </button>
                               <button
-                                title="复制分享码（可离线导入）"
+                                title={tt("复制分享码（可离线导入）")}
                                 onClick={() => {
                                   const { id: _i, builtin: _b, ...rest } = t as Template & { builtin?: boolean };
                                   navigator.clipboard?.writeText(encodePrompts([rest])).then(
-                                    () => toast("分享码已复制，发给好友即可导入", "success"),
-                                    () => toast("复制失败", "error")
+                                    () => toast(tt("分享码已复制，发给好友即可导入"), "success"),
+                                    () => toast(tt("复制失败"), "error")
                                   );
                                 }}
                                 className="text-stone-300 transition hover:text-brand-500"
@@ -383,7 +385,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                             </>
                           )}
                           <button
-                            title={fav ? "取消收藏" : "收藏"}
+                            title={fav ? tt("取消收藏") : tt("收藏")}
                             onClick={() => toggleFavorite(t.id)}
                             className="text-stone-300 transition hover:text-amber-400"
                           >
@@ -404,7 +406,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                               prompt: applyVariables(t.prompt, thumb.values),
                             })
                           }
-                          title="查看真实效果图"
+                          title={tt("查看真实效果图")}
                           className="mb-2 block w-full overflow-hidden rounded-lg border border-stone-100 bg-stone-50"
                         >
                           { }
@@ -428,7 +430,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                             >
                               <button
                                 onClick={() => makeSame(t, c)}
-                                title="做同款：把该案例填入输入框（不发送）"
+                                title={tt("做同款：把该案例填入输入框（不发送）")}
                                 className="flex items-center gap-1 px-2 py-0.5 transition hover:bg-brand-100"
                               >
                                 <Sparkles className="h-3 w-3" /> {c.label}
@@ -443,14 +445,14 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                                     source: c.source,
                                   })
                                 }
-                                title="查看真实效果"
+                                title={tt("查看真实效果")}
                                 className="border-l border-brand-200 px-1.5 py-0.5 transition hover:bg-brand-100"
                               >
                                 <Eye className="h-3 w-3" />
                               </button>
                               <button
                                 onClick={() => void shareCase(t, c)}
-                                title="分享该真实案例（生成公开链接）"
+                                title={tt("分享该真实案例（生成公开链接）")}
                                 className="border-l border-brand-200 px-1.5 py-0.5 transition hover:bg-brand-100"
                               >
                                 <Share2 className="h-3 w-3" />
@@ -477,10 +479,10 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                         </button>
                         {isMine && (
                           <button
-                            title="删除"
+                            title={tt("删除")}
                             onClick={() => {
                               removeCustom(t.id);
-                              toast("已删除", "info");
+                              toast(tt("已删除"), "info");
                             }}
                             className="rounded-lg border border-stone-200 p-1.5 text-stone-400 transition hover:border-red-300 hover:text-red-500"
                           >
@@ -518,7 +520,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold">{zoomCase.label}</span>
-                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">真实案例</span>
+                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">{tt("真实案例")}</span>
               </div>
               <button onClick={() => setZoomCase(null)} className="rounded-lg p-1 text-stone-400 hover:bg-stone-100">
                 <X className="h-5 w-5" />
@@ -532,7 +534,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                 </>
               ) : (
                 <div className="bg-stone-900 px-4 py-4">
-                  <p className="mb-1 text-[11px] font-medium text-stone-400">真实输出（节选）</p>
+                  <p className="mb-1 text-[11px] font-medium text-stone-400">{tt("真实输出（节选）")}</p>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-100">{zoomCase.output}</p>
                 </div>
               )}
@@ -554,7 +556,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             addCustom(p);
             setShowCreate(false);
             setTab("mine");
-            toast("已保存到「我的提示词」", "success");
+            toast(tt("已保存到「我的提示词」"), "success");
           }}
         />
       )}
@@ -566,7 +568,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             addCustom(p);
             setShowAI(false);
             setTab("mine");
-            toast("AI 提示词已保存到「我的提示词」", "success");
+            toast(tt("AI 提示词已保存到「我的提示词」"), "success");
           }}
         />
       )}
@@ -582,7 +584,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             const t =
               TEMPLATES.find((x) => x.id === p.templateId) ?? custom.find((x) => x.id === p.templateId);
             if (!t) {
-              toast("找不到对应的模板，无法做同款", "error");
+              toast(tt("找不到对应的模板，无法做同款"), "error");
               return false;
             }
             setShowImport(false);
@@ -605,6 +607,7 @@ function AIPromptDialog({
   onClose: () => void;
   onSave: (p: Omit<Template, "id" | "builtin">) => void;
 }) {
+  const { tt } = useI18n();
   const [need, setNeed] = useState("");
   const [mode, setMode] = useState<WorkspaceMode>("chat");
   const [busy, setBusy] = useState(false);
@@ -668,12 +671,12 @@ function AIPromptDialog({
       }
       // 本地兜底：结构化提示词模板
       const modeOut: Record<string, string> = {
-        image: "输出英文绘图提示词（主体+风格+构图+光线+画质词，逗号分隔）",
-        slides: "输出幻灯片结构（标题 + 每页标题与要点）",
-        research: "从背景、现状、数据、玩家、趋势、结论展开",
-        docs: "输出完整文档结构（标题、导语、分小节、结论）",
-        video: "输出分镜表（镜头时长/画面/旁白/字幕）",
-        chat: "分点作答，含步骤与示例",
+        image: tt("输出英文绘图提示词（主体+风格+构图+光线+画质词，逗号分隔）"),
+        slides: tt("输出幻灯片结构（标题 + 每页标题与要点）"),
+        research: tt("从背景、现状、数据、玩家、趋势、结论展开"),
+        docs: tt("输出完整文档结构（标题、导语、分小节、结论）"),
+        video: tt("输出分镜表（镜头时长/画面/旁白/字幕）"),
+        chat: tt("分点作答，含步骤与示例"),
       };
       const fallback = `# 角色
 你是{{领域}}方面的资深专家，有丰富的实战经验。
@@ -699,7 +702,7 @@ ${raw}
   const save = () => {
     if (!result.trim()) return;
     onSave({
-      label: need.trim().slice(0, 20) || "AI 生成提示词",
+      label: need.trim().slice(0, 20) || tt("AI 生成提示词"),
       desc: `AI 生成 · ${MODE_TAG[mode]}`,
       category: "productivity",
       mode,
@@ -723,18 +726,18 @@ ${raw}
         </div>
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-stone-500">你想用这个提示词做什么？</label>
+            <label className="mb-1 block text-xs font-medium text-stone-500">{tt("你想用这个提示词做什么？")}</label>
             <textarea
               autoFocus
               value={need}
               onChange={(e) => setNeed(e.target.value)}
               rows={3}
-              placeholder="例如：帮我批量生成小红书风格的产品种草文案，要有标题和标签"
+              placeholder={tt("例如：帮我批量生成小红书风格的产品种草文案，要有标题和标签")}
               className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-stone-500">用于哪个工作台</label>
+            <label className="mb-1 block text-xs font-medium text-stone-500">{tt("用于哪个工作台")}</label>
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value as WorkspaceMode)}
@@ -753,11 +756,11 @@ ${raw}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {busy ? "AI 正在撰写提示词…" : "生成提示词"}
+            {busy ? tt("AI 正在撰写提示词…") : tt("生成提示词")}
           </button>
           {result && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-stone-500">生成结果（可编辑后保存）</label>
+              <label className="mb-1 block text-xs font-medium text-stone-500">{tt("生成结果（可编辑后保存）")}</label>
               <textarea
                 value={result}
                 onChange={(e) => setResult(e.target.value)}
@@ -790,6 +793,7 @@ function ImportDialog({
   onFile: (f: File) => void;
   onCase: (code: string) => boolean;
 }) {
+  const { tt } = useI18n();
   const [code, setCode] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -801,7 +805,7 @@ function ImportDialog({
     }
     const parsed = decodePrompts(code);
     if (!parsed) {
-      toast("分享码无效，请检查后重试", "error");
+      toast(tt("分享码无效，请检查后重试"), "error");
       return;
     }
     onImport(parsed.prompts);
@@ -824,12 +828,12 @@ function ImportDialog({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-stone-500">粘贴分享码</label>
+            <label className="mb-1 block text-xs font-medium text-stone-500">{tt("粘贴分享码")}</label>
             <textarea
               value={code}
               onChange={(e) => setCode(e.target.value)}
               rows={4}
-              placeholder="粘贴好友分享的提示词码（一长串字符）…"
+              placeholder={tt("粘贴好友分享的提示词码（一长串字符）…")}
               className="w-full rounded-lg border border-stone-200 px-3 py-2 font-mono text-xs outline-none focus:border-brand-400"
             />
             <button
@@ -841,7 +845,7 @@ function ImportDialog({
             </button>
           </div>
           <div className="flex items-center gap-2 text-xs text-stone-300">
-            <span className="h-px flex-1 bg-stone-200" /> 或 <span className="h-px flex-1 bg-stone-200" />
+            <span className="h-px flex-1 bg-stone-200tt(" />{tt("或")}<span className=")h-px flex-1 bg-stone-200" />
           </div>
           <button
             onClick={() => fileRef.current?.click()}
@@ -879,6 +883,7 @@ function VariableDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { tt } = useI18n();
   const vars = extractVariables(template.prompt);
   const filled = vars.every((v) => values[v]?.trim());
   return (
@@ -890,7 +895,7 @@ function VariableDialog({
         <div className="mb-1 flex items-center gap-2 font-semibold">
           <Star className="h-4 w-4 text-brand-600" /> {template.label}
         </div>
-        <p className="mb-4 text-xs text-stone-400">填写下面的内容，替换提示词中的变量</p>
+        <p className="mb-4 text-xs text-stone-400">{tt("填写下面的内容，替换提示词中的变量")}</p>
         <div className="space-y-3">
           {vars.map((v) => (
             <div key={v}>
@@ -931,6 +936,7 @@ function CreatePromptDialog({
   onClose: () => void;
   onSave: (p: Omit<Template, "id" | "builtin">) => void;
 }) {
+  const { tt } = useI18n();
   const [label, setLabel] = useState("");
   const [desc, setDesc] = useState("");
   const [category, setCategory] = useState<TemplateCategory>("productivity");
@@ -955,17 +961,17 @@ function CreatePromptDialog({
         </div>
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-stone-500">名称</label>
+            <label className="mb-1 block text-xs font-medium text-stone-500">{tt("名称")}</label>
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="如：小红书爆款标题"
+              placeholder={tt("如：小红书爆款标题")}
               className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-stone-500">分类</label>
+              <label className="mb-1 block text-xs font-medium text-stone-500">{tt("分类")}</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as TemplateCategory)}
@@ -979,7 +985,7 @@ function CreatePromptDialog({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-stone-500">工作台</label>
+              <label className="mb-1 block text-xs font-medium text-stone-500">{tt("工作台")}</label>
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value as WorkspaceMode)}
@@ -994,23 +1000,23 @@ function CreatePromptDialog({
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-stone-500">一句话说明</label>
+            <label className="mb-1 block text-xs font-medium text-stone-500">{tt("一句话说明")}</label>
             <input
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="这个提示词用来做什么"
+              placeholder={tt("这个提示词用来做什么")}
               className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-stone-500">
-              提示词内容（可用 {"{{变量名}}"} 作为填空）
+              提示词内容（可用 {tt("{{变量名}}")} 作为填空）
             </label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={6}
-              placeholder="例：为「{{产品}}」写 5 条小红书种草文案，每条含标题、正文和标签…"
+              placeholder={tt("例：为「{{产品}}」写 5 条小红书种草文案，每条含标题、正文和标签…")}
               className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
             />
           </div>
@@ -1022,7 +1028,7 @@ function CreatePromptDialog({
           <button
             disabled={!canSave}
             onClick={() =>
-              onSave({ label: label.trim(), desc: desc.trim() || "自定义", category, mode, prompt: prompt.trim() })
+              onSave({ label: label.trim(), desc: desc.trim() || tt("自定义"), category, mode, prompt: prompt.trim() })
             }
             className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
           >

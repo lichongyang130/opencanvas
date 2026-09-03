@@ -44,7 +44,7 @@ const QUICK_MODES: { mode: WorkspaceMode; icon: ReactNode; label: string }[] = [
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
-  const { t, locale, setLocale } = useI18n();
+  const { t, locale, setLocale , tt} = useI18n();
   const { newConversation, setSettingsOpen } = useChatStore();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [packsOpen, setPacksOpen] = useState(false);
@@ -124,7 +124,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
           className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl text-[10px] font-bold text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
         >
-          {locale === "zh" ? "中" : "EN"}
+          {locale === "zh" ? tt("中") : "EN"}
         </button>
 
         {/* 设置 */}

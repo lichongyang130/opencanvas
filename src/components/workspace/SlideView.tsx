@@ -4,6 +4,7 @@ import { THEMES } from "@/lib/slides/themes";
 import type { Slide } from "@/lib/slides/types";
 import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 interface Props {
   slide: Slide;
@@ -31,6 +32,7 @@ function EditText({
   multiline?: boolean;
   placeholder?: string;
 }) {
+  const { tt } = useI18n();
   const emit = (v: string) => onPatch?.({ [field]: v } as Partial<Slide>);
   if (!editable) {
     return <div className={className}>{value ?? placeholder}</div>;
@@ -58,6 +60,7 @@ function EditText({
  * 侧栏缩略图与主预览复用同一组件自动缩放。
  */
 export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
+  const { tt } = useI18n();
   const t = THEMES[themeId] ?? THEMES.violet;
   const dark = slide.layout === "cover" || slide.layout === "end";
 
@@ -83,7 +86,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
               field="title"
               editable={editable}
               onPatch={onPatch}
-              placeholder="标题"
+              placeholder={tt("标题")}
               className="text-[5.2cqw] font-bold leading-tight"
             />
             {slide.subtitle !== undefined || editable ? (
@@ -92,7 +95,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
                 field="subtitle"
                 editable={editable}
                 onPatch={onPatch}
-                placeholder="副标题"
+                placeholder={tt("副标题")}
                 className="mt-[2cqw] text-[2.4cqw]"
               />
             ) : null}
@@ -112,7 +115,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
             field="title"
             editable={editable}
             onPatch={onPatch}
-            placeholder="页标题"
+            placeholder={tt("页标题")}
             className="text-[3cqw] font-bold"
           />
         </div>
@@ -189,7 +192,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
                 className="flex flex-1 flex-col items-center justify-center gap-[1cqw] rounded-[1.2cqw] border-2 border-dashed text-center text-[1.6cqw]"
                 style={{ borderColor: t.accent, color: t.muted, background: "rgba(255,255,255,0.5)" }}
               >
-                <span>配图位（待生成）</span>
+                <span>{tt("配图位（待生成）")}</span>
                 {editable && (
                   <button
                     onClick={(e) => {
@@ -212,15 +215,15 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
       {slide.layout === "twoCol" && (
         <div className="grid grid-cols-2 gap-[3cqw] px-[6cqw] pt-[3cqw]">
           {[
-            { heading: "核心要点", items: slide.bullets ?? [], field: "bullets" as const },
-            { heading: slide.twoColTitle ?? "补充", items: slide.bulletsRight ?? [], field: "bulletsRight" as const },
+            { heading: tt("核心要点"), items: slide.bullets ?? [], field: "bullets" as const },
+            { heading: slide.twoColTitle ?? tt("补充"), items: slide.bulletsRight ?? [], field: "bulletsRight" as const },
           ].map((col, ci) => (
             <div key={ci} className="rounded-[1.2cqw] bg-white p-[3cqw] shadow-sm">
               <div className="mb-[1.5cqw] text-[2.3cqw] font-bold" style={{ color: t.accent }}>
                 {ci === 1 && editable ? (
                   <input
                     value={slide.twoColTitle ?? ""}
-                    placeholder="右栏标题"
+                    placeholder={tt("右栏标题")}
                     onChange={(e) => onPatch?.({ twoColTitle: e.target.value })}
                     className="w-full bg-transparent outline-none"
                   />
@@ -354,7 +357,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
             {[0, 1].map((col) => (
               <div key={col} className="rounded-[1.5cqw] bg-white p-[2.5cqw] shadow-sm" style={{ border: `0.3cqw solid ${col === 0 ? t.accent : "#e2e8f0"}` }}>
                 <p className="mb-[1.5cqw] text-center text-[2.3cqw] font-bold" style={{ color: t.accent }}>
-                  {col === 0 ? (slide.twoColTitle ?? slide.bullets?.[0] ?? "方案 A") : (slide.bulletsRight?.[0] ?? "方案 B")}
+                  {col === 0 ? (slide.twoColTitle ?? slide.bullets?.[0] ?? tt("方案 A")) : (slide.bulletsRight?.[0] ?? tt("方案 B"))}
                 </p>
                 <ul className="space-y-[1.2cqw]">
                   {(col === 0 ? (slide.bullets ?? []) : (slide.bulletsRight ?? [])).slice(1).map((b, i) => (

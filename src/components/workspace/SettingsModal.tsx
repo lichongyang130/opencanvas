@@ -72,6 +72,7 @@ import { ProviderLogo } from "./ProviderLogo";
 
 /** Google 官方四色 G 图标（内联 SVG） */
 function GoogleIcon({ className }: { className?: string }) {
+  const { tt } = useI18n();
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
       <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82Z" />
@@ -152,6 +153,7 @@ const CHANGELOG = [
 /* ─────────────────────────── 基础小部件 ─────────────────────────── */
 
 function Toggle({
+
   checked,
   onChange,
   disabled,
@@ -160,6 +162,7 @@ function Toggle({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
+  const { tt } = useI18n();
   return (
     <button
       type="button"
@@ -184,6 +187,7 @@ function Toggle({
 }
 
 function StatusPill({
+
   text,
   kind,
   icon,
@@ -192,6 +196,7 @@ function StatusPill({
   kind: "ok" | "info" | "fail";
   icon?: React.ReactNode;
 }) {
+  const { tt } = useI18n();
   return (
     <span
       className={cn(
@@ -208,6 +213,7 @@ function StatusPill({
 }
 
 function SectionCard({
+
   icon,
   iconBg,
   title,
@@ -222,6 +228,7 @@ function SectionCard({
   children: React.ReactNode;
   className?: string;
 }) {
+  const { tt } = useI18n();
   const Icon = icon;
   return (
     <section className={cn("overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm", className)}>
@@ -241,6 +248,7 @@ function SectionCard({
 
 /** 分段选项（单选按钮组） */
 function Segmented<T extends string | number>({
+
   value,
   options,
   onChange,
@@ -249,6 +257,7 @@ function Segmented<T extends string | number>({
   options: Array<{ value: T; label: string; desc?: string }>;
   onChange: (v: T) => void;
 }) {
+  const { tt } = useI18n();
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => {
@@ -277,6 +286,7 @@ function Segmented<T extends string | number>({
 
 /** 设置行：左文案 + 右控件 */
 function SettingRow({
+
   title,
   desc,
   children,
@@ -287,6 +297,7 @@ function SettingRow({
   children: React.ReactNode;
   divider?: boolean;
 }) {
+  const { tt } = useI18n();
   return (
     <div className={cn("flex items-center justify-between gap-4 py-3.5", divider && "border-b border-stone-100")}>
       <div className="min-w-0">
@@ -301,6 +312,7 @@ function SettingRow({
 /* ─────────────────────────── 供应商配置卡 ─────────────────────────── */
 
 function ProviderCard({
+
   meta,
   setting,
   serverConfigured,
@@ -330,6 +342,7 @@ function ProviderCard({
   onFetch: () => void;
   onClear: () => void;
 }) {
+  const { tt } = useI18n();
   const configured = Boolean(setting.apiKey) || serverConfigured;
   const st = testState ?? "idle";
   const [modelsOpen, setModelsOpen] = useState(models.length > 0);
@@ -343,15 +356,15 @@ function ProviderCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[14px] font-semibold text-stone-800">{meta.label}</span>
               <StatusPill text={meta.region} kind="info" />
-              {configured && <StatusPill text="已配置" kind="ok" icon={<Check className="h-3 w-3" />} />}
-              {serverConfigured && <StatusPill text="服务端密钥" kind="info" />}
-              {st === "ok" && <StatusPill text="连接正常" kind="ok" icon={<Check className="h-3 w-3" />} />}
-              {st === "fail" && <StatusPill text="连接失败" kind="fail" />}
+              {configured && <StatusPill text={"已配置"} kind="ok" icon={<Check className="h-3 w-3" />} />}
+              {serverConfigured && <StatusPill text={"服务端密钥"} kind="info" />}
+              {st === "ok" && <StatusPill text={"连接正常"} kind="ok" icon={<Check className="h-3 w-3" />} />}
+              {st === "fail" && <StatusPill text={"连接失败"} kind="fail" />}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {PROVIDER_CAPS[meta.id]?.map((c) => (
                 <span key={c} className="rounded-md bg-stone-100 px-1.5 py-px text-[10px] font-medium text-stone-500">
-                  {c}
+                  {tt(c)}
                 </span>
               ))}
               {models.length > 0 && (
@@ -382,7 +395,7 @@ function ProviderCard({
           </button>
           <button
             onClick={onClear}
-            title="清除此供应商的本地配置"
+            title={"清除此供应商的本地配置"}
             className="rounded-lg border border-stone-200 p-1.5 text-stone-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -410,7 +423,7 @@ function ProviderCard({
       </div>
 
       <label className="mb-1 block text-xs font-medium text-stone-500">
-        Base URL <span className="font-normal text-stone-400">（可选，默认官方地址；中转填中转地址）</span>
+        Base URL <span className="font-normal text-stone-400">{"（可选，默认官方地址；中转填中转地址）"}</span>
       </label>
       <input
         type="text"
@@ -484,7 +497,7 @@ function ProviderCard({
 /* ─────────────────────────── 主组件 ─────────────────────────── */
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, tt } = useI18n();
   const { settingsTab, setSettingsTab } = useChatStore();
   const [settings, setSettings] = useState<ProviderSettings>({});
   const [baseline, setBaseline] = useState("");
@@ -568,7 +581,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const testConnection = async (id: SettingsProviderId) => {
     const cur = settings[id];
     if (!cur?.apiKey) {
-      toast("请先填写 API Key", "error");
+      toast(tt("请先填写 API Key"), "error");
       return;
     }
     setTest((t) => ({ ...t, [id]: "testing" }));
@@ -582,7 +595,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         }),
       });
       const data = (await res.json()) as { models?: string[]; error?: string };
-      if (!res.ok || !data.models) throw new Error(data.error ?? "连接失败");
+      if (!res.ok || !data.models) throw new Error(data.error ?? tt("连接失败"));
 
       const dyn = loadDynamicModels();
       dyn[id] = data.models;
@@ -601,7 +614,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     const cur: { apiKey: string; baseUrl: string } | undefined = settings[id];
     const hasLocalKey = Boolean(cur?.apiKey);
     if (!hasLocalKey && !serverStatus[id]) {
-      toast("请先填写 API Key（或配置服务端密钥）再获取模型列表", "error");
+      toast(tt("请先填写 API Key（或配置服务端密钥）再获取模型列表"), "error");
       return;
     }
     setFetchingModels((m) => ({ ...m, [id]: true }));
@@ -619,7 +632,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         }),
       });
       const data = (await res.json()) as { models?: string[]; error?: string };
-      if (!res.ok || !data.models) throw new Error(data.error ?? "获取失败");
+      if (!res.ok || !data.models) throw new Error(data.error ?? tt("获取失败"));
 
       const dyn = loadDynamicModels();
       dyn[id] = data.models;
@@ -627,7 +640,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       setModelLists((s) => ({ ...s, [id]: data.models! }));
       toast(`获取到 ${data.models.length} 个模型`, "success");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "获取失败";
+      const msg = e instanceof Error ? e.message : tt("获取失败");
       setFetchModelErrors((m) => ({ ...m, [id]: msg }));
       toast(`获取模型失败：${msg}`, "error");
     } finally {
@@ -640,7 +653,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setBaseline(JSON.stringify(settings));
     setDirty(false);
     setSaved(true);
-    toast("设置已保存", "success");
+    toast(tt("设置已保存"), "success");
   };
 
   const handleClearAll = () => {
@@ -654,7 +667,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     store.setAutoOpenArtifact(true);
     store.setDefaultMode("chat");
     store.setDefaultModel("demo");
-    toast("本地配置已清空", "success");
+    toast(tt("本地配置已清空"), "success");
   };
 
   const tavily = settings[TAVILY_KEY as SettingsProviderId]?.apiKey ?? "";
@@ -712,7 +725,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     <span className={cn("block text-[13px] font-medium", active ? "text-orange-700" : "text-stone-700")}>
                       {t(`settings.${tb.labelKey}`)}
                     </span>
-                    <span className={cn("block text-[11px]", active ? "text-orange-400" : "text-stone-400")}>{tb.desc}</span>
+                    <span className={cn("block text-[11px]", active ? "text-orange-400" : "text-stone-400")}>{tt(tb.desc)}</span>
                   </span>
                 </button>
               );
@@ -735,7 +748,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-stone-100 bg-white/85 px-5 py-3.5 backdrop-blur sm:px-6">
             <div className="min-w-0">
               <h2 className="text-[15px] font-semibold text-stone-800">{t(`settings.${currentTab.labelKey}`)}</h2>
-              <p className="mt-0.5 truncate text-xs text-stone-400">{currentTab.desc}</p>
+              <p className="mt-0.5 truncate text-xs text-stone-400">{tt(currentTab.desc)}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {dirty && (
@@ -752,7 +765,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               )}
               <button
                 onClick={onClose}
-                title="关闭"
+                title={tt("关闭")}
                 className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
               >
                 <X className="h-5 w-5" />
@@ -797,13 +810,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                           <KeyRound className="h-4 w-4" />
                         </span>
                         <div>
-                          <div className="text-[13px] font-semibold text-orange-800">模型密钥配置状态</div>
+                          <div className="text-[13px] font-semibold text-orange-800">{tt("模型密钥配置状态")}</div>
                           <div className="mt-0.5 text-[11.5px] text-orange-500">
                             本地 {localCount} · 服务端 {serverCount} · 共 {configuredCount}/{PROVIDER_META.length} 已就绪
                           </div>
                         </div>
                       </div>
-                      <StatusPill text="演示模型免费可用" kind="ok" icon={<Check className="h-3 w-3" />} />
+                      <StatusPill text={tt("演示模型免费可用")} kind="ok" icon={<Check className="h-3 w-3" />} />
                     </div>
                   </div>
 
@@ -831,8 +844,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   <SectionCard
                     icon={Server}
                     iconBg="bg-gradient-to-br from-stone-500 to-stone-700"
-                    title="服务端密钥（可选）"
-                    desc="适合生产部署：在 .env 中配置，界面无需填写"
+                    title={tt("服务端密钥（可选）")}
+                    desc={tt("适合生产部署：在 .env 中配置，界面无需填写")}
                   >
                     <div className="flex items-start gap-2.5 rounded-xl bg-stone-50 p-3.5">
                       <FileCode2 className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" />
@@ -861,7 +874,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                               ?.writeText(
                                 "OPENAI_API_KEY=\nANTHROPIC_API_KEY=\nDEEPSEEK_API_KEY=\nDASHSCOPE_API_KEY=\nFAL_KEY=\nREMOVE_BG_API_KEY=\nTAVILY_API_KEY=\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nGITHUB_CLIENT_ID=\nGITHUB_CLIENT_SECRET=\nOAUTH_REDIRECT_BASE="
                               )
-                              .then(() => toast("已复制环境变量模板", "success"))
+                              .then(() => toast(tt("已复制环境变量模板"), "success"))
                               .catch(() => {});
                           }}
                           className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600"
@@ -876,8 +889,8 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={KeyRound}
                     iconBg="bg-gradient-to-br from-violet-500 to-indigo-600"
-                    title="第三方登录（Google / GitHub）"
-                    desc="登录弹窗「或使用以下方式登录」按钮；配置后无需重启，刷新页面即可"
+                    title={tt("第三方登录（Google / GitHub）")}
+                    desc={tt("登录弹窗「或使用以下方式登录」按钮；配置后无需重启，刷新页面即可")}
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       {([
@@ -886,14 +899,14 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                           name: "Google",
                           env: "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET",
                           console: "https://console.cloud.google.com/apis/credentials",
-                          hint: "创建 OAuth 客户端（类型：Web 应用）",
+                          hint: tt("创建 OAuth 客户端（类型：Web 应用）"),
                         },
                         {
                           key: "github" as const,
                           name: "GitHub",
                           env: "GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET",
                           console: "https://github.com/settings/developers",
-                          hint: "New OAuth App；回调地址填下方链接",
+                          hint: tt("New OAuth App；回调地址填下方链接"),
                         },
                       ] as const).map((p) => {
                         const configured = Boolean(oauthStatus[p.key]);
@@ -910,9 +923,9 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                                 {p.name}
                               </span>
                               {configured ? (
-                                <StatusPill text="已配置" kind="ok" icon={<Check className="h-3 w-3" />} />
+                                <StatusPill text={tt("已配置")} kind="ok" icon={<Check className="h-3 w-3" />} />
                               ) : (
-                                <StatusPill text="未配置" kind="fail" />
+                                <StatusPill text={tt("未配置")} kind="fail" />
                               )}
                             </div>
                             <p className="mt-1 text-[11px] leading-relaxed text-stone-400">{p.hint}</p>
@@ -925,7 +938,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                               前往控制台 <ExternalLink className="h-3 w-3" />
                             </a>
                             <div className="mt-2.5">
-                              <p className="mb-1 text-[10px] font-medium text-stone-400">回调地址（登记到控制台）</p>
+                              <p className="mb-1 text-[10px] font-medium text-stone-400">{tt("回调地址（登记到控制台）")}</p>
                               <div className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2 py-1.5">
                                 <code className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-stone-500">
                                   {callback}
@@ -934,11 +947,11 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                                   onClick={() => {
                                     navigator.clipboard
                                       ?.writeText(callback)
-                                      .then(() => toast("回调地址已复制", "success"))
+                                      .then(() => toast(tt("回调地址已复制"), "success"))
                                       .catch(() => {});
                                   }}
                                   className="rounded p-1 text-stone-400 transition hover:bg-stone-100 hover:text-violet-600"
-                                  title="复制回调地址"
+                                  title={tt("复制回调地址")}
                                 >
                                   <Copy className="h-3 w-3" />
                                 </button>
@@ -951,7 +964,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                     </div>
                     <div className="mt-3 rounded-xl bg-stone-50 p-3 text-[11px] leading-relaxed text-stone-500">
                       ① 在控制台创建 OAuth 应用 → ② 将上方回调地址填入 → ③ 把 Client ID / Secret 写入{" "}
-                      <code className="rounded bg-white px-1 py-0.5 text-[10px]">.env</code>（或下方「服务端密钥」）→{" "}
+                      <code className="rounded bg-white px-1 py-0.5 text-[10px]tt(">.env</code>（或下方「服务端密钥」）→{") "}
                       ④ 登录弹窗即可用 {""}
                       <span className="font-medium text-stone-600">Google / GitHub</span> 登录。
                       部署在代理后域名不变时无需额外配置；否则设置{" "}
@@ -963,8 +976,8 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={Zap}
                     iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
-                    title="网关增强（降级 · 多 Key · 限流）"
-                    desc="服务端 .env 配置，保存后无需改代码"
+                    title={tt("网关增强（降级 · 多 Key · 限流）")}
+                    desc={tt("服务端 .env 配置，保存后无需改代码")}
                   >
                     <GatewayTuningCard />
                   </SectionCard>
@@ -973,8 +986,8 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={BarChart3}
                     iconBg="bg-gradient-to-br from-sky-500 to-blue-600"
-                    title="用量与成本看板"
-                    desc="每次模型调用的 tokens / 成本 / 积分（网关自动记录）"
+                    title={tt("用量与成本看板")}
+                    desc={tt("每次模型调用的 tokens / 成本 / 积分（网关自动记录）")}
                   >
                     <GatewayStatsCard />
                   </SectionCard>
@@ -986,15 +999,15 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={Globe}
                     iconBg="bg-gradient-to-br from-sky-400 to-indigo-500"
-                    title="Tavily 联网搜索"
-                    desc="深度研究会调用该服务实时检索网页"
+                    title={tt("Tavily 联网搜索")}
+                    desc={tt("深度研究会调用该服务实时检索网页")}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusPill text="搜索 API" kind="info" />
+                      <StatusPill text={tt("搜索 API")} kind="info" />
                       {tavily ? (
-                        <StatusPill text="已填写" kind="ok" icon={<Check className="h-3 w-3" />} />
+                        <StatusPill text={tt("已填写")} kind="ok" icon={<Check className="h-3 w-3" />} />
                       ) : (
-                        <StatusPill text="未填写 · 使用示例来源" kind="fail" />
+                        <StatusPill text={tt("未填写 · 使用示例来源")} kind="fail" />
                       )}
                     </div>
                     <div className="relative mt-3">
@@ -1009,7 +1022,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                         type="button"
                         onClick={() => setShowKey((s) => ({ ...s, [TAVILY_KEY]: !s[TAVILY_KEY] }))}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 transition hover:text-stone-600"
-                        title={showKey[TAVILY_KEY] ? "隐藏" : "显示"}
+                        title={showKey[TAVILY_KEY] ? tt("隐藏") : tt("显示")}
                       >
                         {showKey[TAVILY_KEY] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -1040,27 +1053,27 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={Activity}
                     iconBg="bg-gradient-to-br from-slate-500 to-slate-700"
-                    title="运行诊断"
-                    desc="服务健康状态与前端运行时错误（自动采集，无需外部服务）"
+                    title={tt("运行诊断")}
+                    desc={tt("服务健康状态与前端运行时错误（自动采集，无需外部服务）")}
                   >
                     <DiagnosticsCard />
                   </SectionCard>
                   <SectionCard
                     icon={Download}
                     iconBg="bg-gradient-to-br from-emerald-400 to-teal-500"
-                    title="导出备份"
-                    desc="JSON 全量备份，或当前会话导出为 Markdown"
+                    title={tt("导出备份")}
+                    desc={tt("JSON 全量备份，或当前会话导出为 Markdown")}
                   >
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-stone-50 p-3.5">
-                        <p className="text-xs text-stone-500">全部会话、消息、PPT 与报告 → JSON 文件，保存在本机。</p>
+                        <p className="text-xs text-stone-500">{tt("全部会话、消息、PPT 与报告 → JSON 文件，保存在本机。")}</p>
                         <button
                           onClick={() => {
                             const a = document.createElement("a");
                             a.href = "/api/export";
                             a.download = "opencanvas-backup.json";
                             a.click();
-                            toast("正在导出备份…", "info");
+                            toast(tt("正在导出备份…"), "info");
                           }}
                           className="flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600"
                         >
@@ -1068,7 +1081,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                         </button>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-stone-50 p-3.5">
-                        <p className="text-xs text-stone-500">当前会话的消息转为 Markdown 文本，便于粘贴到其他工具。</p>
+                        <p className="text-xs text-stone-500">{tt("当前会话的消息转为 Markdown 文本，便于粘贴到其他工具。")}</p>
                         <ExportCurrentMarkdown />
                       </div>
                     </div>
@@ -1077,13 +1090,13 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={Trash2}
                     iconBg="bg-gradient-to-br from-red-400 to-rose-500"
-                    title="清空本地配置"
-                    desc="移除浏览器中保存的 API Key、已拉取模型列表与界面偏好"
+                    title={tt("清空本地配置")}
+                    desc={tt("移除浏览器中保存的 API Key、已拉取模型列表与界面偏好")}
                     className="border-red-100"
                   >
                     {confirmClear ? (
                       <div className="rounded-xl border border-red-200 bg-red-50 p-3.5">
-                        <p className="text-[13px] font-medium text-red-700">确认清空全部本地配置？</p>
+                        <p className="text-[13px] font-medium text-red-700">{tt("确认清空全部本地配置？")}</p>
                         <p className="mt-1 text-xs leading-relaxed text-red-500">
                           此操作不可撤销，但不影响服务端数据（会话与消息仍保留）。清空后需重新配置模型密钥。
                         </p>
@@ -1121,8 +1134,8 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                   <SectionCard
                     icon={ShieldCheck}
                     iconBg="bg-gradient-to-br from-indigo-500 to-violet-600"
-                    title="账号与数据权利"
-                    desc="导出我的全部数据；或永久删除账号及其名下数据（不可撤销）"
+                    title={tt("账号与数据权利")}
+                    desc={tt("导出我的全部数据；或永久删除账号及其名下数据（不可撤销）")}
                   >
                     <AccountRightsCard />
                   </SectionCard>
@@ -1135,7 +1148,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
 
           <footer className="sticky bottom-0 flex shrink-0 items-center justify-between gap-3 border-t border-stone-100 bg-white/85 px-5 py-3.5 backdrop-blur sm:px-6">
             <p className="hidden min-w-0 truncate text-[11px] text-stone-400 sm:block">
-              {dirty ? "更改尚未保存" : saved ? "所有更改已保存" : "模型与密钥保存在浏览器本地"}
+              {dirty ? tt("更改尚未保存") : saved ? tt("所有更改已保存") : tt("模型与密钥保存在浏览器本地")}
             </p>
             <div className="flex items-center gap-2.5">
               <button
@@ -1175,6 +1188,7 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
 /* ═══════════════════════════ 通用 ═══════════════════════════ */
 
 function GeneralTab() {
+  const { tt } = useI18n();
   const {
     artifactOpen,
     setArtifactOpen,
@@ -1210,15 +1224,15 @@ function GeneralTab() {
       <SectionCard
         icon={Sun}
         iconBg="bg-gradient-to-br from-amber-400 to-orange-500"
-        title="外观主题"
-        desc="全站浅色 / 深色即时切换；跟随系统会响应系统外观变化"
+        title={tt("外观主题")}
+        desc={tt("全站浅色 / 深色即时切换；跟随系统会响应系统外观变化")}
       >
         <div className="grid grid-cols-3 gap-2">
           {(
             [
-              { id: "system", label: "跟随系统", icon: Monitor },
-              { id: "light", label: "浅色", icon: Sun },
-              { id: "dark", label: "深色", icon: Moon },
+              { id: "system", label: tt("跟随系统"), icon: Monitor },
+              { id: "light", label: tt("浅色"), icon: Sun },
+              { id: "dark", label: tt("深色"), icon: Moon },
             ] as const
           ).map((o) => (
             <button
@@ -1243,13 +1257,13 @@ function GeneralTab() {
       <SectionCard
         icon={LayoutPanelTop}
         iconBg="bg-gradient-to-br from-orange-400 to-red-500"
-        title="右侧产物画布"
-        desc="控制 AI 创作画布的显示方式（即时生效）"
+        title={tt("右侧产物画布")}
+        desc={tt("控制 AI 创作画布的显示方式（即时生效）")}
       >
-        <SettingRow title="默认展开画布" desc="进入工作台时自动显示右侧 AI 创作画布">
+        <SettingRow title={tt("默认展开画布")} desc={tt("进入工作台时自动显示右侧 AI 创作画布")}>
           <Toggle checked={artifactOpen} onChange={setArtifactOpen} />
         </SettingRow>
-        <SettingRow title="生成后自动展开" desc="AI 产出文档、PPT 或图片后自动打开右侧预览">
+        <SettingRow title={tt("生成后自动展开")} desc={tt("AI 产出文档、PPT 或图片后自动打开右侧预览")}>
           <Toggle checked={autoOpenArtifact} onChange={setAutoOpenArtifact} />
         </SettingRow>
         <div className="pt-4">
@@ -1267,8 +1281,8 @@ function GeneralTab() {
       <SectionCard
         icon={History}
         iconBg="bg-gradient-to-br from-sky-400 to-indigo-500"
-        title="历史列表"
-        desc="左侧对话历史最多显示条数（搜索不受影响）"
+        title={tt("历史列表")}
+        desc={tt("左侧对话历史最多显示条数（搜索不受影响）")}
       >
         <Segmented
           value={historyLimit}
@@ -1280,15 +1294,15 @@ function GeneralTab() {
       <SectionCard
         icon={Send}
         iconBg="bg-gradient-to-br from-emerald-400 to-teal-500"
-        title="发送行为"
-        desc="快捷键仅在输入框聚焦时生效"
+        title={tt("发送行为")}
+        desc={tt("快捷键仅在输入框聚焦时生效")}
       >
-        <SettingRow title="发送消息快捷键" desc="Ctrl/⌘+Enter 可避免误发；Shift+Enter 始终换行">
+        <SettingRow title={tt("发送消息快捷键")} desc={tt("Ctrl/⌘+Enter 可避免误发；Shift+Enter 始终换行")}>
           <Segmented
             value={sendKey}
             onChange={setSendKey}
             options={[
-              { value: "enter", label: "Enter 发送" },
+              { value: "enter", label: tt("Enter 发送") },
               { value: "ctrlEnter", label: "Ctrl/⌘+Enter" },
             ]}
           />
@@ -1298,11 +1312,11 @@ function GeneralTab() {
       <SectionCard
         icon={Sparkles}
         iconBg="bg-gradient-to-br from-violet-400 to-purple-500"
-        title="新建任务默认值"
-        desc="点击「新建任务」时使用的模式与模型"
+        title={tt("新建任务默认值")}
+        desc={tt("点击「新建任务」时使用的模式与模型")}
       >
         <div className="mb-4">
-          <div className="mb-2 text-[13.5px] font-medium text-stone-700">默认模式</div>
+          <div className="mb-2 text-[13.5px] font-medium text-stone-700">{tt("默认模式")}</div>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {MODE_OPTIONS.map((m) => {
               const Icon = m.icon;
@@ -1339,7 +1353,7 @@ function GeneralTab() {
         </div>
 
         <div>
-          <div className="mb-2 text-[13.5px] font-medium text-stone-700">默认模型</div>
+          <div className="mb-2 text-[13.5px] font-medium text-stone-700">{tt("默认模型")}</div>
           <div className="relative">
             <select
               value={defaultModel}
@@ -1363,8 +1377,8 @@ function GeneralTab() {
       <SectionCard
         icon={ShieldCheck}
         iconBg="bg-gradient-to-br from-emerald-400 to-teal-500"
-        title="隐私与安全"
-        desc="关于密钥和数据的处理方式"
+        title={tt("隐私与安全")}
+        desc={tt("关于密钥和数据的处理方式")}
       >
         <ul className="space-y-2 text-xs leading-relaxed text-stone-500">
           <li className="flex items-start gap-2">
@@ -1388,28 +1402,29 @@ function GeneralTab() {
 /* ═══════════════════════════ 联网搜索 ═══════════════════════════ */
 
 function ResearchBehavior() {
+  const { tt } = useI18n();
   const { researchDepth, setResearchDepth, researchMaxResults, setResearchMaxResults } = useChatStore();
   return (
     <SectionCard
       icon={Search}
       iconBg="bg-gradient-to-br from-violet-400 to-purple-500"
-      title="研究策略"
-      desc="控制深度研究的检索强度与来源数量（配置 Tavily 后生效）"
+      title={tt("研究策略")}
+      desc={tt("控制深度研究的检索强度与来源数量（配置 Tavily 后生效）")}
     >
-      <SettingRow title="搜索深度" desc="基本：2 条检索线、更快；高级：4 条检索线、结果更全面">
+      <SettingRow title={tt("搜索深度")} desc={tt("基本：2 条检索线、更快；高级：4 条检索线、结果更全面")}>
         <Segmented
           value={researchDepth}
           onChange={setResearchDepth}
           options={[
-            { value: "basic", label: "快速" },
-            { value: "advanced", label: "深度" },
+            { value: "basic", label: tt("快速") },
+            { value: "advanced", label: tt("深度") },
           ]}
         />
       </SettingRow>
       <div className="flex items-center justify-between gap-4 pt-3.5">
         <div>
-          <div className="text-[13.5px] font-medium text-stone-700">每次来源数</div>
-          <p className="mt-0.5 text-xs text-stone-400">每条检索线返回的来源上限（5 / 6 / 8）</p>
+          <div className="text-[13.5px] font-medium text-stone-700">{tt("每次来源数")}</div>
+          <p className="mt-0.5 text-xs text-stone-400">{tt("每条检索线返回的来源上限（5 / 6 / 8）")}</p>
         </div>
         <Segmented
           value={researchMaxResults}
@@ -1424,6 +1439,7 @@ function ResearchBehavior() {
 /* ═══════════════════════════ 数据管理 ═══════════════════════════ */
 
 function DataOverview() {
+  const { tt } = useI18n();
   const { conversations } = useChatStore();
   const stats = useMemo(() => {
     const messages = conversations.reduce((n, c) => n + (c.messages?.length ?? 0), 0);
@@ -1435,20 +1451,20 @@ function DataOverview() {
   }, [conversations]);
 
   const items = [
-    { icon: MessageSquare, label: "会话", value: stats.convos, tint: "text-orange-500 bg-orange-50" },
-    { icon: FileText, label: "消息", value: stats.messages, tint: "text-sky-500 bg-sky-50" },
-    { icon: ImageIcon, label: "图片", value: stats.images, tint: "text-emerald-500 bg-emerald-50" },
-    { icon: Presentation, label: "PPT 页", value: stats.slides, tint: "text-rose-500 bg-rose-50" },
-    { icon: Search, label: "报告", value: stats.reports, tint: "text-violet-500 bg-violet-50" },
-    { icon: FileCode2, label: "文档", value: stats.docs, tint: "text-amber-500 bg-amber-50" },
+    { icon: MessageSquare, label: tt("会话"), value: stats.convos, tint: "text-orange-500 bg-orange-50" },
+    { icon: FileText, label: tt("消息"), value: stats.messages, tint: "text-sky-500 bg-sky-50" },
+    { icon: ImageIcon, label: tt("图片"), value: stats.images, tint: "text-emerald-500 bg-emerald-50" },
+    { icon: Presentation, label: tt("PPT 页"), value: stats.slides, tint: "text-rose-500 bg-rose-50" },
+    { icon: Search, label: tt("报告"), value: stats.reports, tint: "text-violet-500 bg-violet-50" },
+    { icon: FileCode2, label: tt("文档"), value: stats.docs, tint: "text-amber-500 bg-amber-50" },
   ];
 
   return (
     <SectionCard
       icon={Database}
       iconBg="bg-gradient-to-br from-indigo-400 to-violet-500"
-      title="本地数据概览"
-      desc="当前工作区中已加载的数据量（实时统计）"
+      title={tt("本地数据概览")}
+      desc={tt("当前工作区中已加载的数据量（实时统计）")}
     >
       <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
         {items.map((it) => {
@@ -1472,6 +1488,7 @@ function DataOverview() {
 }
 
 function ExportCurrentMarkdown() {
+  const { tt } = useI18n();
   const { conversations, activeId } = useChatStore();
   const convo = conversations.find((c) => c.id === activeId);
   const [copying, setCopying] = useState(false);
@@ -1480,7 +1497,7 @@ function ExportCurrentMarkdown() {
     if (!convo) return "";
     const lines: string[] = [`# ${convo.title}`, "", `> 模式：${MODE_LABELS[convo.mode]} · 模型：${convo.model}`, ""];
     for (const m of convo.messages) {
-      lines.push(m.role === "user" ? "## 🙋 用户" : "## 🤖 AI", "", m.content, "");
+      lines.push(m.role === "user" ? tt("## 🙋 用户") : "## 🤖 AI", "", m.content, "");
     }
     return lines.join("\n");
   };
@@ -1491,20 +1508,20 @@ function ExportCurrentMarkdown() {
         onClick={async () => {
           const text = build();
           if (!text) {
-            toast("当前会话暂无消息", "info");
+            toast(tt("当前会话暂无消息"), "info");
             return;
           }
           setCopying(true);
           try {
             await navigator.clipboard?.writeText(text);
-            toast("已复制为 Markdown", "success");
+            toast(tt("已复制为 Markdown"), "success");
           } catch {
             const a = document.createElement("a");
             a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
             a.download = `${convo?.title ?? "conversation"}.md`;
             a.click();
             URL.revokeObjectURL(a.href);
-            toast("已下载 Markdown 文件", "success");
+            toast(tt("已下载 Markdown 文件"), "success");
           }
           setCopying(false);
         }}
@@ -1520,6 +1537,7 @@ function ExportCurrentMarkdown() {
 /* ═══════════════════════════ 关于 ═══════════════════════════ */
 
 function AboutTab() {
+  const { tt } = useI18n();
   return (
     <>
       <div className="overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm">
@@ -1533,7 +1551,7 @@ function AboutTab() {
                 <span className="text-[16px] font-bold text-stone-800">OpenCanvas AI</span>
                 <StatusPill text="v0.1.0" kind="info" />
               </div>
-              <p className="mt-0.5 text-xs text-stone-400">一站式 AI 智能体工作空间</p>
+              <p className="mt-0.5 text-xs text-stone-400">{tt("一站式 AI 智能体工作空间")}</p>
             </div>
           </div>
           <p className="mt-4 text-[13px] leading-relaxed text-stone-500">
@@ -1549,16 +1567,16 @@ function AboutTab() {
               <Github className="h-3.5 w-3.5" /> GitHub 仓库
             </a>
             <button
-              onClick={() => toast("反馈通道即将开放，可在 GitHub 提交 Issue", "info")}
+              onClick={() => toast(tt("反馈通道即将开放，可在 GitHub 提交 Issue"), "info")}
               className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600"
             >
-              <MessageSquare className="h-3.5 w-3.5" /> 反馈建议 <ExternalLink className="h-3 w-3 text-stone-400" />
+              <MessageSquare className="h-3.5 w-3.5tt(" />{tt("反馈建议")}<ExternalLink className=")h-3 w-3 text-stone-400" />
             </button>
           </div>
         </div>
 
         <div className="border-t border-stone-100 p-5">
-          <h4 className="mb-3 text-[13px] font-semibold text-stone-700">核心能力</h4>
+          <h4 className="mb-3 text-[13px] font-semibold text-stone-700">{tt("核心能力")}</h4>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {ABOUT_FEATURES.map((f) => {
               const Icon = f.icon;
@@ -1581,8 +1599,8 @@ function AboutTab() {
       <SectionCard
         icon={ClipboardList}
         iconBg="bg-gradient-to-br from-amber-400 to-orange-500"
-        title="更新日志"
-        desc="近期迭代内容"
+        title={tt("更新日志")}
+        desc={tt("近期迭代内容")}
       >
         <ol className="space-y-4">
           {CHANGELOG.map((v) => (
@@ -1609,8 +1627,8 @@ function AboutTab() {
       <SectionCard
         icon={Cpu}
         iconBg="bg-gradient-to-br from-stone-600 to-stone-800"
-        title="技术栈"
-        desc="本项目构建所用技术"
+        title={tt("技术栈")}
+        desc={tt("本项目构建所用技术")}
       >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {TECH_STACK.map((t) => {
@@ -1635,13 +1653,14 @@ function AboutTab() {
 /* ---------------- 关于页：主题状态卡片 ---------------- */
 
 function ThemeCard() {
+  const { tt } = useI18n();
   const { theme, setTheme, settingsTab, setSettingsTab } = useChatStore();
-  const label = theme === "dark" ? "深色" : theme === "light" ? "浅色" : "跟随系统";
+  const label = theme === "dark" ? tt("深色") : theme === "light" ? tt("浅色") : tt("跟随系统");
   return (
     <SectionCard
       icon={Sun}
       iconBg="bg-gradient-to-br from-pink-400 to-rose-500"
-      title="主题外观"
+      title={tt("主题外观")}
       desc={`当前：${label}（可在通用页切换）`}
     >
       <div className="flex items-center justify-between gap-4">
@@ -1652,7 +1671,7 @@ function ThemeCard() {
           <div>
             <div className="text-[13px] font-medium text-stone-700">{label}模式</div>
             <p className="text-[11px] text-stone-400">
-              {theme === "system" ? "随操作系统自动切换浅色/深色" : "主题偏好已保存在本地"}
+              {theme === "system" ? tt("随操作系统自动切换浅色/深色") : tt("主题偏好已保存在本地")}
             </p>
           </div>
         </div>
@@ -1691,6 +1710,7 @@ interface GatewayStatsResp {
 }
 
 function GatewayTuningCard() {
+  const { tt } = useI18n();
   const [cfg, setCfg] = useState<GatewayConfig | null>(null);
 
   useEffect(() => {
@@ -1710,24 +1730,24 @@ function GatewayTuningCard() {
 
   const items = [
     {
-      label: "跨供应商降级",
+      label: tt("跨供应商降级"),
       ok: cfg.fallback,
       desc: cfg.fallback
-        ? "上游失败且未输出时，自动沿 fallback 链切换（如 GPT-4o mini → DeepSeek → Qwen）"
-        : "已关闭（GATEWAY_FALLBACK=0）",
+        ? tt("上游失败且未输出时，自动沿 fallback 链切换（如 GPT-4o mini → DeepSeek → Qwen）")
+        : tt("已关闭（GATEWAY_FALLBACK=0）"),
     },
     {
-      label: "多 Key 轮询",
+      label: tt("多 Key 轮询"),
       ok: Object.values(cfg.providers).some(Boolean),
       desc: "环境变量 USE `OPENAI_API_KEYS=a,b,c` 逗号分隔即可自动轮换，401/429 自动换 key 重试",
     },
     {
-      label: "限流",
+      label: tt("限流"),
       ok: cfg.rateLimitPerMin > 0,
       desc:
         cfg.rateLimitPerMin > 0
           ? `${cfg.rateLimitPerMin} 次/分钟/用户（未登录按 IP）`
-          : "已关闭（GATEWAY_RATE_LIMIT=0）",
+          : tt("已关闭（GATEWAY_RATE_LIMIT=0）"),
     },
   ];
 
@@ -1740,7 +1760,7 @@ function GatewayTuningCard() {
             <p className="mt-0.5 text-[11px] leading-relaxed text-stone-400">{it.desc}</p>
           </div>
           <StatusPill
-            text={it.ok ? "已启用" : "已关闭"}
+            text={it.ok ? tt("已启用") : tt("已关闭")}
             kind={it.ok ? "ok" : "fail"}
             icon={it.ok ? <Check className="h-3 w-3" /> : undefined}
           />
@@ -1757,6 +1777,7 @@ GATEWAY_ADMIN_KEY=admin-xxx  # 成本看板「全局视角」密钥`}
 }
 
 function GatewayStatsCard() {
+  const { tt } = useI18n();
   const [stats, setStats] = useState<GatewayStatsResp | null>(null);
   const [scope, setScope] = useState<"me" | "all">("me");
   const [adminKey, setAdminKey] = useState("");
@@ -1769,10 +1790,10 @@ function GatewayStatsCard() {
       if (s === "all" && key) headers["x-admin-key"] = key;
       const r = await fetch(`/api/gateway/stats?scope=${s}`, { headers });
       const j = (await r.json()) as GatewayStatsResp & { error?: string };
-      if (!r.ok) throw new Error(j.error ?? "加载失败");
+      if (!r.ok) throw new Error(j.error ?? tt("加载失败"));
       setStats(j);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "加载用量失败", "error");
+      toast(err instanceof Error ? err.message : tt("加载用量失败"), "error");
     } finally {
       setBusy(false);
     }
@@ -1835,11 +1856,11 @@ function GatewayStatsCard() {
           {/* 今日概览 */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { label: "今日调用", value: String(stats.stats.today.calls) },
-              { label: "今日成本", value: fmtUsd(stats.stats.today.costUsd) },
-              { label: "今日积分", value: String(stats.stats.today.credits) },
+              { label: tt("今日调用"), value: String(stats.stats.today.calls) },
+              { label: tt("今日成本"), value: fmtUsd(stats.stats.today.costUsd) },
+              { label: tt("今日积分"), value: String(stats.stats.today.credits) },
               {
-                label: "7 天成本",
+                label: tt("7 天成本"),
                 value: fmtUsd(stats.stats.totals.costUsd),
               },
             ].map((x) => (
@@ -1852,7 +1873,7 @@ function GatewayStatsCard() {
 
           {/* 近 7 天柱状 */}
           <div className="rounded-xl border border-stone-100 p-3">
-            <p className="mb-2 text-[11px] font-medium text-stone-500">近 7 天调用次数</p>
+            <p className="mb-2 text-[11px] font-medium text-stone-500">{tt("近 7 天调用次数")}</p>
             <div className="flex h-16 items-end gap-1.5">
               {stats.stats.week.map((d) => (
                 <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
@@ -1870,7 +1891,7 @@ function GatewayStatsCard() {
           {/* 按模型 */}
           {stats.stats.byModel.length > 0 && (
             <div className="rounded-xl border border-stone-100 p-3">
-              <p className="mb-2 text-[11px] font-medium text-stone-500">按模型（近 7 天成本）</p>
+              <p className="mb-2 text-[11px] font-medium text-stone-500">{tt("按模型（近 7 天成本）")}</p>
               <div className="space-y-1.5">
                 {stats.stats.byModel.map((m) => (
                   <div key={m.modelId + m.providerId} className="flex items-center justify-between gap-2 text-[11.5px]">
@@ -1891,7 +1912,7 @@ function GatewayStatsCard() {
           {/* 最近调用 */}
           {stats.stats.latest.length > 0 && (
             <div className="rounded-xl border border-stone-100 p-3">
-              <p className="mb-2 text-[11px] font-medium text-stone-500">最近调用</p>
+              <p className="mb-2 text-[11px] font-medium text-stone-500">{tt("最近调用")}</p>
               <div className="space-y-1">
                 {stats.stats.latest.map((l, i) => (
                   <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-stone-500">
@@ -1917,13 +1938,14 @@ function GatewayStatsCard() {
 /* ---------------- 账号与数据权利（导出 / 删除） ---------------- */
 
 function AccountRightsCard() {
+  const { tt } = useI18n();
   const user = useAuthStore((s) => s.user);
   const [deleteWord, setDeleteWord] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   const doDelete = async () => {
     if (deleteWord !== "DELETE") {
-      toast("请输入 DELETE 确认", "error");
+      toast(tt("请输入 DELETE 确认"), "error");
       return;
     }
     setDeleting(true);
@@ -1934,11 +1956,11 @@ function AccountRightsCard() {
         body: JSON.stringify({ confirm: "DELETE" }),
       });
       const j = (await r.json()) as { ok?: boolean; error?: string };
-      if (!r.ok || !j.ok) throw new Error(j.error ?? "删除失败");
-      toast("账号已删除，正在退出…", "success");
+      if (!r.ok || !j.ok) throw new Error(j.error ?? tt("删除失败"));
+      toast(tt("账号已删除，正在退出…"), "success");
       window.location.href = "/";
     } catch (err) {
-      toast(err instanceof Error ? err.message : "删除失败", "error");
+      toast(err instanceof Error ? err.message : tt("删除失败"), "error");
     } finally {
       setDeleting(false);
     }
@@ -1948,11 +1970,11 @@ function AccountRightsCard() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-stone-50 p-3.5">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-stone-600">导出我的数据</p>
+          <p className="text-xs font-medium text-stone-600">{tt("导出我的数据")}</p>
           <p className="mt-0.5 text-[11px] leading-relaxed text-stone-400">
             {user
-              ? "包含账号资料、名下会话与消息、模型用量记录（JSON）"
-              : "未登录时导出仅包含本机匿名会话；登录后可导出完整账号数据"}
+              ? tt("包含账号资料、名下会话与消息、模型用量记录（JSON）")
+              : tt("未登录时导出仅包含本机匿名会话；登录后可导出完整账号数据")}
           </p>
         </div>
         <a
@@ -1965,7 +1987,7 @@ function AccountRightsCard() {
       </div>
 
       <div className="rounded-xl border border-red-100 bg-red-50/50 p-3.5">
-        <p className="text-xs font-medium text-red-700">删除账号（不可撤销）</p>
+        <p className="text-xs font-medium text-red-700">{tt("删除账号（不可撤销）")}</p>
         <p className="mt-1 text-[11px] leading-relaxed text-red-500">
           永久删除账号资料、登录会话、名下全部会话/消息与模型用量记录。积分账本与模板市场为全局共享数据，不随删号变动。
         </p>
@@ -1973,7 +1995,7 @@ function AccountRightsCard() {
           <input
             value={deleteWord}
             onChange={(e) => setDeleteWord(e.target.value)}
-            placeholder='输入 DELETE 确认'
+            placeholder={tt("输入 DELETE 确认")}
             disabled={!user || deleting}
             className="w-40 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs outline-none transition focus:border-red-400 disabled:opacity-50"
           />
@@ -1985,7 +2007,7 @@ function AccountRightsCard() {
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             永久删除账号
           </button>
-          {!user && <span className="text-[11px] text-stone-400">请先登录后再删除账号</span>}
+          {!user && <span className="text-[11px] text-stone-400">{tt("请先登录后再删除账号")}</span>}
         </div>
       </div>
     </div>
@@ -1995,6 +2017,7 @@ function AccountRightsCard() {
 /* ---------------- 运行诊断（健康检查 + 前端错误） ---------------- */
 
 function DiagnosticsCard() {
+  const { tt } = useI18n();
   const [health, setHealth] = useState<{
     ok: boolean;
     version?: string;
@@ -2033,7 +2056,7 @@ function DiagnosticsCard() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill
-            text={health?.ok ? "服务正常" : "检测中"}
+            text={health?.ok ? tt("服务正常") : tt("检测中")}
             kind={health?.ok ? "ok" : "info"}
             icon={health?.ok ? <Check className="h-3 w-3" /> : undefined}
           />
@@ -2052,14 +2075,14 @@ function DiagnosticsCard() {
       {errors && (
         <div className="rounded-xl border border-stone-100 p-3">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-medium text-stone-500">前端运行时错误</p>
+            <p className="text-[11px] font-medium text-stone-500">{tt("前端运行时错误")}</p>
             <p className="text-[11px] text-stone-400">
               累计 <span className="font-semibold text-stone-600">{errors.stats.total}</span> · 24h{" "}
               <span className="font-semibold text-stone-600">{errors.stats.last24h}</span>
             </p>
           </div>
           {errors.stats.total === 0 ? (
-            <p className="mt-2 text-[11.5px] text-emerald-600">✓ 暂无运行时错误上报</p>
+            <p className="mt-2 text-[11.5px] text-emerald-600">{tt("✓ 暂无运行时错误上报")}</p>
           ) : (
             <div className="mt-2 space-y-1">
               {errors.stats.recent.slice(0, 3).map((r, i) => (

@@ -5,6 +5,7 @@ import { Check, Copy, Download, ExternalLink, FileOutput, FileText, Info } from 
 import type { ResearchReport } from "@/lib/research/types";
 import { useChatStore } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
+import { useI18n } from "@/lib/i18n";
 
 /** 将正文中的 [n] 引用渲染为可点角标 */
 function withCitations(text: string) {
@@ -23,6 +24,7 @@ function withCitations(text: string) {
 }
 
 export function ReportView({ report }: { report: ResearchReport }) {
+  const { tt } = useI18n();
   const { reportToSlides, reportToDoc, sending } = useChatStore();
   const [copied, setCopied] = useState(false);
 
@@ -33,11 +35,11 @@ export function ReportView({ report }: { report: ResearchReport }) {
       report.summary,
       "",
       ...report.sections.flatMap((s) => [`## ${s.heading}`, "", s.body, ""]),
-      "## 关键结论",
+      tt("## 关键结论"),
       "",
       ...report.takeaways.map((t) => `- ${t}`),
       "",
-      "## 参考来源",
+      tt("## 参考来源"),
       "",
       ...report.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`),
     ];
@@ -47,7 +49,7 @@ export function ReportView({ report }: { report: ResearchReport }) {
   const copyAll = async () => {
     await navigator.clipboard?.writeText(toMarkdown());
     setCopied(true);
-    toast("报告已复制（Markdown）", "success");
+    toast(tt("报告已复制（Markdown）"), "success");
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -59,14 +61,14 @@ export function ReportView({ report }: { report: ResearchReport }) {
     a.download = `${report.topic || "research-report"}.md`;
     a.click();
     URL.revokeObjectURL(url);
-    toast("已导出 Markdown", "success");
+    toast(tt("已导出 Markdown"), "success");
   };
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-stone-200 px-4 py-2.5">
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">深度研究报告</div>
+          <div className="truncate text-sm font-semibold">{tt("深度研究报告")}</div>
           <div className="text-xs text-stone-400">
             {report.sections.length} 小节 · {report.sources.length} 个来源
           </div>
@@ -74,14 +76,14 @@ export function ReportView({ report }: { report: ResearchReport }) {
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             onClick={() => void copyAll()}
-            title="复制为 Markdown"
+            title={tt("复制为 Markdown")}
             className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600 transition hover:border-brand-300 hover:text-brand-600"
           >
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
           <button
             onClick={download}
-            title="导出 Markdown"
+            title={tt("导出 Markdown")}
             className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600 transition hover:border-brand-300 hover:text-brand-600"
           >
             <Download className="h-3.5 w-3.5" />
@@ -108,7 +110,7 @@ export function ReportView({ report }: { report: ResearchReport }) {
           <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              当前为<b>演示模式</b>：未配置 Tavily 搜索密钥，来源为示例。在「模型设置」填入
+              当前为<b>{tt("演示模式")}</b>：未配置 Tavily 搜索密钥，来源为示例。在「模型设置」填入
               Tavily API Key 后将真实联网检索。
             </span>
           </div>
@@ -131,7 +133,7 @@ export function ReportView({ report }: { report: ResearchReport }) {
         ))}
 
         <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-brand-800">关键结论</h3>
+          <h3 className="mb-2 text-sm font-semibold text-brand-800">{tt("关键结论")}</h3>
           <ul className="space-y-1.5">
             {report.takeaways.map((t, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
@@ -143,7 +145,7 @@ export function ReportView({ report }: { report: ResearchReport }) {
         </div>
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-stone-800">参考来源</h3>
+          <h3 className="mb-2 text-sm font-semibold text-stone-800">{tt("参考来源")}</h3>
           <ol className="space-y-1.5">
             {report.sources.map((src, i) => (
               <li key={i} className="flex items-start gap-2 text-xs">

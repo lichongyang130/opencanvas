@@ -5,9 +5,11 @@ import { Check, ChevronDown, UserCog, X } from "lucide-react";
 import { PERSONAS, PERSONA_GROUPS, getPersona } from "@/lib/personas";
 import { useChatStore } from "@/lib/store/chat";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 /** AI 角色选择器：为当前会话绑定 system prompt 角色 */
 export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => void } = {}) {
+  const { tt } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const convo = useChatStore((s) => s.conversations.find((c) => c.id === s.activeId));
@@ -40,7 +42,7 @@ export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => voi
             ? "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100"
             : "border-stone-200 bg-white text-stone-500 hover:border-violet-300 hover:text-violet-600"
         )}
-        title="选择 AI 角色（专家人设）"
+        title={tt("选择 AI 角色（专家人设）")}
       >
         <UserCog className="h-3.5 w-3.5" />
         {persona && persona.id !== "none" ? (
@@ -73,13 +75,13 @@ export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => voi
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索角色：文案、翻译、产品经理…"
+              placeholder={tt("搜索角色：文案、翻译、产品经理…")}
               className="w-full rounded-lg bg-stone-50 px-3 py-1.5 text-sm outline-none placeholder:text-stone-400 focus:bg-white"
             />
           </div>
           <div className="max-h-80 overflow-y-auto p-1.5">
             {filtered.length === 0 && (
-              <div className="px-3 py-6 text-center text-xs text-stone-400">没有匹配的角色</div>
+              <div className="px-3 py-6 text-center text-xs text-stone-400">{tt("没有匹配的角色")}</div>
             )}
             {PERSONA_GROUPS.map((g) => {
               const list = filtered.filter((p) => p.group === g);

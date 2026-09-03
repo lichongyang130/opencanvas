@@ -14,6 +14,7 @@ import {
 import { useChatStore, MODE_LABELS, type WorkspaceMode } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 const MODE_ICONS: Record<WorkspaceMode, typeof MessageSquare> = {
   chat: MessageSquare,
@@ -36,6 +37,7 @@ function formatTime(ts: number) {
 
 /** 会话历史面板：搜索 + 列表 + 升级方案（对应 04 三栏工作台左栏） */
 export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
+  const { tt } = useI18n();
   const { conversations, activeId, selectConversation, newConversation, historyLimit } = useChatStore();
   const [query, setQuery] = useState("");
 
@@ -55,10 +57,10 @@ export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
     <aside className="hidden w-[248px] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-[var(--oc-bg)] md:flex">
       {/* 标题 */}
       <div className="flex items-center justify-between px-4 pb-1 pt-4">
-        <h2 className="text-[15px] font-semibold text-stone-800">对话历史</h2>
+        <h2 className="text-[15px] font-semibold text-stone-800">{tt("对话历史")}</h2>
         <button
           onClick={startNew}
-          title="新建对话"
+          title={tt("新建对话")}
           className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-brand-600"
         >
           <Sparkles className="h-4 w-4" />
@@ -72,7 +74,7 @@ export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索"
+            placeholder={tt("搜索")}
             className="w-full bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-400"
           />
         </div>
@@ -82,17 +84,17 @@ export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       <div className="flex-1 space-y-0.5 overflow-y-auto px-3 py-1">
         {list.length === 0 && (
           <p className="px-2 py-4 text-center text-xs text-stone-400">
-            {query ? "没有匹配的对话" : "暂无历史对话"}
+            {query ? tt("没有匹配的对话") : tt("暂无历史对话")}
           </p>
         )}
         {(() => {
           const now = new Date();
           const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
           const groups: { label: string; items: typeof list }[] = [
-            { label: "今天", items: [] },
-            { label: "昨天", items: [] },
-            { label: "7 天内", items: [] },
-            { label: "更早", items: [] },
+            { label: tt("今天"), items: [] },
+            { label: tt("昨天"), items: [] },
+            { label: tt("7 天内"), items: [] },
+            { label: tt("更早"), items: [] },
           ];
           for (const c of list) {
             const t = c.createdAt;
@@ -153,7 +155,7 @@ export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
       {/* 升级方案 */}
       <div className="border-t border-[#eee4d3] p-3">
         <button
-          onClick={() => toast("专业版即将上线，敬请期待", "info")}
+          onClick={() => toast(tt("专业版即将上线，敬请期待"), "info")}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oc-border-strong)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-orange-300 hover:text-brand-600"
         >
           <Sparkles className="h-4 w-4 text-orange-500" />
