@@ -1338,6 +1338,18 @@ export function getCaseShare(code: string): CaseShareRecord | null {
   }
 }
 
+/** 全部公开分享码（SEO sitemap 用）：产物 / 案例 / 共享智能体 / 共享模板 */
+export function listShareCodes(): { code: string; kind: string; updatedAt: number }[] {
+  const db = getDb();
+  const rows = [
+    ...db.prepare("SELECT code, 'artifact' AS kind, createdAt AS updatedAt FROM artifact_shares").all(),
+    ...db.prepare("SELECT code, 'case' AS kind, createdAt AS updatedAt FROM case_shares").all(),
+    ...db.prepare("SELECT shareCode AS code, 'agent' AS kind, updatedAt FROM agents WHERE shared = 1 AND shareCode IS NOT NULL").all(),
+    ...db.prepare("SELECT shareCode AS code, 'template' AS kind, updatedAt FROM prompt_templates WHERE shared = 1 AND shareCode IS NOT NULL").all(),
+  ] as { code: string; kind: string; updatedAt: number }[];
+  return rows.filter((r) => r.code);
+}
+
 /* ---------------- 会员 & 订单 ---------------- */
 
 export type MembershipPlan = "free" | "pro" | "team";
