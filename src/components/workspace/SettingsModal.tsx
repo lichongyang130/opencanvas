@@ -66,6 +66,18 @@ import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 import { ProviderLogo } from "./ProviderLogo";
 
+/** Google 官方四色 G 图标（内联 SVG） */
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82Z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24Z" />
+      <path fill="#FBBC05" d="M5.27 14.29A7.2 7.2 0 0 1 4.89 12c0-.8.14-1.57.38-2.29V6.62H1.29a12.01 12.01 0 0 0 0 10.76l3.98-3.09Z" />
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75Z" />
+    </svg>
+  );
+}
+
 type TestState = Record<string, "idle" | "testing" | "ok" | "fail">;
 
 const TABS: Array<{ id: SettingsTab; label: string; desc: string; icon: LucideIcon }> = [
@@ -481,6 +493,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [fetchingModels, setFetchingModels] = useState<Record<string, boolean>>({});
   const [fetchModelErrors, setFetchModelErrors] = useState<Record<string, string>>({});
   const [confirmClear, setConfirmClear] = useState(false);
+  const [oauthStatus, setOauthStatus] = useState<{ google?: boolean; github?: boolean }>({});
 
   useEffect(() => {
     if (open) {
@@ -500,6 +513,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           setImageStatus(d.imageStatus ?? {});
         })
         .catch(() => setServerStatus({}));
+      fetch("/api/auth/oauth/status")
+        .then((r) => r.json())
+        .then((d: { google?: boolean; github?: boolean }) => setOauthStatus(d ?? {}))
+        .catch(() => setOauthStatus({}));
     }
   }, [open]);
 
@@ -847,6 +864,93 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                           <Copy className="h-3.5 w-3.5" /> 复制模板
                         </button>
                       </div>
+                    </div>
+                  </SectionCard>
+
+                  {/* 第三方登录（Google / GitHub OAuth）配置向导 */}
+                  <SectionCard
+                    icon={KeyRound}
+                    iconBg="bg-gradient-to-br from-violet-500 to-indigo-600"
+                    title="第三方登录（Google / GitHub）"
+                    desc="登录弹窗「或使用以下方式登录」按钮；配置后无需重启，刷新页面即可"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {([
+                        {
+                          key: "google" as const,
+                          name: "Google",
+                          env: "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET",
+                          console: "https://console.cloud.google.com/apis/credentials",
+                          hint: "创建 OAuth 客户端（类型：Web 应用）",
+                        },
+                        {
+                          key: "github" as const,
+                          name: "GitHub",
+                          env: "GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET",
+                          console: "https://github.com/settings/developers",
+                          hint: "New OAuth App；回调地址填下方链接",
+                        },
+                      ] as const).map((p) => {
+                        const configured = Boolean(oauthStatus[p.key]);
+                        const callback = `${window.location.origin}/api/auth/oauth/${p.key}/callback`;
+                        return (
+                          <div key={p.key} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-2 text-[13px] font-semibold text-stone-700">
+                                {p.key === "google" ? (
+                                  <GoogleIcon className="h-4 w-4" />
+                                ) : (
+                                  <Github className="h-4 w-4" />
+                                )}
+                                {p.name}
+                              </span>
+                              {configured ? (
+                                <StatusPill text="已配置" kind="ok" icon={<Check className="h-3 w-3" />} />
+                              ) : (
+                                <StatusPill text="未配置" kind="fail" />
+                              )}
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-stone-400">{p.hint}</p>
+                            <a
+                              href={p.console}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-medium text-violet-600 hover:underline"
+                            >
+                              前往控制台 <ExternalLink className="h-3 w-3" />
+                            </a>
+                            <div className="mt-2.5">
+                              <p className="mb-1 text-[10px] font-medium text-stone-400">回调地址（登记到控制台）</p>
+                              <div className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2 py-1.5">
+                                <code className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-stone-500">
+                                  {callback}
+                                </code>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard
+                                      ?.writeText(callback)
+                                      .then(() => toast("回调地址已复制", "success"))
+                                      .catch(() => {});
+                                  }}
+                                  className="rounded p-1 text-stone-400 transition hover:bg-stone-100 hover:text-violet-600"
+                                  title="复制回调地址"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="mt-2 font-mono text-[10px] leading-relaxed text-stone-400">{p.env}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 rounded-xl bg-stone-50 p-3 text-[11px] leading-relaxed text-stone-500">
+                      ① 在控制台创建 OAuth 应用 → ② 将上方回调地址填入 → ③ 把 Client ID / Secret 写入{" "}
+                      <code className="rounded bg-white px-1 py-0.5 text-[10px]">.env</code>（或下方「服务端密钥」）→{" "}
+                      ④ 登录弹窗即可用 {""}
+                      <span className="font-medium text-stone-600">Google / GitHub</span> 登录。
+                      部署在代理后域名不变时无需额外配置；否则设置{" "}
+                      <code className="rounded bg-white px-1 py-0.5 text-[10px]">OAUTH_REDIRECT_BASE</code>。
                     </div>
                   </SectionCard>
                 </>
