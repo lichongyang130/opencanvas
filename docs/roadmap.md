@@ -70,7 +70,8 @@
 - ✅ Google / GitHub OAuth 登录（本地版内置，标准授权码流程 + state 防 CSRF；需在 Google Cloud / GitHub 创建 OAuth 应用并配置 .env 凭据，回调地址见 .env.example）
 - ⬜ 海外托管版：Clerk/Auth0（多租户、社交登录聚合）
 - ⬜ 国内：手机号验证码 + 微信登录
-- ⬜ 全表隔离（文档/知识库/积分等）与 PostgreSQL 版用户体系
+- ✅ 全表隔离（文档/知识库/积分/通知，账号导出与删除同步覆盖）
+- ⬜ PostgreSQL 版用户体系（Prisma schema 与切换脚本）
 
 ### 11. 积分与支付（P1）
 - 积分账本真实落库（现在是纯函数）：预扣、结算、流水

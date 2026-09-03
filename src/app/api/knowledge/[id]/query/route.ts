@@ -1,4 +1,5 @@
 import { repo } from "@/lib/db/repo";
+import { getUserFromRequest } from "@/lib/auth";
 import { retrieve, fallbackSnippet, type KbSearchDoc, type KbSearchHit } from "@/lib/kb/search";
 import { vectorRetrieve } from "@/lib/kb/vector";
 import { embeddingConfigured } from "@/lib/gateway/embedding";
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
  *  3. 无命中 → 最近文档片段兜底（保证引用来源能力）
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const kb = repo.getKnowledgeBase(params.id);
+  const uid = getUserFromRequest(req)?.id ?? null;
+  const kb = repo.getKnowledgeBase(params.id, uid);
   if (!kb) return Response.json({ error: "知识库不存在" }, { status: 404 });
   const body = (await req.json()) as { question?: string; overrides?: ProviderOverrides };
   const question = (body.question ?? "").trim();
@@ -23,7 +25,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (question.length > 500) return Response.json({ error: "问题过长（最多 500 字）" }, { status: 400 });
 
   const docs: KbSearchDoc[] = repo
-    .listKbDocuments(params.id)
+    .listKbDocuments(params.id, uid)
     .filter((d) => d.content && d.deleted !== true)
     .map((d) => ({ id: d.id, name: d.name, content: d.content }));
 
@@ -36,7 +38,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   if (kb.semantic && embeddingConfigured(body.overrides)) {
     try {
-      hits = await vectorRetrieve(docs, question, 3, body.overrides);
+      hits = await vectorRetrieve(docs, question, 3, body.overrides, { userId: uid });
       engine = hits.length > 0 ? "embedding" : "fallback";
     } catch {
       // Embedding 失败 → 本地降级

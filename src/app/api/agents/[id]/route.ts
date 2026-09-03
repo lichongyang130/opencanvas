@@ -1,4 +1,5 @@
 import { repo } from "@/lib/db/repo";
+import { getUserFromRequest } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
  * - 其他字段 → 更新智能体内容
  */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as {
     action?: "share" | "unshare";
     name?: string;
@@ -27,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const isNew = !(cur.shareCode && cur.shared);
     const code = isNew ? `s-${randomUUID().replace(/-/g, "").slice(0, 12)}` : cur.shareCode!;
     repo.updateAgent(params.id, { shared: true, shareCode: code });
-    if (isNew) repo.addCredits(3, "分享智能体");
+    if (isNew) repo.addCredits(3, "分享智能体", null, uid);
     return Response.json({ ok: true, shareCode: code });
   }
   if (body.action === "unshare") {

@@ -1,4 +1,5 @@
 import { generateImage } from "@/lib/gateway/image";
+import { getUserFromRequest } from "@/lib/auth";
 import type { ProviderOverrides } from "@/lib/gateway";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
  * 演示模型返回 SVG data URI；真实模型返回图床 URL / base64。
  */
 export async function POST(req: Request) {
+  const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as {
     model?: string;
     prompt?: string;
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     // 真实计费扣积分（demo 模型 credits=0 自动跳过；失败不扣）
     if (result.credits > 0) {
       try {
-        (await import("@/lib/db/repo")).repo.addCredits(-result.credits, "AI 绘图");
+        (await import("@/lib/db/repo")).repo.addCredits(-result.credits, "AI 绘图", null, uid);
       } catch {
         /* 数据库不可用时忽略 */
       }

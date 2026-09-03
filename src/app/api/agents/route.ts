@@ -1,4 +1,5 @@
 import { repo, type StoredAgent } from "@/lib/db/repo";
+import { getUserFromRequest } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ export async function GET() {
 
 /** 创建智能体：POST { name, desc, category, emoji, system, starter } */
 export async function POST(req: Request) {
+  const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as {
     name?: string;
     desc?: string;
@@ -49,8 +51,9 @@ export async function POST(req: Request) {
     title: `智能体「${a.name}」已创建`,
     body: "配置系统提示词即可开始对话，也支持分享给他人",
     link: "/agents",
+    userId: uid,
   });
-  repo.addCredits(3, "创建智能体");
+  repo.addCredits(3, "创建智能体", null, uid);
   return Response.json({ agent: toDto(a) });
 }
 

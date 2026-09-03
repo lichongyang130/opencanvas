@@ -1,4 +1,5 @@
 import { repo, type StoredDocument } from "@/lib/db/repo";
+import { getUserFromRequest } from "@/lib/auth";
 import { docTypeOf, extractText, mimeOf, saveUploadFile, uploadExists } from "@/lib/docs/files";
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -12,12 +13,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q") ?? "";
   const includeDeleted = url.searchParams.get("deleted") === "1";
-  const docs = repo.listDocuments(q, includeDeleted);
+  const uid = getUserFromRequest(req)?.id ?? null;
+  const docs = repo.listDocuments(q, includeDeleted, uid);
   return Response.json({ documents: docs.map(toDto) });
 }
 
 /** 上传：POST multipart/form-data（files: File[]，多文件） */
 export async function POST(req: Request) {
+  const uid = getUserFromRequest(req)?.id ?? null;
   let form: FormData;
   try {
     form = await req.formData();
@@ -52,6 +55,7 @@ export async function POST(req: Request) {
       tags: [],
       favorite: false,
       deleted: false,
+      userId: uid,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -66,8 +70,9 @@ export async function POST(req: Request) {
       title: `已上传 ${saved.length} 个文档`,
       body: saved.map((d) => d.name).join("、").slice(0, 60),
       link: "/docs",
+      userId: uid,
     });
-    repo.addCredits(5 * saved.length, "上传文档");
+    repo.addCredits(5 * saved.length, "上传文档", null, uid);
   }
 
   return Response.json({
@@ -78,17 +83,22 @@ export async function POST(req: Request) {
 
 /** 详情：GET /api/documents/[id] 在动态路由处理；此处仅作为占位返回 404 语义 */
 export async function PATCH(req: Request) {
+  const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as { id?: string; name?: string; favorite?: boolean; tags?: string[]; restore?: boolean };
   if (!body.id) return Response.json({ error: "缺少 id" }, { status: 400 });
-  const cur = repo.getDocument(body.id);
+  const cur = repo.getDocument(body.id, uid);
   if (!cur) return Response.json({ error: "文档不存在" }, { status: 404 });
-  repo.updateDocument(body.id, {
-    name: body.name ?? cur.name,
-    favorite: body.favorite ?? cur.favorite,
-    tags: body.tags ?? cur.tags,
-    deleted: body.restore ? false : cur.deleted,
-  });
-  return Response.json({ document: toDto(repo.getDocument(body.id)!) });
+  repo.updateDocument(
+    body.id,
+    {
+      name: body.name ?? cur.name,
+      favorite: body.favorite ?? cur.favorite,
+      tags: body.tags ?? cur.tags,
+      deleted: body.restore ? false : cur.deleted,
+    },
+    uid
+  );
+  return Response.json({ document: toDto(repo.getDocument(body.id, uid)!) });
 }
 
 function toDto(d: StoredDocument) {

@@ -61,7 +61,8 @@ function cosine(a: number[], b: number[]): number {
 /** 向量化全部 chunk（批量 32，命中缓存跳过未变化块） */
 async function embedChunks(
   chunks: { docId: string; text: string }[],
-  overrides?: ProviderOverrides
+  overrides?: ProviderOverrides,
+  meta?: { userId?: string | null }
 ): Promise<number[][]> {
   const out: number[][] = new Array(chunks.length);
   for (let i = 0; i < chunks.length; ) {
@@ -83,7 +84,8 @@ async function embedChunks(
     if (missIdx.length > 0) {
       const res = await embedTexts(
         missIdx.map((j) => chunks[j].text),
-        overrides
+        overrides,
+        meta
       );
       missIdx.forEach((j, n) => {
         const kk = `${chunks[j].docId}:${contentHash(chunks[j].text)}`;
@@ -103,7 +105,8 @@ export async function vectorRetrieve(
   docs: KbSearchDoc[],
   question: string,
   topK: number,
-  overrides?: ProviderOverrides
+  overrides?: ProviderOverrides,
+  meta?: { userId?: string | null }
 ): Promise<KbSearchHit[]> {
   const chunks: { docId: string; docName: string; text: string }[] = [];
   for (const d of docs) {
@@ -112,9 +115,9 @@ export async function vectorRetrieve(
   }
   if (chunks.length === 0) return [];
 
-  const queryRes = await embedTexts([question], overrides);
+  const queryRes = await embedTexts([question], overrides, meta);
   const qVec = queryRes.vectors[0];
-  const chunkVecs = await embedChunks(chunks, overrides);
+  const chunkVecs = await embedChunks(chunks, overrides, meta);
 
   const scored = chunks
     .map((c, i) => ({ c, score: cosine(qVec, chunkVecs[i] ?? []) }))

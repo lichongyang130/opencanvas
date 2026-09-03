@@ -1,5 +1,6 @@
 import { getDb } from "./sqlite";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 
 export interface StoredConversation {
   id: string;
@@ -83,6 +84,8 @@ export interface StoredKnowledgeBase {
   semantic: boolean;
   qa: boolean;
   cite: boolean;
+  /** 归属用户（NULL = 未登录本地数据） */
+  userId: string | null;
   createdAt: number;
   updatedAt: number;
   /** 聚合：关联文档数 */
@@ -98,6 +101,8 @@ export interface StoredNotification {
   body: string;
   link: string | null;
   read: boolean;
+  /** 归属用户（NULL = 未登录本地数据） */
+  userId: string | null;
   createdAt: number;
 }
 
@@ -143,6 +148,7 @@ function rowToKnowledgeBase(r: Record<string, unknown>): Omit<StoredKnowledgeBas
     semantic: Boolean(r.semantic),
     qa: Boolean(r.qa),
     cite: Boolean(r.cite),
+    userId: (r.userId as string | null) ?? null,
     createdAt: r.createdAt as number,
     updatedAt: r.updatedAt as number,
   };
@@ -168,6 +174,7 @@ function rowToNotification(r: Record<string, unknown>): StoredNotification {
     body: (r.body as string) ?? "",
     link: (r.link as string | null) ?? null,
     read: Boolean(r.read),
+    userId: (r.userId as string | null) ?? null,
     createdAt: r.createdAt as number,
   };
 }
@@ -184,6 +191,8 @@ export interface StoredDocument {
   tags: string[];
   favorite: boolean;
   deleted: boolean;
+  /** 归属用户（NULL = 未登录本地数据） */
+  userId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -200,9 +209,22 @@ function rowToDocument(r: Record<string, unknown>): StoredDocument {
     tags: parseJson<string[]>(r.tags as string | null, []),
     favorite: Boolean(r.favorite),
     deleted: Boolean(r.deleted),
+    userId: (r.userId as string | null) ?? null,
     createdAt: r.createdAt as number,
     updatedAt: r.updatedAt as number,
   };
+}
+
+/**
+ * 数据可见性条件：
+ * - userId 未传：不过滤（内部聚合/全局数据）
+ * - userId === null：仅未登录本地数据（userId IS NULL）
+ * - userId 字符串：本人 + 本地历史数据（(userId IS NULL OR userId = ?)）
+ */
+function scopeCond(userId: string | null | undefined, col = "userId"): { sql: string; params: (string | number)[] } {
+  if (userId === null) return { sql: `${col} IS NULL`, params: [] };
+  if (typeof userId === "string") return { sql: `(${col} IS NULL OR ${col} = ?)`, params: [userId] };
+  return { sql: "1=1", params: [] };
 }
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => {
@@ -447,33 +469,35 @@ export const repo = {
   /* ─────────────────────────── 文档中心 ─────────────────────────── */
 
   /** 文档列表（支持关键字搜索；deleted=1 为回收站） */
-  listDocuments(q = "", includeDeleted = false): StoredDocument[] {
+  listDocuments(q = "", includeDeleted = false, userId?: string | null): StoredDocument[] {
     const db = getDb();
-    const where = includeDeleted ? "" : " AND deleted = 0";
+    const scope = scopeCond(userId);
+    const where = `${scope.sql}${includeDeleted ? "" : " AND deleted = 0"}`;
     const rows = q.trim()
       ? (db
           .prepare(
-            `SELECT * FROM documents WHERE (name LIKE ? OR content LIKE ?)${where} ORDER BY updatedAt DESC`
+            `SELECT * FROM documents WHERE (name LIKE ? OR content LIKE ?) AND ${where} ORDER BY updatedAt DESC`
           )
-          .all(`%${q.trim()}%`, `%${q.trim()}%`) as Record<string, unknown>[])
+          .all(`%${q.trim()}%`, `%${q.trim()}%`, ...scope.params) as Record<string, unknown>[])
       : (db
-          .prepare(`SELECT * FROM documents WHERE 1=1${where} ORDER BY updatedAt DESC`)
-          .all() as Record<string, unknown>[]);
+          .prepare(`SELECT * FROM documents WHERE ${where} ORDER BY updatedAt DESC`)
+          .all(...scope.params) as Record<string, unknown>[]);
     return rows.map(rowToDocument);
   },
 
-  getDocument(id: string): StoredDocument | null {
-    const row = getDb().prepare("SELECT * FROM documents WHERE id = ?").get(id) as
-      | Record<string, unknown>
-      | undefined;
+  getDocument(id: string, userId?: string | null): StoredDocument | null {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT * FROM documents WHERE id = ? AND ${scope.sql}`)
+      .get(id, ...scope.params) as Record<string, unknown> | undefined;
     return row ? rowToDocument(row) : null;
   },
 
   createDocument(d: StoredDocument): void {
     const db = getDb();
     db.prepare(
-      `INSERT INTO documents (id, name, type, size, ext, content, filePath, tags, favorite, deleted, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO documents (id, name, type, size, ext, content, filePath, tags, favorite, deleted, userId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       d.id,
       d.name,
@@ -485,14 +509,16 @@ export const repo = {
       JSON.stringify(d.tags ?? []),
       d.favorite ? 1 : 0,
       d.deleted ? 1 : 0,
+      d.userId ?? null,
       d.createdAt,
       d.updatedAt
     );
   },
 
-  updateDocument(id: string, patch: Partial<StoredDocument>): void {
+  updateDocument(id: string, patch: Partial<StoredDocument>, userId?: string | null): void {
     const db = getDb();
-    const row = db.prepare("SELECT * FROM documents WHERE id = ?").get(id) as
+    const scope = scopeCond(userId);
+    const row = db.prepare(`SELECT * FROM documents WHERE id = ? AND ${scope.sql}`).get(id, ...scope.params) as
       | Record<string, unknown>
       | undefined;
     if (!row) return;
@@ -515,22 +541,33 @@ export const repo = {
     );
   },
 
-  deleteDocument(id: string, hard = false): void {
+  deleteDocument(id: string, hard = false, userId?: string | null): void {
     const db = getDb();
-    if (hard) db.prepare("DELETE FROM documents WHERE id = ?").run(id);
-    else db.prepare("UPDATE documents SET deleted = 1, updatedAt = ? WHERE id = ?").run(Date.now(), id);
+    const scope = scopeCond(userId);
+    if (hard) db.prepare(`DELETE FROM documents WHERE id = ? AND ${scope.sql}`).run(id, ...scope.params);
+    else
+      db
+        .prepare(`UPDATE documents SET deleted = 1, updatedAt = ? WHERE id = ? AND ${scope.sql}`)
+        .run(Date.now(), id, ...scope.params);
   },
 
-  documentStats(): { total: number; favorite: number; size: number } {
+  documentStats(userId?: string | null): { total: number; favorite: number; size: number } {
     const db = getDb();
+    const scope = scopeCond(userId);
     const total = (
-      db.prepare("SELECT COUNT(*) AS n FROM documents WHERE deleted = 0").get() as { n: number }
+      db.prepare(`SELECT COUNT(*) AS n FROM documents WHERE deleted = 0 AND ${scope.sql}`).get(...scope.params) as {
+        n: number;
+      }
     ).n;
     const favorite = (
-      db.prepare("SELECT COUNT(*) AS n FROM documents WHERE deleted = 0 AND favorite = 1").get() as { n: number }
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM documents WHERE deleted = 0 AND favorite = 1 AND ${scope.sql}`)
+        .get(...scope.params) as { n: number }
     ).n;
     const size = (
-      db.prepare("SELECT COALESCE(SUM(size), 0) AS n FROM documents WHERE deleted = 0").get() as { n: number }
+      db
+        .prepare(`SELECT COALESCE(SUM(size), 0) AS n FROM documents WHERE deleted = 0 AND ${scope.sql}`)
+        .get(...scope.params) as { n: number }
     ).n;
     return { total, favorite, size };
   },
@@ -725,17 +762,19 @@ export const repo = {
 
   // ---------------- 知识库 ----------------
 
-  listKnowledgeBases(): StoredKnowledgeBase[] {
+  listKnowledgeBases(userId?: string | null): StoredKnowledgeBase[] {
+    const scope = scopeCond(userId);
     const rows = getDb()
-      .prepare("SELECT * FROM knowledge_bases ORDER BY updatedAt DESC")
-      .all() as Record<string, unknown>[];
+      .prepare(`SELECT * FROM knowledge_bases WHERE ${scope.sql} ORDER BY updatedAt DESC`)
+      .all(...scope.params) as Record<string, unknown>[];
     return rows.map((r) => withKbStats(rowToKnowledgeBase(r)));
   },
 
-  getKnowledgeBase(id: string): StoredKnowledgeBase | null {
-    const row = getDb().prepare("SELECT * FROM knowledge_bases WHERE id = ?").get(id) as
-      | Record<string, unknown>
-      | undefined;
+  getKnowledgeBase(id: string, userId?: string | null): StoredKnowledgeBase | null {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT * FROM knowledge_bases WHERE id = ? AND ${scope.sql}`)
+      .get(id, ...scope.params) as Record<string, unknown> | undefined;
     return row ? withKbStats(rowToKnowledgeBase(row)) : null;
   },
 
@@ -747,12 +786,13 @@ export const repo = {
     semantic?: boolean;
     qa?: boolean;
     cite?: boolean;
+    userId?: string | null;
     createdAt: number;
   }): void {
     getDb()
       .prepare(
-        `INSERT INTO knowledge_bases (id, name, desc, tags, semantic, qa, cite, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO knowledge_bases (id, name, desc, tags, semantic, qa, cite, userId, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         a.id,
@@ -762,6 +802,7 @@ export const repo = {
         a.semantic === false ? 0 : 1,
         a.qa === false ? 0 : 1,
         a.cite === false ? 0 : 1,
+        a.userId ?? null,
         a.createdAt,
         a.createdAt
       );
@@ -769,11 +810,13 @@ export const repo = {
 
   updateKnowledgeBase(
     id: string,
-    patch: Partial<Pick<StoredKnowledgeBase, "name" | "desc" | "tags" | "semantic" | "qa" | "cite">>
+    patch: Partial<Pick<StoredKnowledgeBase, "name" | "desc" | "tags" | "semantic" | "qa" | "cite">>,
+    userId?: string | null
   ): void {
-    const row = getDb().prepare("SELECT * FROM knowledge_bases WHERE id = ?").get(id) as
-      | Record<string, unknown>
-      | undefined;
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT * FROM knowledge_bases WHERE id = ? AND ${scope.sql}`)
+      .get(id, ...scope.params) as Record<string, unknown> | undefined;
     if (!row) return;
     const cur = rowToKnowledgeBase(row);
     const next = { ...cur, ...patch, updatedAt: Date.now() };
@@ -793,13 +836,16 @@ export const repo = {
       );
   },
 
-  deleteKnowledgeBase(id: string): void {
+  deleteKnowledgeBase(id: string, userId?: string | null): void {
     const db = getDb();
-    db.prepare("DELETE FROM kb_documents WHERE kbId = ?").run(id);
-    db.prepare("DELETE FROM knowledge_bases WHERE id = ?").run(id);
+    const scope = scopeCond(userId);
+    db.prepare(`DELETE FROM kb_documents WHERE kbId = ? AND ${scope.sql}`).run(id, ...scope.params);
+    db.prepare(`DELETE FROM knowledge_bases WHERE id = ? AND ${scope.sql}`).run(id, ...scope.params);
   },
 
-  listKbDocuments(kbId: string): StoredDocument[] {
+  listKbDocuments(kbId: string, userId?: string | null): StoredDocument[] {
+    // 先校验知识库归属（含本地历史），防止跨租户枚举
+    if (!this.getKnowledgeBase(kbId, userId)) return [];
     const rows = getDb()
       .prepare(
         `SELECT d.* FROM kb_documents k JOIN documents d ON d.id = k.documentId
@@ -809,26 +855,36 @@ export const repo = {
     return rows.map(rowToDocument);
   },
 
-  addKbDocument(kbId: string, documentId: string): boolean {
-    const kb = getDb().prepare("SELECT id FROM knowledge_bases WHERE id = ?").get(kbId);
-    const doc = getDb().prepare("SELECT id FROM documents WHERE id = ?").get(documentId);
-    if (!kb || !doc) return false;
+  addKbDocument(kbId: string, documentId: string, userId?: string | null): boolean {
+    if (!this.getKnowledgeBase(kbId, userId)) return false;
+    const scope = scopeCond(userId);
+    const doc = getDb()
+      .prepare(`SELECT id FROM documents WHERE id = ? AND ${scope.sql}`)
+      .get(documentId, ...scope.params);
+    if (!doc) return false;
     getDb()
       .prepare("INSERT OR IGNORE INTO kb_documents (kbId, documentId, createdAt) VALUES (?, ?, ?)")
       .run(kbId, documentId, Date.now());
     return true;
   },
 
-  removeKbDocument(kbId: string, documentId: string): void {
-    getDb().prepare("DELETE FROM kb_documents WHERE kbId = ? AND documentId = ?").run(kbId, documentId);
+  removeKbDocument(kbId: string, documentId: string, userId?: string | null): void {
+    if (!this.getKnowledgeBase(kbId, userId)) return;
+    const scope = scopeCond(userId);
+    getDb()
+      .prepare(
+        `DELETE FROM kb_documents WHERE kbId = ? AND documentId = ? AND documentId IN (SELECT id FROM documents WHERE ${scope.sql})`
+      )
+      .run(kbId, documentId, ...scope.params);
   },
 
   // ---------------- 通知 ----------------
 
-  listNotifications(limit = 30): StoredNotification[] {
+  listNotifications(limit = 30, userId?: string | null): StoredNotification[] {
+    const scope = scopeCond(userId);
     const rows = getDb()
-      .prepare("SELECT * FROM notifications ORDER BY createdAt DESC LIMIT ?")
-      .all(limit) as Record<string, unknown>[];
+      .prepare(`SELECT * FROM notifications WHERE ${scope.sql} ORDER BY createdAt DESC LIMIT ?`)
+      .all(...scope.params, limit) as Record<string, unknown>[];
     return rows.map(rowToNotification);
   },
 
@@ -837,6 +893,7 @@ export const repo = {
     title: string;
     body?: string;
     link?: string | null;
+    userId?: string | null;
   }): StoredNotification {
     const rec: StoredNotification = {
       id: `n-${Date.now()}-${randomUUID().slice(0, 8)}`,
@@ -845,44 +902,56 @@ export const repo = {
       body: n.body ?? "",
       link: n.link ?? null,
       read: false,
+      userId: n.userId ?? null,
       createdAt: Date.now(),
     };
     getDb()
-      .prepare("INSERT INTO notifications (id, type, title, body, link, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(rec.id, rec.type, rec.title, rec.body, rec.link, 0, rec.createdAt);
+      .prepare(
+        "INSERT INTO notifications (id, type, title, body, link, read, userId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      )
+      .run(rec.id, rec.type, rec.title, rec.body, rec.link, 0, rec.userId, rec.createdAt);
     return rec;
   },
 
-  markNotificationsRead(ids?: string[]): void {
+  markNotificationsRead(ids?: string[], userId?: string | null): void {
     const db = getDb();
+    const scope = scopeCond(userId);
     if (!ids || ids.length === 0) {
-      db.prepare("UPDATE notifications SET read = 1 WHERE read = 0").run();
+      db.prepare(`UPDATE notifications SET read = 1 WHERE read = 0 AND ${scope.sql}`).run(...scope.params);
       return;
     }
     const placeholders = ids.map(() => "?").join(",");
-    db.prepare(`UPDATE notifications SET read = 1 WHERE id IN (${placeholders})`).run(...ids);
+    db.prepare(
+      `UPDATE notifications SET read = 1 WHERE id IN (${placeholders}) AND ${scope.sql}`
+    ).run(...ids, ...scope.params);
   },
 
-  unreadCount(): number {
-    const row = getDb().prepare("SELECT COUNT(*) AS n FROM notifications WHERE read = 0").get() as {
-      n: number;
-    };
+  unreadCount(userId?: string | null): number {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT COUNT(*) AS n FROM notifications WHERE read = 0 AND ${scope.sql}`)
+      .get(...scope.params) as { n: number };
     return row.n;
   },
 
   // ---------------- 积分 ----------------
 
-  creditBalance(): number {
-    const row = getDb().prepare("SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger").get() as {
-      n: number;
-    };
+  creditBalance(userId?: string | null): number {
+    const scope = scopeCond(userId);
+    const row = getDb()
+      .prepare(`SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger WHERE ${scope.sql}`)
+      .get(...scope.params) as { n: number };
     return row.n;
   },
 
-  creditLedger(limit = 50): Array<{ id: string; delta: number; reason: string; ref: string | null; createdAt: number }> {
+  creditLedger(
+    limit = 50,
+    userId?: string | null
+  ): Array<{ id: string; delta: number; reason: string; ref: string | null; createdAt: number }> {
+    const scope = scopeCond(userId);
     const rows = getDb()
-      .prepare("SELECT * FROM credit_ledger ORDER BY createdAt DESC LIMIT ?")
-      .all(limit) as Array<Record<string, unknown>>;
+      .prepare(`SELECT * FROM credit_ledger WHERE ${scope.sql} ORDER BY createdAt DESC LIMIT ?`)
+      .all(...scope.params, limit) as Array<Record<string, unknown>>;
     return rows.map((r) => ({
       id: r.id as string,
       delta: r.delta as number,
@@ -892,20 +961,23 @@ export const repo = {
     }));
   },
 
-  addCredits(delta: number, reason: string, ref?: string | null): void {
+  addCredits(delta: number, reason: string, ref?: string | null, userId?: string | null): void {
     if (!delta) return;
     getDb()
-      .prepare("INSERT INTO credit_ledger (id, delta, reason, ref, createdAt) VALUES (?, ?, ?, ?, ?)")
-      .run(`c-${Date.now()}-${randomUUID().slice(0, 8)}`, delta, reason, ref ?? null, Date.now());
+      .prepare("INSERT INTO credit_ledger (id, delta, reason, ref, userId, createdAt) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(`c-${Date.now()}-${randomUUID().slice(0, 8)}`, delta, reason, ref ?? null, userId ?? null, Date.now());
   },
 
   /** 今日是否已签到 */
-  checkedInToday(): boolean {
+  checkedInToday(userId?: string | null): boolean {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
+    const scope = scopeCond(userId);
     const row = getDb()
-      .prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ?")
-      .get("每日签到", start.getTime()) as { n: number };
+      .prepare(
+        `SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ? AND ${scope.sql}`
+      )
+      .get("每日签到", start.getTime(), ...scope.params) as { n: number };
     return row.n > 0;
   },
 
@@ -1014,12 +1086,30 @@ export const repo = {
   /** 删除账号：用户 + 会话（级联消息）+ 网关用量；积分账本为全局记录，不随删号变动 */
   deleteUserAccount(userId: string): void {
     const db = getDb();
+    db.prepare("DELETE FROM kb_documents WHERE kbId IN (SELECT id FROM knowledge_bases WHERE userId = ?)").run(userId);
+    db.prepare("DELETE FROM knowledge_bases WHERE userId = ?").run(userId);
+    // 文档存在文件缓存时一并清理（SQLite 主库外文件）
+    for (const d of db.prepare("SELECT filePath FROM documents WHERE userId = ?").all(userId) as {
+      filePath: string | null;
+    }[]) {
+      if (d.filePath) {
+        try {
+          require("node:fs").unlinkSync(path.join(process.cwd(), "data", d.filePath));
+        } catch {
+          /* 文件不存在/占用时忽略 */
+        }
+      }
+    }
+    db.prepare("DELETE FROM documents WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM notifications WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM credit_ledger WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM client_errors WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM conversations WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM gateway_usage WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM users WHERE id = ?").run(userId);
   },
 
-  /** 账号数据导出（GDPR 风格）：资料 + 会话/消息 + 用量汇总 */
+  /** 账号数据导出（GDPR 风格）：资料 + 会话/消息 + 文档/知识库 + 积分 + 用量 */
   getUserAccountExport(userId: string) {
     const db = getDb();
     const user = db.prepare("SELECT id, email, name, provider, createdAt FROM users WHERE id = ?").get(userId) as
@@ -1036,6 +1126,10 @@ export const repo = {
          FROM gateway_usage WHERE userId = ? ORDER BY createdAt DESC`
       )
       .all(userId);
+    const documents = this.listDocuments("", true, userId);
+    const knowledgeBases = this.listKnowledgeBases(userId);
+    const notifications = this.listNotifications(200, userId);
+    const credits = this.creditLedger(1000, userId);
     return {
       app: "opencanvas",
       schema: "account-export-v1",
@@ -1043,7 +1137,11 @@ export const repo = {
       account: { id: user.id, email: user.email, name: user.name, provider: user.provider, createdAt: user.createdAt },
       conversations,
       gatewayUsage: usage,
-      note: "本地版提示词模板/知识库/积分账本为全局共享数据，不含个人归属字段，故未包含在本导出中。",
+      documents,
+      knowledgeBases,
+      notifications,
+      credits: { balance: this.creditBalance(userId), ledger: credits },
+      note: "模板市场/内置智能体/分享码为全局共享数据，不属于个人账号数据。",
     };
   },
 

@@ -1,4 +1,5 @@
 import { repo, type StoredTemplate } from "@/lib/db/repo";
+import { getUserFromRequest } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ export async function GET() {
 
 /** 提交模板：POST { label, desc, category, mode, prompt } */
 export async function POST(req: Request) {
+  const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as {
     label?: string;
     desc?: string;
@@ -46,8 +48,9 @@ export async function POST(req: Request) {
     title: `模板「${label.slice(0, 40)}」已提交`,
     body: "已上架到共享模板库，可在模板中心使用",
     link: "/templates",
+    userId: uid,
   });
-  repo.addCredits(3, "提交模板");
+  repo.addCredits(3, "提交模板", null, uid);
   return Response.json({ template: toDto(t) });
 }
 

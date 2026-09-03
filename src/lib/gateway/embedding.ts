@@ -72,7 +72,8 @@ async function callEmbeddings(
  */
 export async function embedTexts(
   texts: string[],
-  overrides?: ProviderOverrides
+  overrides?: ProviderOverrides,
+  meta?: { userId?: string | null }
 ): Promise<EmbeddingResult> {
   if (texts.length === 0) return { vectors: [], model: "", provider: "dashscope", inputTokens: 0 };
   const { provider, model } = resolveEmbedding(overrides);
@@ -97,6 +98,7 @@ export async function embedTexts(
       costUsd: 0.0001 * inputTokens, // 量级参考价（$0.1/M token 级）
       credits: Math.max(1, Math.ceil((0.0001 * inputTokens * 2) / 0.02)),
       latencyMs: 0,
+      userId: meta?.userId ?? null,
     });
   } catch {
     /* 日志失败不影响 */

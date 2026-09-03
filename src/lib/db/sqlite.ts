@@ -94,6 +94,7 @@ export function getDb(): DatabaseSync {
       tags      TEXT NOT NULL DEFAULT '[]',
       favorite  INTEGER NOT NULL DEFAULT 0,
       deleted   INTEGER NOT NULL DEFAULT 0,
+      userId    TEXT,
       createdAt REAL NOT NULL,
       updatedAt REAL NOT NULL
     );
@@ -132,6 +133,7 @@ export function getDb(): DatabaseSync {
       semantic  INTEGER NOT NULL DEFAULT 1,
       qa        INTEGER NOT NULL DEFAULT 1,
       cite      INTEGER NOT NULL DEFAULT 1,
+      userId    TEXT,
       createdAt REAL NOT NULL,
       updatedAt REAL NOT NULL
     );
@@ -150,6 +152,7 @@ export function getDb(): DatabaseSync {
       body      TEXT NOT NULL DEFAULT '',
       link      TEXT,
       read      INTEGER NOT NULL DEFAULT 0,
+      userId    TEXT,
       createdAt REAL NOT NULL
     );
     CREATE TABLE IF NOT EXISTS client_errors (
@@ -183,6 +186,7 @@ export function getDb(): DatabaseSync {
       delta     INTEGER NOT NULL,
       reason    TEXT NOT NULL DEFAULT '',
       ref       TEXT,
+      userId    TEXT,
       createdAt REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_credit_ledger_created ON credit_ledger(createdAt);
@@ -198,6 +202,10 @@ export function getDb(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_artifact_shares_created ON artifact_shares(createdAt);
     CREATE INDEX IF NOT EXISTS idx_documents_updated ON documents(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_documents_name ON documents(name);
+    CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(userId, updatedAt);
+    CREATE INDEX IF NOT EXISTS idx_kb_user ON knowledge_bases(userId, updatedAt);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(userId, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_credit_ledger_user ON credit_ledger(userId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updatedAt);
     CREATE INDEX IF NOT EXISTS idx_messages_convo ON messages(conversationId);
     CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(createdAt);
@@ -255,6 +263,17 @@ export function getDb(): DatabaseSync {
   if (!userCols.some((c) => c.name === "providerUserId")) {
     db.exec("ALTER TABLE users ADD COLUMN providerUserId TEXT NOT NULL DEFAULT ''");
   }
+
+  // 全表隔离：个人数据表补 userId（NULL = 未登录本地数据）
+  const d = db;
+  const addColIfMissing = (table: string, col: string, ddl: string) => {
+    const cols = d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === col)) d.exec(ddl);
+  };
+  addColIfMissing("documents", "userId", "ALTER TABLE documents ADD COLUMN userId TEXT");
+  addColIfMissing("knowledge_bases", "userId", "ALTER TABLE knowledge_bases ADD COLUMN userId TEXT");
+  addColIfMissing("notifications", "userId", "ALTER TABLE notifications ADD COLUMN userId TEXT");
+  addColIfMissing("credit_ledger", "userId", "ALTER TABLE credit_ledger ADD COLUMN userId TEXT");
 
   return db;
 }
