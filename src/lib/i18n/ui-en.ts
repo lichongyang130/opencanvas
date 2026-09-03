@@ -1504,4 +1504,5 @@ export const uiEn: Record<string, string> = {
   "发布评论": "Post",
   "评论失败": "Failed to post comment",
   "评论已发布": "Comment posted",
+  "应用场景": "Use cases",
 };

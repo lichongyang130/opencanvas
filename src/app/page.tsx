@@ -555,6 +555,7 @@ export default function HomePage() {
       {/* 页脚：合规链接 */}
       <footer className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 border-t border-stone-100 bg-white/70 py-2 text-[11px] text-stone-400 backdrop-blur">
         <span>© 2026 OpenCanvas</span>
+        <Link href="/landings" className="transition hover:text-stone-600">{tt("应用场景")}</Link>
         <Link href="/privacy" className="transition hover:text-stone-600">{t("home.privacy")}</Link>
         <Link href="/terms" className="transition hover:text-stone-600">{t("home.terms")}</Link>
         <Link href="/api/export" className="transition hover:text-stone-600">{t("home.exportData")}</Link>

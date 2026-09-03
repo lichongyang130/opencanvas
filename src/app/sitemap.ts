@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { listShareCodes } from "@/lib/db/repo";
+import { LANDINGS } from "@/lib/landings";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,19 @@ const STATIC_PAGES: { path: string; priority: number; changeFrequency: MetadataR
   { path: "/knowledge", priority: 0.7, changeFrequency: "weekly" },
   { path: "/tools", priority: 0.7, changeFrequency: "weekly" },
   { path: "/apps", priority: 0.7, changeFrequency: "weekly" },
+  { path: "/landings", priority: 0.8, changeFrequency: "weekly" },
   { path: "/membership", priority: 0.6, changeFrequency: "monthly" },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" },
 ];
+
+/* SEO 落地页矩阵（关键词页） */
+const LANDING_PAGES: MetadataRoute.Sitemap = LANDINGS.map((l) => ({
+  url: `/landings/${l.slug}`,
+  lastModified: new Date(),
+  changeFrequency: "monthly",
+  priority: 0.75,
+}));
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "https://opencanvas.example.com";
@@ -27,6 +37,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     changeFrequency: p.changeFrequency,
     priority: p.priority,
   }));
+  const landings: MetadataRoute.Sitemap = LANDING_PAGES.map((p) => ({
+    ...p,
+    url: `${base}${p.url}`,
+  }));
 
   // 公开分享页：产物 / 案例 / 共享智能体 / 共享模板
   const shares: MetadataRoute.Sitemap = listShareCodes().map((s) => ({
@@ -36,5 +50,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...statics, ...shares];
+  return [...statics, ...landings, ...shares];
 }
