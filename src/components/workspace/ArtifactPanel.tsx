@@ -10,7 +10,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useChatStore, MODE_LABELS, type UIImage } from "@/lib/store/chat";
+import { useChatStore, type UIImage } from "@/lib/store/chat";
 import { SlideDeckView } from "./SlideDeckView";
 import { ReportView } from "./ReportView";
 import { DocView } from "./DocView";
@@ -76,9 +76,18 @@ function ImageGallery({ images }: { images: UIImage[] }) {
  * 
  * 默认关闭，有产物时自动弹出。
  */
-export function ArtifactPanel() {
-  const { conversations, activeId, sending, artifactOpen, setArtifactOpen } = useChatStore();
-  const convo = conversations.find((c) => c.id === activeId);
+export function ArtifactPanel({
+  conversationId,
+  onClose,
+}: {
+  conversationId?: string;
+  /** 外部控制显隐时传入（例如首页用本地状态控制抽屉） */
+  onClose?: () => void;
+} = {}) {
+  const { conversations, activeId, sending, artifactOpen, artifactDismissed, setArtifactOpen } =
+    useChatStore();
+  // conversationId：外部指定要看的会话（首页等场景）；不传则跟随当前会话
+  const convo = conversations.find((c) => c.id === (conversationId ?? activeId));
   const mode = convo?.mode ?? "chat";
 
   const lastAssistant = [...(convo?.messages ?? [])]
@@ -93,12 +102,12 @@ export function ArtifactPanel() {
     (mode === "slides" && convo?.deck) ||
     (mode === "chat" && lastAssistant);
 
-  // 有产物时自动弹出
+  // 有产物时自动弹出（但用户手动收起后不再强行弹出，直到下一次生成/切换会话）
   useEffect(() => {
-    if (hasArtifact && !artifactOpen) {
+    if (hasArtifact && !artifactOpen && !artifactDismissed) {
       setArtifactOpen(true);
     }
-  }, [hasArtifact, artifactOpen, setArtifactOpen]);
+  }, [hasArtifact, artifactOpen, artifactDismissed, setArtifactOpen]);
 
   // 隐藏状态或无产物内容时不渲染
   if (!artifactOpen) {
@@ -106,7 +115,7 @@ export function ArtifactPanel() {
   }
 
   return (
-    <aside className="flex w-[30rem] shrink-0 flex-col border-l border-stone-200 bg-white">
+    <aside className="absolute inset-y-0 right-0 z-30 flex w-full shrink-0 flex-col border-l border-stone-200 bg-white shadow-2xl sm:static sm:w-[26rem] sm:shadow-none lg:w-[30rem]">
       {/* 画布标题栏 */}
       <div className="flex items-center justify-between border-b border-stone-100 px-5 py-3">
         <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-800">
@@ -114,7 +123,7 @@ export function ArtifactPanel() {
           AI 创作画布
         </h2>
         <button
-          onClick={() => setArtifactOpen(false)}
+          onClick={() => (onClose ? onClose() : setArtifactOpen(false))}
           title="关闭画布"
           className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
         >

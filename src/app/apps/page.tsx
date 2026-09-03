@@ -1,8 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bell,
   BellDot,
   Calendar,
   CalendarRange,
@@ -20,6 +20,7 @@ import {
   QrCode,
   RefreshCw,
   Send,
+  X,
   Sparkles,
   Target,
   Timer,
@@ -31,6 +32,8 @@ import { useChatStore } from "@/lib/store/chat";
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
+import { addDocument } from "@/lib/documents";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 
 interface App {
   name: string;
@@ -102,6 +105,48 @@ export default function AppsPage() {
     router.push("/chat");
   };
 
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("oc:app-requests.v1");
+      if (raw) setRequests(JSON.parse(raw) as Array<{ name: string; use: string; ts: number }>);
+    } catch {}
+  }, []);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requests, setRequests] = useState<Array<{ name: string; use: string; ts: number }>>([]);
+
+  /** 上传文档：读取文本并存入文档中心 */
+  const uploadDoc = (f: File) => {
+    const isText =
+      /\.(txt|md|mdx|csv|json|log|yaml|yml|ini|tsv|xml)$/i.test(f.name) ||
+      f.type.startsWith("text/");
+    if (!isText) {
+      toast("文档中心目前支持文本文件：txt / md / csv / json / log 等", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      addDocument({
+        name: f.name,
+        sizeKb: Math.max(1, Math.round(f.size / 1024)),
+        content: String(reader.result ?? "").slice(0, 20000),
+      });
+      toast(`已把《${f.name}》存入文档中心`, "success");
+    };
+    reader.readAsText(f);
+  };
+
+  /** 提交应用需求：保存在本机（无后端工单系统） */
+  const submitRequest = (name: string, use: string) => {
+    const list = [{ name, use, ts: Date.now() }, ...requests].slice(0, 20);
+    setRequests(list);
+    try {
+      localStorage.setItem("oc:app-requests.v1", JSON.stringify(list));
+    } catch {}
+    setRequestOpen(false);
+    toast("已记录你的应用需求（保存在本机）", "success");
+  };
+
   const demo = (label: string) => toast(`演示预览：${label} 功能即将接入`, "info");
 
   return (
@@ -116,18 +161,25 @@ export default function AppsPage() {
             <p className="mt-0.5 text-[12.5px] text-stone-400">发现更多实用应用，扩展你的工作能力</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
-              <Bell className="h-[18px] w-[18px]" />
-            </button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
-              <Grid3x3 className="h-[18px] w-[18px]" />
-            </button>
+            <NotificationBell />
+            <AppLauncherMenu />
             <button
-              onClick={() => demo("上传文档")}
+              onClick={() => fileRef.current?.click()}
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[#f0c9a8] bg-white px-4 py-2 text-[13px] font-medium text-[#c05f3c] transition hover:bg-[#fdeee1]"
             >
               <Plus className="h-4 w-4" /> 上传文档
             </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.xml,text/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadDoc(f);
+                e.currentTarget.value = "";
+              }}
+            />
           </div>
         </header>
 
@@ -151,7 +203,7 @@ export default function AppsPage() {
                 </div>
               </div>
               <button
-                onClick={() => demo("提交应用")}
+                onClick={() => setRequestOpen(true)}
                 className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 px-4 py-2 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105"
               >
                 <Send className="h-4 w-4" /> 提交应用
@@ -160,7 +212,92 @@ export default function AppsPage() {
           </div>
         </div>
       </main>
+      {requestOpen && (
+        <RequestModal
+          onClose={() => setRequestOpen(false)}
+          onSubmit={submitRequest}
+        />
+      )}
+
       <Toaster />
+    </div>
+  );
+}
+
+/** 提交应用需求（保存在本机 localStorage，无后端工单系统） */
+function RequestModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (name: string, use: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [use, setUse] = useState("");
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-900/45 p-4 backdrop-blur-sm md:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="my-6 w-full max-w-md overflow-hidden rounded-3xl border border-stone-200/80 bg-[#fdfaf6] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between border-b border-stone-100 px-6 py-4">
+          <div>
+            <h2 className="text-[15px] font-semibold text-stone-800">提交应用需求</h2>
+            <p className="mt-0.5 text-xs text-stone-400">记录在本机，供后续排期参考</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+        <div className="space-y-4 p-6">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-500">想要什么应用</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例如：合同条款审查助手"
+              className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-500">主要用来做什么</label>
+            <textarea
+              value={use}
+              onChange={(e) => setUse(e.target.value)}
+              rows={4}
+              placeholder="描述一下使用场景和期望的产出"
+              className="w-full resize-none rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm leading-6 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+            />
+          </div>
+        </div>
+        <footer className="flex items-center justify-end gap-3 border-t border-stone-100 px-6 py-4">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm text-stone-600 transition hover:bg-stone-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={() => {
+              const n = name.trim();
+              if (!n) {
+                toast("请填写想要的应用", "error");
+                return;
+              }
+              onSubmit(n, use.trim());
+            }}
+            className="rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-5 py-2 text-sm font-medium text-white shadow-md shadow-orange-200 transition hover:brightness-105"
+          >
+            提交
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

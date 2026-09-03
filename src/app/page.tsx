@@ -10,7 +10,6 @@ import {
   Bell,
   Bot,
   BrainCircuit,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -25,8 +24,10 @@ import {
   LayoutTemplate,
   Lightbulb,
   MessageSquare,
+  PanelRight,
   Presentation,
   Scan,
+  Settings,
   SlidersHorizontal,
   X,
   Share2,
@@ -35,20 +36,24 @@ import {
 } from "lucide-react";
 import type { WorkspaceMode } from "@/lib/store/chat";
 import { ModelSelector } from "@/components/workspace/ModelSelector";
+import { ArtifactPanel } from "@/components/workspace/ArtifactPanel";
+import { AppLauncherMenu, NotificationBell } from "@/components/shell/TopBarMenus";
 import { useChatStore } from "@/lib/store/chat";
+import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 
 /* ---------------- 数据 ---------------- */
 
+/** 侧边导航：每一项都指向真实存在的页面（此前全部指向 /chat） */
 const NAV_ITEMS = [
-  { icon: Home, label: "首页", active: true },
-  { icon: MessageSquare, label: "AI 对话", href: "/chat" },
-  { icon: Bot, label: "智能体", href: "/chat" },
-  { icon: Database, label: "知识库", href: "/chat" },
-  { icon: FileText, label: "文档中心", href: "/chat", mode: "docs" as WorkspaceMode },
-  { icon: LayoutTemplate, label: "模板中心", href: "/chat" },
-  { icon: Wrench, label: "工具箱", href: "/chat" },
-  { icon: LayoutGrid, label: "更多应用", href: "/chat" },
+  { icon: Home, label: "首页", route: "/", active: true },
+  { icon: MessageSquare, label: "AI 对话", route: "/chat" },
+  { icon: Bot, label: "智能体", route: "/agents" },
+  { icon: Database, label: "知识库", route: "/knowledge" },
+  { icon: FileText, label: "文档中心", route: "/docs" },
+  { icon: LayoutTemplate, label: "模板中心", route: "/templates" },
+  { icon: Wrench, label: "工具箱", route: "/tools" },
+  { icon: LayoutGrid, label: "更多应用", route: "/apps" },
 ];
 
 const QUICK_ACTIONS: Array<{
@@ -139,6 +144,10 @@ const RECENT_USE = [
 interface RecentConvo {
   id: string;
   title: string;
+  mode?: string;
+  updatedAt?: number;
+  /** 产物类型标签：PPT / 研究报告 / 文档 / 图片 */
+  artifact?: string | null;
 }
 
 /* ---------------- 页面 ---------------- */
@@ -152,17 +161,37 @@ export default function HomePage() {
   const [featureOpen, setFeatureOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachment, setAttachment] = useState<{ name: string; content: string } | null>(null);
+  /** AI 创作画布显隐（右上角按钮控制，默认收起） */
+  const [canvasOpen, setCanvasOpen] = useState(false);
+  const [canvasConvoId, setCanvasConvoId] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const featureRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+
+  /** 为你推荐：左右箭头滚动一屏 */
+  const scrollRail = (dir: -1 | 1) => {
+    const el = railRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 240), behavior: "smooth" });
+  };
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (featureRef.current && !featureRef.current.contains(e.target as Node)) setFeatureOpen(false);
+      const t = e.target as Node;
+      if (featureRef.current && !featureRef.current.contains(t)) setFeatureOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setFeatureOpen(false);
     };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
   }, []);
 
   useEffect(() => {
@@ -171,10 +200,45 @@ export default function HomePage() {
     // 拉取最近对话
     fetch("/api/conversations")
       .then((r) => r.json())
-      .then((d: { conversations?: Array<{ id: string; title: string; archived?: boolean }> }) => {
-        const list = (d.conversations ?? []).filter((c) => !c.archived).slice(0, 4);
-        setRecent(list.map((c) => ({ id: c.id, title: c.title })));
-      })
+      .then(
+        (d: {
+          conversations?: Array<{
+            id: string;
+            title: string;
+            archived?: boolean;
+            mode?: string;
+            updatedAt?: number;
+            deck?: unknown;
+            report?: unknown;
+            doc?: unknown;
+            images?: unknown[];
+          }>;
+        }) => {
+          const list = (d.conversations ?? []).filter((c) => !c.archived);
+          setRecent(
+            list.slice(0, 8).map((c) => ({
+              id: c.id,
+              title: c.title,
+              mode: c.mode,
+              updatedAt: c.updatedAt,
+              artifact: c.deck
+                ? "PPT"
+                : c.report
+                  ? "研究报告"
+                  : c.doc
+                    ? "文档"
+                    : (c.images?.length ?? 0) > 0
+                      ? "图片"
+                      : null,
+            })),
+          );
+          // AI 画布默认展示「最近一条有产物的会话」，没有就展示最近一条
+          const withArtifact = list.find(
+            (c) => c.deck || c.report || c.doc || (c.images?.length ?? 0) > 0,
+          );
+          setCanvasConvoId((withArtifact ?? list[0])?.id ?? null);
+        },
+      )
       .catch(() => {});
   }, []);
 
@@ -191,37 +255,70 @@ export default function HomePage() {
   const submit = () => {
     const text = input.trim();
     if (!text) return goChat();
-    goChat({ type: "send", mode: "chat", text });
+    goChat({
+      type: "send",
+      mode: "chat",
+      text,
+      deep: thinking,
+      web: webSearch,
+      attachment: attachment ?? undefined,
+    });
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#fdfaf6] text-stone-800">
-      {/* ============ 左侧导航 ============ */}
-      <aside className="hidden w-[256px] shrink-0 flex-col border-r border-stone-100 bg-white md:flex">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 pb-2 pt-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-lg font-bold text-white shadow-sm">
+      {/* ============ 移动端顶部导航（侧栏在小屏隐藏，这里补上入口） ============ */}
+      <div className="fixed inset-x-0 top-0 z-30 border-b border-stone-100 bg-white/95 backdrop-blur md:hidden">
+        <div className="flex items-center gap-2 px-4 pt-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-base font-bold text-white shadow-sm">
             O
           </div>
-          <span className="text-[17px] font-semibold tracking-tight">AI 对话</span>
+          <span className="text-[15px] font-semibold tracking-tight">AI 对话</span>
+          <button
+            onClick={() => router.push("/membership")}
+            className="ml-auto rounded-lg border border-orange-200 px-2.5 py-1 text-[12px] font-medium text-orange-600"
+          >
+            专业版
+          </button>
         </div>
-
-        {/* 导航 */}
-        <nav className="mt-3 flex flex-col gap-0.5 px-3">
+        <nav className="flex gap-1 overflow-x-auto px-3 py-2">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.label}
-              onClick={() =>
-                item.active
-                  ? undefined
-                  : item.mode
-                    ? goChat({ type: "mode", mode: item.mode })
-                    : goChat()
-              }
+              onClick={() => (item.active ? undefined : router.push(item.route))}
               className={
                 item.active
-                  ? "flex items-center gap-3 rounded-xl bg-orange-50 px-3.5 py-2.5 text-[14px] font-medium text-orange-600"
-                  : "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+                  ? "flex shrink-0 items-center gap-1.5 rounded-lg bg-orange-50 px-2.5 py-1.5 text-[12.5px] font-medium text-orange-600"
+                  : "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] text-stone-600"
+              }
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* ============ 左侧导航 ============ */}
+      <aside className="hidden w-[208px] shrink-0 flex-col border-r border-stone-100 bg-white md:flex">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-4 pb-2 pt-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-lg font-bold text-white shadow-sm">
+            O
+          </div>
+          <span className="text-[16px] font-semibold tracking-tight">AI 对话</span>
+        </div>
+
+        {/* 导航 */}
+        <nav className="mt-3 flex flex-col gap-0.5 px-2">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.label}
+              onClick={() => (item.active ? undefined : router.push(item.route))}
+              className={
+                item.active
+                  ? "flex items-center gap-3 rounded-xl bg-orange-50 px-2.5 py-2.5 text-[13.5px] font-medium text-orange-600"
+                  : "flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13.5px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
               }
             >
               <item.icon className="h-[18px] w-[18px]" strokeWidth={item.active ? 2.2 : 1.8} />
@@ -231,7 +328,7 @@ export default function HomePage() {
         </nav>
 
         {/* 最近对话 */}
-        <div className="mt-5 flex-1 overflow-y-auto px-5">
+        <div className="mt-5 flex-1 overflow-y-auto px-3.5">
           <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
           <div className="flex flex-col gap-0.5 -mx-2">
             {recent.length === 0 && (
@@ -257,7 +354,7 @@ export default function HomePage() {
         </div>
 
         {/* 用户卡片 */}
-        <div className="border-t border-stone-100 p-3">
+        <div className="border-t border-stone-100 p-2">
           <button
             onClick={() => router.push("/membership")}
             className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50"
@@ -278,21 +375,56 @@ export default function HomePage() {
             <ChevronDown className="h-4 w-4 text-stone-400" />
           </button>
         </div>
+
+        {/* 设置入口 */}
+        <div className="px-2 pb-3">
+          <button
+            onClick={() => router.push("/settings")}
+            title="设置中心"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13.5px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+          >
+            <Settings className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            设置
+            <span className="ml-auto text-[11px] text-stone-300">模型 / 备份</span>
+          </button>
+        </div>
       </aside>
 
       {/* ============ 主区域 ============ */}
-      <main className="relative flex-1 overflow-y-auto">
+      <main className="relative flex-1 overflow-y-auto pt-[92px] md:pt-0">
         {/* 背景光晕 */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(60%_100%_at_50%_0%,rgba(255,183,148,0.18),rgba(244,114,182,0.07)_55%,transparent_100%)]" />
 
         {/* 顶栏 */}
         <header className="relative z-10 flex items-center justify-end gap-2 px-8 pt-5">
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
-            <Bell className="h-[18px] w-[18px]" />
+          {/* AI 创作画布：点击显示 / 再点隐藏 */}
+          <button
+            onClick={() => setCanvasOpen((v) => !v)}
+            title={canvasOpen ? "隐藏 AI 画布" : "显示 AI 画布"}
+            aria-pressed={canvasOpen}
+            className={
+              canvasOpen
+                ? "flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-600 transition hover:bg-orange-100"
+                : "flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
+            }
+          >
+            <PanelRight className="h-[18px] w-[18px]" />
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800">
-            <LayoutGrid className="h-[18px] w-[18px]" />
+
+          <button
+            onClick={() => router.push("/settings")}
+            title="设置中心"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
+          >
+            <Settings className="h-[18px] w-[18px]" />
           </button>
+
+          {/* 最近动态 */}
+          <NotificationBell />
+
+          {/* 更多应用 */}
+          <AppLauncherMenu />
+
           <button
             onClick={() => goChat({ type: "new" })}
             className="ml-2 rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-600 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
@@ -331,12 +463,15 @@ export default function HomePage() {
               placeholder="描述你的需求，或直接 @ 提及文件 / 智能体 / 知识库..."
               className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
             />
-            {attachedFile && (
+            {attachment && (
               <div className="mt-2 flex items-center gap-2 rounded-lg bg-stone-100 px-2.5 py-1.5 text-[13px] text-stone-600">
                 <FileUp className="h-3.5 w-3.5 shrink-0 text-stone-400" />
-                <span className="min-w-0 truncate">{attachedFile}</span>
+                <span className="min-w-0 truncate">{attachment.name}</span>
+                <span className="shrink-0 text-[11px] text-stone-400">
+                  {attachment.content.length} 字
+                </span>
                 <button
-                  onClick={() => setAttachedFile(null)}
+                  onClick={() => setAttachment(null)}
                   aria-label="移除附件"
                   className="ml-auto text-stone-400 transition hover:text-stone-700"
                 >
@@ -426,7 +561,22 @@ export default function HomePage() {
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) setAttachedFile(f.name);
+                  if (f) {
+                    const isText =
+                      /\.(txt|md|mdx|csv|json|log|yaml|yml|ini|tsv|xml)$/i.test(f.name) ||
+                      f.type.startsWith("text/");
+                    if (!isText) {
+                      toast("目前支持文本文件：txt / md / csv / json / log 等", "error");
+                    } else {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const content = String(reader.result ?? "").slice(0, 12000);
+                        setAttachment({ name: f.name, content });
+                        toast(`已读取附件《${f.name}》，发送时一并发给模型`, "success");
+                      };
+                      reader.readAsText(f);
+                    }
+                  }
                   setFeatureOpen(false);
                   e.currentTarget.value = "";
                 }}
@@ -469,20 +619,31 @@ export default function HomePage() {
                 <Sparkles className="h-4 w-4 text-orange-500" /> 为你推荐
               </h2>
               <div className="flex items-center gap-1.5">
-                <button className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 transition hover:text-stone-700">
+                <button
+                  onClick={() => scrollRail(-1)}
+                  title="向前"
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 transition hover:text-stone-700"
+                >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <button className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:text-stone-900">
+                <button
+                  onClick={() => scrollRail(1)}
+                  title="向后"
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:text-stone-900"
+                >
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+            <div
+              ref={railRef}
+              className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               {RECOMMEND_CARDS.map((c) => (
                 <div
                   key={c.title}
-                  className={`group flex flex-col rounded-2xl border border-stone-200/70 ${c.bg} p-4 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-stone-200/60`}
+                  className={`group flex w-[62%] shrink-0 snap-start flex-col rounded-2xl border border-stone-200/70 ${c.bg} p-4 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-stone-200/60 sm:w-[30%] xl:w-[15.5%]`}
                 >
                   <div
                     className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${c.tile} text-white shadow-sm`}
@@ -526,6 +687,22 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* AI 创作画布：点右上角按钮显示 / 隐藏。窄屏浮层，宽屏贴靠右侧 */}
+      {canvasOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-30 bg-stone-900/25 md:hidden"
+            onClick={() => setCanvasOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[26rem] flex-col border-l border-stone-200 bg-white shadow-2xl md:static md:z-auto md:w-[26rem] md:max-w-none md:shadow-none lg:w-[30rem]">
+            <ArtifactPanel
+              conversationId={canvasConvoId ?? undefined}
+              onClose={() => setCanvasOpen(false)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

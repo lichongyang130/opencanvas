@@ -1,25 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  ChevronRight,
   Clapperboard,
   FileText,
   Globe,
-  Image as ImageIcon,
   LayoutDashboard,
   LayoutGrid,
   MessageSquare,
   Monitor,
   Package,
   Presentation,
-  Search,
   Settings,
-  Video,
 } from "lucide-react";
-import { useChatStore, type WorkspaceMode } from "@/lib/store/chat";
+import { useChatStore, MODE_LABELS, type WorkspaceMode } from "@/lib/store/chat";
+import { CAPABILITIES, type SubCapability } from "@/lib/capabilities";
 import { TEMPLATES } from "@/lib/templates";
 import { TemplatesModal } from "./TemplatesModal";
 import { PacksModal } from "./PacksModal";
+import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -43,15 +43,45 @@ const QUICK_MODES: { mode: WorkspaceMode; icon: ReactNode; label: string }[] = [
 ];
 
 export function Sidebar() {
-  const { newConversation, setSettingsOpen } = useChatStore();
+  const { newConversation, selectConversation, setSettingsOpen } = useChatStore();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [packsOpen, setPacksOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const railRef = useRef<HTMLElement>(null);
+
+  // 点击空白处 / Esc 关闭能力浮层
+  useEffect(() => {
+    if (!activeCategory) return;
+    const onDown = (e: MouseEvent) => {
+      if (railRef.current && !railRef.current.contains(e.target as Node)) setActiveCategory(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveCategory(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [activeCategory]);
+
+  const activeCat = CAPABILITIES.find((c) => c.id === activeCategory) ?? null;
+
+  const startCapability = async (item: SubCapability) => {
+    const id = await newConversation(item.mode);
+    void selectConversation(id);
+    setActiveCategory(null);
+    toast(`已新建「${item.label}」· ${MODE_LABELS[item.mode]}工作台`, "success");
+  };
 
   return (
     <>
       {/* 纯图标轨 48px */}
-      <aside className="flex w-12 shrink-0 flex-col items-center border-r border-[#e8ddca] bg-[#f5efe4] py-2">
+      <aside
+        ref={railRef}
+        className="relative z-40 flex w-12 shrink-0 flex-col items-center border-r border-[#e8ddca] bg-[#f5efe4] py-2"
+      >
         {/* 品牌 */}
         <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white shadow-sm">
           O
@@ -81,6 +111,33 @@ export function Sidebar() {
             );
           })}
         </div>
+
+        {/* 分类能力浮层：点击分类图标展开该分类下的子能力 */}
+        {activeCat && (
+          <div className="absolute left-full top-0 ml-1 w-56 overflow-hidden rounded-xl border border-[#e8ddca] bg-white p-1.5 shadow-xl">
+            <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] font-medium text-stone-700">
+              <span>{activeCat.emoji}</span>
+              {activeCat.label}
+              <ChevronRight className="ml-auto h-3.5 w-3.5 text-stone-300" />
+            </div>
+            <div className="my-1 border-t border-stone-100" />
+            {activeCat.items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => void startCapability(item)}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-brand-50"
+              >
+                <span className="text-sm leading-none">{item.emoji}</span>
+                <span className="min-w-0 flex-1 truncate text-[12px] text-stone-700">
+                  {item.label}
+                </span>
+                <span className="shrink-0 text-[10px] text-stone-400">
+                  {MODE_LABELS[item.mode]}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* 分隔线 */}
         <div className="mx-2 my-2 h-px w-6 bg-stone-200" />

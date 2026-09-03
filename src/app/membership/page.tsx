@@ -154,7 +154,7 @@ export default function MembershipPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#fdfaf6] text-stone-800">
-      <ShellSidebar active="chat" />
+      <ShellSidebar active="membership" />
 
       {/* 主区域 */}
       <main className="relative flex-1 overflow-y-auto">

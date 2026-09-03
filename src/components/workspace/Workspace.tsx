@@ -140,7 +140,8 @@ export function Workspace() {
             </span>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1">
+        {/* relative：小屏时产物画布以浮层形式覆盖在对话区之上 */}
+        <div className="relative flex min-h-0 flex-1">
           <ChatPanel />
           <ArtifactPanel />
         </div>

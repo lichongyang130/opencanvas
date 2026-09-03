@@ -2,6 +2,8 @@
  * AI 角色库：每个角色是一套 system prompt。
  * 会话可绑定角色，发送时作为系统提示词生效（demo 模式下以前缀注入）。
  */
+import { findCustomAgent, skillsOf, disabledSkillNote } from "@/lib/agents";
+
 export interface Persona {
   id: string;
   name: string;
@@ -183,5 +185,30 @@ export const PERSONA_GROUPS = ["营销", "写作", "职场", "学习", "技术",
 
 export function getPersona(id: string | null | undefined): Persona | undefined {
   if (!id) return undefined;
-  return PERSONAS.find((p) => p.id === id);
+  const builtin = PERSONAS.find((p) => p.id === id);
+  if (builtin) {
+    // 智能体能力开关：把用户关闭的技能写进 system prompt，让设定真正生效
+    let system = builtin.system;
+    if (typeof window !== "undefined") {
+      const note = disabledSkillNote(id, skillsOf(id));
+      if (note) system = `${system}\n\n${note}`;
+    }
+    return { ...builtin, system };
+  }
+  // 用户自建的智能体（浏览器端才有）
+  if (typeof window !== "undefined") {
+    const custom = findCustomAgent(id);
+    if (custom) {
+      return {
+        id,
+        name: custom.name,
+        emoji: custom.emoji,
+        desc: custom.desc,
+        group: custom.group as Persona["group"],
+        system: custom.system,
+        starter: custom.desc,
+      };
+    }
+  }
+  return undefined;
 }
