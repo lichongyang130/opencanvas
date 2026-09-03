@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       size: file.size,
       ext,
       content: supported ? text : "",
-      filePath: supported ? saveUploadFile(file.name, buf) : null,
+      filePath: supported ? await saveUploadFile(file.name, buf, file.type) : null,
       tags: [],
       favorite: false,
       deleted: false,

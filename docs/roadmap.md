@@ -92,9 +92,9 @@
 ## 三、基础设施
 
 ### 14. 生产化存储与队列（P1）
-- SQLite → PostgreSQL（schema 已备好）
-- Redis + BullMQ：研究/视频/批量任务异步化
-- 文件存 Cloudflare R2 / S3（图片、视频、导出文件）
+- ✅ SQLite → PostgreSQL（schema + 迁移/导入/冒烟，PG 18.4 实测）
+- ✅ Redis + BullMQ 队列抽象（无 Redis 内存队列兜底，/api/health 展示模式）
+- ✅ 文件存 Cloudflare R2 / S3（存储抽象：本地默认 / S3 兼容切换，文档全链路实测）
 
 ### 15. 模型网关增强（P1）
 - ✅ 首个 token 前失败自动重试一次（已开始流式则报错，避免重复计费）

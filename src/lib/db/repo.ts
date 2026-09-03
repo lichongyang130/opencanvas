@@ -1,6 +1,6 @@
 import { getDb } from "./sqlite";
 import { randomUUID } from "node:crypto";
-import path from "node:path";
+import { deleteUploadFile } from "@/lib/docs/files";
 
 export interface StoredConversation {
   id: string;
@@ -1084,23 +1084,17 @@ export const repo = {
   },
 
   /** 删除账号：用户 + 会话（级联消息）+ 网关用量；积分账本为全局记录，不随删号变动 */
-  deleteUserAccount(userId: string): void {
+  async deleteUserAccount(userId: string): Promise<void> {
     const db = getDb();
     // 显式删除会话（SQLite 靠 FK 级联，PostgreSQL 无 FK 时需显式，双端语义一致）
     db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM kb_documents WHERE kbId IN (SELECT id FROM knowledge_bases WHERE userId = ?)").run(userId);
     db.prepare("DELETE FROM knowledge_bases WHERE userId = ?").run(userId);
-    // 文档存在文件缓存时一并清理（SQLite 主库外文件）
+    // 文档对象文件一并清理（本地磁盘 / S3-R2 统一）
     for (const d of db.prepare("SELECT filePath FROM documents WHERE userId = ?").all(userId) as {
       filePath: string | null;
     }[]) {
-      if (d.filePath) {
-        try {
-          require("node:fs").unlinkSync(path.join(process.cwd(), "data", d.filePath));
-        } catch {
-          /* 文件不存在/占用时忽略 */
-        }
-      }
+      if (d.filePath) await deleteUploadFile(d.filePath);
     }
     db.prepare("DELETE FROM documents WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM notifications WHERE userId = ?").run(userId);

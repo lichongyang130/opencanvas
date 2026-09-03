@@ -1,8 +1,6 @@
 import { repo } from "@/lib/db/repo";
 import { getUserFromRequest } from "@/lib/auth";
-import { mimeOf, uploadExists } from "@/lib/docs/files";
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import { mimeOf, readUploadFile } from "@/lib/docs/files";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,10 +14,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
 
-  // 下载原文件
+  // 下载原文件（本地磁盘 / S3-R2 统一）
   if (mode === "download") {
-    if (doc.filePath && uploadExists(doc.filePath)) {
-      const buf = readFileSync(path.join(process.cwd(), "data", doc.filePath));
+    const buf = doc.filePath ? await readUploadFile(doc.filePath) : null;
+    if (buf) {
       return new Response(new Uint8Array(buf), {
         headers: {
           "Content-Type": mimeOf(doc.ext),

@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   }
 
   const id = user.id;
-  repo.deleteUserAccount(id);
+  await repo.deleteUserAccount(id);
 
   // 清除当前会话 cookie
   const res = Response.json({ ok: true });

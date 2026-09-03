@@ -2,6 +2,21 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第十七轮：生产化存储与队列（R2/S3 + Redis，C 类）
+
+**文件存储抽象（本地默认 / S3 兼容切换）**
+- 新 `src/lib/storage`：`LocalDriver`（data/，零依赖）与 `S3Driver`（AWS SDK，兼容 Cloudflare R2 / AWS S3 / MinIO）
+- 配置 `S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY`（R2 加 `S3_ENDPOINT`/`S3_REGION=auto`）即切换，业务不变
+- 统一 `put/get/exists/delete`；文档上传/下载/删除、删号清理全部接入（含 S3 对象删除）
+- 上传 key 安全生成（防目录穿越）
+
+**后台队列抽象（Redis/BullMQ / 内存兜底）**
+- 新 `src/lib/queue`：`MemoryQueue`（进程内串行消费，零依赖）与 BullMQ（配置 `REDIS_URL` 自动切换）
+- `enqueue(name, data)` / `register(name, handler)` 统一接口；`GET /api/health` 展示 `storage`/`queue` 模式
+- next.config 外部化 bullmq/aws-sdk/valkey-glide（避免 webpack 打包 native 依赖）
+
+**实测**：S3 mock（scripts/s3-mock.mjs）下上传→下载→删除→删号对象清理全通过；默认本地模式回归通过；内存队列 register/enqueue/消费 PASS ✓
+
 ## 2026-09-03 · 第十六轮：PostgreSQL 版用户体系（C 类收尾）
 
 **完整权威 Schema**

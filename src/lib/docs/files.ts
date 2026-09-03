@@ -1,6 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
-import path from "node:path";
+import { getStorage, uploadKey } from "@/lib/storage";
 
 /** 文档类型识别（按扩展名） */
 export function docTypeOf(ext: string): string {
@@ -55,14 +53,24 @@ export async function extractText(
   return { text: "", supported: false };
 }
 
-/** 保存上传文件本体到 data/uploads，返回路径（相对 data/） */
-export function saveUploadFile(name: string, buf: Buffer): string {
-  const dir = path.join(process.cwd(), "data", "uploads");
-  mkdirSync(dir, { recursive: true });
-  const safe = name.replace(/[^\w.\-\u4e00-\u9fa5]/g, "_").slice(0, 80);
-  const file = `${Date.now()}-${randomUUID().slice(0, 8)}-${safe}`;
-  writeFileSync(path.join(dir, file), buf);
-  return `uploads/${file}`;
+/**
+ * 保存上传文件到存储层（本地 data/uploads 或 S3/R2），返回对象 key。
+ * 配置了 S3_BUCKET 等环境变量时自动走对象存储（见 src/lib/storage）。
+ */
+export async function saveUploadFile(name: string, buf: Buffer, mime?: string): Promise<string> {
+  const key = uploadKey(name);
+  await getStorage().put(key, buf, mime);
+  return key;
+}
+
+/** 读取上传文件内容（本地/S3 统一） */
+export async function readUploadFile(relKey: string): Promise<Buffer | null> {
+  return getStorage().get(relKey);
+}
+
+/** 删除上传文件（本地/S3 统一；不存在忽略） */
+export async function deleteUploadFile(relKey: string): Promise<void> {
+  await getStorage().delete(relKey);
 }
 
 /** 通过扩展名推断真实 MIME（下载时用） */
@@ -83,6 +91,7 @@ export function mimeOf(ext: string): string {
   return m[ext.toLowerCase()] ?? "application/octet-stream";
 }
 
-export function uploadExists(relPath: string): boolean {
-  return existsSync(path.join(process.cwd(), "data", relPath));
+/** 上传文件是否存在（本地/S3 统一） */
+export async function uploadExists(relKey: string): Promise<boolean> {
+  return getStorage().exists(relKey);
 }
