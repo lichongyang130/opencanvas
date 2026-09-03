@@ -41,7 +41,7 @@
 - ✅ 更多版式：时间轴（timeline）/ 对比（compare）/ 流程（process）/ 引言（quote）/ 团队（team），模型 prompt 与解析器同步支持
 - ✅ 导出 PDF（浏览器打印逐页输出，@media print 横版）
 - ✅ AI 单页重写（真实模型改写选中页，版式可智能适配，旧配图作废可重新生成）
-- ⬜ 演讲者备注编辑、主题市场、大纲先行
+- ✅ 演讲者备注编辑、主题市场、大纲先行
 
 ### 7. 图像能力增强（P2）
 - ✅ 接入 FLUX：fal.ai FLUX.1 Schnell（文生图）/ Dev（图生图），设置页可配 FAL_KEY、测试连接并拉取模型列表；/api/images 支持 model 指定与 imageUrl 图生图

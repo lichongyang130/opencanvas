@@ -9,8 +9,8 @@ import {
 } from "@/lib/gateway";
 import { buildSlidesPrompt, themeOrDefault } from "@/lib/slides/prompt";
 import { parseSlideDeck, parseSingleSlide } from "@/lib/slides/parse";
-import { buildSampleDeck } from "@/lib/slides/sample";
-import type { Slide, SlideDeck } from "@/lib/slides/types";
+import { applyOutlineToSample, buildSampleDeck } from "@/lib/slides/sample";
+import type { Slide, SlideDeck, SlideOutline } from "@/lib/slides/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,8 +29,9 @@ const REWRITE_SYSTEM = `你是演示文稿设计助手。请把用户提供的�
 
 /**
  * PPT 生成接口 —— SSE。
- * 请求: { topic, model, theme?, context? } 或 { mode:"rewrite", slide }
+ * 请求: { topic, model, theme?, context?, outline? } 或 { mode:"rewrite", slide }
  * 事件: {type:"status",message} → {type:"deck",deck} / {type:"slide",slide} | {type:"error",message}
+ * outline 为「大纲先行」用户确认后的目录，生成时严格遵循章节顺序与标题。
  * 演示模型/未配置密钥时返回内置示例 PPT，保证零配置可体验。
  */
 export async function POST(req: Request) {
@@ -43,12 +44,17 @@ export async function POST(req: Request) {
     context?: string;
     mode?: "rewrite";
     slide?: Slide;
+    outline?: SlideOutline | null;
   };
   const topic = (body.topic ?? "").trim();
   const context = (body.context ?? "").trim();
   const modelId = body.model ?? "demo";
   const theme = themeOrDefault(body.theme);
   const overrides = body.overrides;
+  const outline: SlideOutline | null =
+    body.outline && Array.isArray(body.outline.sections) && body.outline.sections.length > 0
+      ? body.outline
+      : null;
   const rewriteMode = body.mode === "rewrite" && body.slide;
 
   if (!topic && !rewriteMode) {
@@ -109,9 +115,10 @@ export async function POST(req: Request) {
             await sleep(450);
           }
           deck = buildSampleDeck(context ? `${topic}·研究汇报` : topic, theme);
+          if (outline) deck = applyOutlineToSample(deck, outline);
         } else {
           // 真实模型路径
-          const { system, user } = buildSlidesPrompt(topic, context);
+          const { system, user } = buildSlidesPrompt(topic, context, outline);
           const messages: ChatMessage[] = [
             { role: "system", content: system },
             { role: "user", content: user },

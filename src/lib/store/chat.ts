@@ -17,7 +17,7 @@ import {
   type ThemeMode,
 } from "@/lib/settings";
 import { toast } from "./toast";
-import type { Slide, SlideDeck, ThemeId } from "@/lib/slides/types";
+import type { Slide, SlideDeck, SlideOutline, ThemeId } from "@/lib/slides/types";
 import type { ResearchReport } from "@/lib/research/types";
 import { getPersona } from "@/lib/personas";
 
@@ -208,7 +208,15 @@ interface ChatState {
   regenerate: () => Promise<void>;
   /** 编辑重发：删除第 index 条用户消息及其后续回复，内容回填输入框 */
   editResendFrom: (index: number) => void;
-  generateSlides: (topic: string, context?: string) => Promise<void>;
+  generateSlides: (topic: string, context?: string, outline?: SlideOutline | null, fromOutline?: boolean) => Promise<void>;
+  /** 大纲先行：先生成目录大纲并弹出确认（pendingOutline），确认后再 generateSlides */
+  generateOutline: (topic: string) => Promise<void>;
+  /** 确认（或修改后确认）大纲，开始生成完整 PPT */
+  confirmOutline: (edited?: SlideOutline) => Promise<void>;
+  /** 取消大纲，清空待确认状态 */
+  discardOutline: () => void;
+  /** 待确认的 PPT 大纲（大纲先行流程） */
+  pendingOutline: { topic: string; context?: string; outline: SlideOutline } | null;
   generateImage: (prompt: string, size: string, opts?: { model?: string; imageUrl?: string }) => Promise<void>;
   generateDocs: (topic: string, seed?: string) => Promise<void>;
   runResearch: (topic: string) => Promise<void>;
@@ -266,6 +274,21 @@ function parseSSE<T>(line: string): T | null {
   }
 }
 
+
+/** 大纲 → 对话消息里的 Markdown 文本 */
+export function formatOutlineText(o: SlideOutline): string {
+  return (
+    `📋 已生成大纲《${o.title}》，共 ${o.sections.length} 章。请确认或修改后开始生成完整 PPT。\n\n` +
+    o.sections
+      .map(
+        (s, i) =>
+          `${i + 1}. **${s.title}**\n` +
+          (s.bullets.length > 0 ? s.bullets.map((b) => `   - ${b}`).join("\n") : "")
+      )
+      .join("\n\n")
+  );
+}
+
 // 文档与 PPT 各自的落库防抖定时器（旧版共用一个，会互相取消）
 let docPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let deckPersistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -306,6 +329,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     settingsTab: "general",
     docBusy: false,
     pendingInput: null,
+    pendingOutline: null,
     // 界面偏好不在模块顶层读取（SSR 无 localStorage），hydrate 时再加载
     artifactOpen: true,
     autoOpenArtifact: true,
@@ -981,7 +1005,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    generateSlides: async (topic, context) => {
+    generateSlides: async (topic, context, outline, fromOutline) => {
       const trimmed = topic.trim();
       if (!trimmed || get().sending) return;
 
@@ -996,15 +1020,18 @@ export const useChatStore = create<ChatState>((set, get) => {
         persistConvo(current.id, { mode: "slides" });
       }
 
-      const userMsg: UIMessage = { id: nextId(), role: "user", content: `生成 PPT：${trimmed}` };
+      // 大纲先行：用户输入时已在对话里留下「生成 PPT：主题」，确认大纲后不再重复插入
+      const userMsg: UIMessage | null = fromOutline
+        ? null
+        : { id: nextId(), role: "user", content: `生成 PPT：${trimmed}` };
       const assistantMsg: UIMessage = { id: nextId(), role: "assistant", content: "", streaming: true };
 
       const title = current.messages.length === 0 ? trimmed.slice(0, 24) : current.title;
       patchConvo(current.id, {
         title,
         deckStatus: "loading",
-        deckMessage: "正在规划幻灯片结构…",
-        messages: [...current.messages, userMsg, assistantMsg],
+        deckMessage: outline ? "正在按已确认大纲生成…" : "正在规划幻灯片结构…",
+        messages: [...current.messages, ...(userMsg ? [userMsg] : []), assistantMsg],
       });
       persistConvo(current.id, { title, deckStatus: "loading" });
       set({ sending: true });
@@ -1030,6 +1057,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             provider: current.modelProvider ?? undefined,
             overrides: getOverrides(),
             context: context ? context.slice(0, 6000) : undefined,
+            outline: outline ?? undefined,
           }),
           signal: slidesController.signal,
         });
@@ -1072,7 +1100,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           patchConvo(current.id, { deck, deckStatus: "done", deckMessage: undefined });
           updateAssistant(note, { streaming: false });
           persistConvo(current.id, { deck, deckStatus: "done" });
-          persistMessage(current.id, userMsg);
+          if (userMsg) persistMessage(current.id, userMsg);
           persistMessage(current.id, { ...assistantMsg, content: note });
         } else {
           throw new Error(error ?? "生成失败");
@@ -1086,12 +1114,131 @@ export const useChatStore = create<ChatState>((set, get) => {
         });
         updateAssistant(content, { streaming: false, error: !aborted });
         if (!aborted) persistConvo(current.id, { deckStatus: "error" });
+        if (userMsg) persistMessage(current.id, userMsg);
+        persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
+      } finally {
+        set({ sending: false });
+      }
+    },
+
+    generateOutline: async (topic) => {
+      const trimmed = topic.trim();
+      if (!trimmed || get().sending || get().pendingOutline) return;
+
+      let convo = get().conversations.find((c) => c.id === get().activeId);
+      if (!convo) {
+        const id = await get().newConversation("slides");
+        convo = get().conversations.find((c) => c.id === id)!;
+      }
+      const current = convo;
+      if (current.mode !== "slides") {
+        patchConvo(current.id, { mode: "slides" });
+        persistConvo(current.id, { mode: "slides" });
+      }
+
+      const userMsg: UIMessage = { id: nextId(), role: "user", content: `生成 PPT：${trimmed}` };
+      const assistantMsg: UIMessage = { id: nextId(), role: "assistant", content: "", streaming: true };
+      const title = current.messages.length === 0 ? trimmed.slice(0, 24) : current.title;
+      patchConvo(current.id, {
+        title,
+        deckStatus: "loading",
+        deckMessage: "正在规划大纲…",
+        messages: [...current.messages, userMsg, assistantMsg],
+      });
+      persistConvo(current.id, { title, deckStatus: "loading" });
+      set({ sending: true });
+
+      const updateAssistant = (content: string, extra?: Partial<UIMessage>) => {
+        patchConvo(current.id, {
+          messages: get()
+            .conversations.find((x) => x.id === current.id)!
+            .messages.map((m) =>
+              m.id === assistantMsg.id ? { ...m, content, ...extra } : m
+            ),
+        });
+      };
+
+      const controller = newAbort(90_000);
+      try {
+        const res = await fetch("/api/slides/outline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: trimmed,
+            model: current.model,
+            provider: current.modelProvider ?? undefined,
+            overrides: getOverrides(),
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let outline: SlideOutline | null = null;
+        let error: string | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            const evt = parseSSE<
+              | { type: "status"; message: string }
+              | { type: "outline"; outline: SlideOutline }
+              | { type: "error"; message: string }
+            >(t);
+            if (!evt) continue;
+            if (evt.type === "status") {
+              patchConvo(current.id, { deckMessage: evt.message });
+              updateAssistant(evt.message + "…");
+            } else if (evt.type === "outline") {
+              outline = evt.outline;
+            } else if (evt.type === "error") {
+              error = evt.message;
+            }
+          }
+        }
+
+        if (outline) {
+          const text = formatOutlineText(outline);
+          patchConvo(current.id, { deckStatus: "idle", deckMessage: undefined });
+          updateAssistant(text, { streaming: false });
+          persistMessage(current.id, userMsg);
+          persistMessage(current.id, { ...assistantMsg, content: text });
+          set({ pendingOutline: { topic: trimmed, context: undefined, outline } });
+          toast("大纲已生成，请确认或修改后开始生成完整 PPT", "info");
+        } else {
+          throw new Error(error ?? "大纲生成失败");
+        }
+      } catch (err) {
+        const aborted = (err as Error)?.name === "AbortError";
+        const content = aborted ? "已停止生成大纲。" : `⚠️ ${err instanceof Error ? err.message : "大纲生成失败"}`;
+        patchConvo(current.id, {
+          deckStatus: aborted ? "idle" : "error",
+          deckMessage: undefined,
+        });
+        updateAssistant(content, { streaming: false, error: !aborted });
         persistMessage(current.id, userMsg);
         persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
       } finally {
         set({ sending: false });
       }
     },
+
+    confirmOutline: async (edited) => {
+      const pending = get().pendingOutline;
+      if (!pending) return;
+      set({ pendingOutline: null });
+      await get().generateSlides(pending.topic, pending.context, edited ?? pending.outline, true);
+    },
+
+    discardOutline: () => set({ pendingOutline: null }),
 
     runResearch: async (topic) => {
       const trimmed = topic.trim();

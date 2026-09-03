@@ -2,6 +2,21 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第九轮：PPT 增强（A2）
+
+**演讲者备注**
+- 主幻灯片下方新增「演讲者备注」编辑框，`patchSlide(idx, {"note"})` 600ms 防抖落库
+- PPTX 导出每页写入 `speakerNotes`；打印视图同样保留备注
+
+**大纲先行**
+- 幻灯片模式参数行新增「大纲先行」开关：先生成目录大纲，用户可修改标题/章节/要点后确认，再按大纲生成完整 PPT
+- 新接口 `POST /api/slides/outline`（SSE）：真实模型输出 JSON 大纲；未配密钥走内置示例大纲，零配置可体验
+- `POST /api/slides` 支持 `outline` 字段：真实模型严格遵循章节顺序与标题；演示路径把章节映射到示例 PPT
+- 确认弹窗：章节可编辑（标题 + 每行一条要点），取消/关闭清空待确认状态
+
+**主题市场**
+- 主题切换改为市场式 chips（色点 + 标签，选中反白），主题扩至 9 套：violet / ocean / sunset / forest / ink / rose / slate / amber / cyan
+
 ## 2026-09-03 · 第八轮：图像工具补齐（A1）
 
 - 万相 imageedit 接入：指令编辑（description_edit）/ 智能扩图（expand，四向比例）/ 风格化（stylization_all），base_image_url 支持 base64，设置页选 DASHSCOPE key 即用

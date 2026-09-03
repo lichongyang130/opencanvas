@@ -50,4 +50,15 @@ export interface SlideDeck {
   slides: Slide[];
 }
 
-export type ThemeId = "violet" | "ocean" | "sunset" | "forest" | "ink";
+export type ThemeId = "violet" | "ocean" | "sunset" | "forest" | "ink" | "rose" | "slate" | "amber" | "cyan";
+
+/** PPT 大纲（大纲先行流程：用户确认后再生成完整幻灯片） */
+export interface OutlineSection {
+  title: string;
+  bullets: string[];
+}
+
+export interface SlideOutline {
+  title: string;
+  sections: OutlineSection[];
+}

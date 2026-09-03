@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Download, FileText, Loader2, Palette, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Copy, Download, FileText, Loader2, MessageSquareText, Palette, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { THEME_LIST } from "@/lib/slides/themes";
 import type { SlideDeck } from "@/lib/slides/types";
 import { SlideView } from "./SlideView";
@@ -99,26 +99,28 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
             </button>
           </div>
         </div>
-        {/* 主题切换 */}
-        <div className="mt-2.5 flex items-center gap-2">
+        {/* 主题市场 */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           <Palette className="h-3.5 w-3.5 text-stone-400" />
-          <div className="flex items-center gap-1.5">
-            {THEME_LIST.map((th) => (
-              <button
-                key={th.id}
-                title={th.label}
-                onClick={() => setDeckTheme(th.id)}
-                className={cn(
-                  "h-5 w-5 rounded-full border-2 transition",
-                  deck.theme === th.id ? "border-stone-800 scale-110" : "border-white shadow"
-                )}
+          {THEME_LIST.map((th) => (
+            <button
+              key={th.id}
+              title={th.label}
+              onClick={() => setDeckTheme(th.id)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] transition",
+                deck.theme === th.id
+                  ? "border-stone-800 bg-stone-800 font-medium text-white"
+                  : "border-stone-200 bg-white text-stone-500 hover:border-stone-300"
+              )}
+            >
+              <span
+                className="h-3 w-3 rounded-full border border-black/10"
                 style={{ background: th.primary }}
               />
-            ))}
-          </div>
-          <span className="text-xs text-stone-400">
-            {THEME_LIST.find((t) => t.id === deck.theme)?.label}
-          </span>
+              {th.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -174,6 +176,20 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
               index={idx}
               editable
               onPatch={(p) => patchSlide(idx, p)}
+            />
+          </div>
+          {/* 演讲者备注 */}
+          <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-stone-400">
+              <MessageSquareText className="h-3.5 w-3.5" /> 演讲者备注
+              <span className="font-normal">（导出 PPTX / 打印时保留）</span>
+            </div>
+            <textarea
+              value={deck.slides[idx]?.note ?? ""}
+              onChange={(e) => patchSlide(idx, { note: e.target.value })}
+              placeholder="写本页演讲要点、时间控制、衔接词…"
+              rows={3}
+              className="w-full resize-y rounded-lg border border-stone-200 bg-stone-50/60 px-3 py-2 text-[12.5px] leading-relaxed text-stone-600 outline-none transition focus:border-brand-300 focus:bg-white"
             />
           </div>
           <div className="mx-auto mt-4 flex max-w-2xl items-center justify-between text-xs text-stone-400">

@@ -1,4 +1,4 @@
-import type { Slide, SlideDeck } from "./types";
+import type { Slide, SlideDeck, SlideOutline } from "./types";
 import { themeOrDefault } from "./prompt";
 
 const VALID_LAYOUTS = new Set(["cover", "toc", "content", "twoCol", "stats", "timeline", "compare", "process", "quote", "team", "end"]);
@@ -92,5 +92,25 @@ export function parseSlideDeck(raw: string, fallbackTitle = "未命名演示"): 
     subtitle: typeof obj.subtitle === "string" ? obj.subtitle : undefined,
     theme: themeOrDefault(typeof obj.theme === "string" ? obj.theme : undefined),
     slides,
+  };
+}
+
+/** 从 LLM 输出中解析 PPT 大纲（JSON），字段兜底 */
+export function parseSlideOutline(text: string, topic: string): SlideOutline {
+  const obj = extractJsonObject(text);
+  const sections = Array.isArray(obj.sections)
+    ? obj.sections
+        .map((s) => s as Record<string, unknown>)
+        .filter((s) => s && typeof s.title === "string" && s.title.trim())
+        .map((s) => ({
+          title: String(s.title).trim(),
+          bullets: Array.isArray(s.bullets) ? s.bullets.map((b) => String(b).trim()).filter(Boolean) : [],
+        }))
+        .filter((s) => s.bullets.length > 0)
+    : [];
+  if (sections.length === 0) throw new Error("未能解析出大纲，请重试");
+  return {
+    title: typeof obj.title === "string" && obj.title.trim() ? obj.title.trim() : topic,
+    sections,
   };
 }

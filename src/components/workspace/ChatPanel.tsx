@@ -33,6 +33,7 @@ import KbPicker from "./KbPicker";
 import { ModelSelector } from "./ModelSelector";
 import { MODELS } from "@/lib/gateway/models";
 import { toast } from "@/lib/store/toast";
+import type { SlideOutline } from "@/lib/slides/types";
 import { getOverrides } from "@/lib/settings";
 import { SLASH_COMMANDS, matchSlash, TONE_CHIPS, LENGTH_CHIPS, AUDIENCE_CHIPS, type PromptChip } from "@/lib/slash";
 import { cn } from "@/lib/utils";
@@ -336,6 +337,9 @@ function SplitComposer({
   onAddFiles,
   onRemoveAttachment,
   uploading,
+  outlineMode,
+  outlining,
+  onToggleOutline,
 }: {
   sendKey: "enter" | "ctrlEnter";
   input: string;
@@ -359,6 +363,9 @@ function SplitComposer({
   onAddFiles: (files: File[] | FileList) => void;
   onRemoveAttachment: (id: string) => void;
   uploading: boolean;
+  outlineMode: boolean;
+  outlining: boolean;
+  onToggleOutline: () => void;
 }) {
   const [activeCat, setActiveCat] = useState<string>("brand");
   const [listening, setListening] = useState(false);
@@ -559,6 +566,21 @@ function SplitComposer({
                   {c.label}
                 </button>
               ))}
+              {mode === "slides" && (
+                <button
+                  onClick={onToggleOutline}
+                  title="先生成大纲供你确认，再生成完整 PPT"
+                  className={cn(
+                    "ml-auto rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition",
+                    outlineMode
+                      ? "border-brand-500 bg-brand-50 text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
+                >
+                  {outlining ? <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> : null}
+                  大纲先行 {outlineMode ? "开" : "关"}
+                </button>
+              )}
             </div>
           )}
 
@@ -727,6 +749,121 @@ interface Attachment {
   size: number;
 }
 
+/** 大纲先行：确认/修改大纲后再生成完整 PPT */
+function OutlineConfirmModal() {
+  const pendingOutline = useChatStore((s) => s.pendingOutline);
+  const [draft, setDraft] = useState<SlideOutline | null>(null);
+
+  useEffect(() => {
+    if (pendingOutline) setDraft(JSON.parse(JSON.stringify(pendingOutline.outline)) as SlideOutline);
+  }, [pendingOutline]);
+
+  if (!pendingOutline || !draft) return null;
+
+  const setSec = (i: number, patch: Partial<SlideOutline["sections"][number]>) => {
+    setDraft((d) =>
+      d
+        ? { ...d, sections: d.sections.map((x, j) => (j === i ? { ...x, ...patch } : x)) }
+        : d
+    );
+  };
+
+  const confirm = () => {
+    const clean: SlideOutline = {
+      title: draft.title.trim() || pendingOutline.topic,
+      sections: draft.sections
+        .map((s) => ({ title: s.title.trim(), bullets: s.bullets.map((b) => b.trim()).filter(Boolean) }))
+        .filter((s) => s.title && s.bullets.length > 0),
+    };
+    if (clean.sections.length === 0) {
+      toast("大纲至少需要一章节", "error");
+      return;
+    }
+    void useChatStore.getState().confirmOutline(clean);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-stone-100 px-6 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">确认 PPT 大纲</h3>
+            <p className="mt-0.5 text-xs text-stone-400">
+              可修改标题、章节与要点，确认后将按此大纲生成完整 PPT（约 8~12 页）。
+            </p>
+          </div>
+          <button
+            onClick={() => useChatStore.getState().discardOutline()}
+            className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+            aria-label="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <label className="mb-1 block text-xs font-medium text-stone-500">演示标题</label>
+          <input
+            value={draft.title}
+            onChange={(e) => setDraft((d) => (d ? { ...d, title: e.target.value } : d))}
+            className="mb-4 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm text-stone-700 outline-none transition focus:border-brand-400"
+          />
+
+          <div className="space-y-3">
+            {draft.sections.map((sec, i) => (
+              <div key={i} className="rounded-xl border border-stone-200 p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[11px] font-semibold text-brand-600">
+                    {i + 1}
+                  </span>
+                  <input
+                    value={sec.title}
+                    onChange={(e) => setSec(i, { title: e.target.value })}
+                    placeholder="章节标题"
+                    className="flex-1 rounded-lg border border-transparent bg-stone-50 px-2.5 py-1.5 text-sm font-medium text-stone-700 outline-none transition focus:border-brand-300 focus:bg-white"
+                  />
+                </div>
+                <textarea
+                  value={sec.bullets.join("\n")}
+                  onChange={(e) =>
+                    setSec(i, {
+                      bullets: e.target.value.split("\n").map((b) => b.trim()).filter(Boolean),
+                    })
+                  }
+                  rows={Math.min(6, Math.max(2, sec.bullets.length + 1))}
+                  placeholder={"每行一条要点"}
+                  className="w-full resize-y rounded-lg border border-stone-100 bg-stone-50/60 px-2.5 py-1.5 text-xs leading-5 text-stone-600 outline-none transition focus:border-brand-300 focus:bg-white"
+                ></textarea>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-stone-100 px-6 py-4">
+          <label className="flex items-center gap-1.5 text-[11px] text-stone-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            生成中约需 1~2 分钟
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => useChatStore.getState().discardOutline()}
+              className="rounded-lg border border-stone-200 px-4 py-2 text-sm text-stone-500 transition hover:bg-stone-50"
+            >
+              取消
+            </button>
+            <button
+              onClick={confirm}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+            >
+              确认并生成 PPT
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════
  *  主 ChatPanel
  * ═══════════════════════════════════════════ */
@@ -740,6 +877,9 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [imgSize, setImgSize] = useState("1024x1024");
   const [picModel, setPicModel] = useState("auto");
+  const [outlineMode, setOutlineMode] = useState(false);
+  const [outlining, setOutlining] = useState(false);
+  const [outline, setOutline] = useState<{ title: string; sections: { title: string; bullets: string[] }[] } | null>(null);
   const [picConfigured, setPicConfigured] = useState<Record<string, boolean>>({});
   const [showJump, setShowJump] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
@@ -920,6 +1060,13 @@ export function ChatPanel() {
     }
     setInput("");
     setAttachments([]);
+
+    // 大纲先行：PPT 模式先出大纲供确认，再生成完整 PPT
+    if (mode === "slides" && outlineMode) {
+      void useChatStore.getState().generateOutline(payload.trim());
+      return;
+    }
+
     void send(payload);
   };
 
@@ -1033,6 +1180,9 @@ export function ChatPanel() {
                   onAddFiles={(f) => void addFiles(f)}
                   onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
                   uploading={uploading}
+                  outlineMode={outlineMode}
+                  outlining={outlining}
+                  onToggleOutline={() => setOutlineMode((v) => !v)}
                 />
               </div>
               <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行 · 点击左侧能力卡片快速开始</p>
@@ -1116,10 +1266,15 @@ export function ChatPanel() {
               onAddFiles={(f) => void addFiles(f)}
               onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
               uploading={uploading}
+              outlineMode={outlineMode}
+              outlining={outlining}
+              onToggleOutline={() => setOutlineMode((v) => !v)}
             />
           </div>
         </div>
       )}
+
+      <OutlineConfirmModal />
     </div>
   );
 }
