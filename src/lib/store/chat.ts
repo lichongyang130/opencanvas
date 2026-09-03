@@ -102,6 +102,17 @@ function newAbort(timeoutMs = 120_000) {
   return controller;
 }
 
+/** 发送时的附加选项（由输入舱的能力开关提供，都会真实影响请求） */
+export interface SendOptions {
+  /** 深度思考：追加分步推理的系统指令 */
+  deep?: boolean;
+  /** 附件正文（已读取的文本文件） */
+  attachment?: { name: string; content: string };
+}
+
+const DEEP_THINK_PROMPT =
+  "【深度思考模式】请先拆解问题与关键假设，逐步论证（必要时列出正反证据），再给出结论、替代方案与不确定性说明；回答要比默认更结构化、更完整。";
+
 interface ChatState {
   conversations: Conversation[];
   activeId: string | null;
@@ -136,7 +147,9 @@ interface ChatState {
   setMode: (mode: WorkspaceMode) => void;
   /** 为当前会话设置/取消 AI 角色（null = 默认） */
   setPersona: (id: string | null) => void;
-  send: (text: string) => Promise<void>;
+  send: (text: string, opts?: SendOptions) => Promise<void>;
+  /** 重新生成最后一条 AI 回复（就地覆盖，不新增历史版本） */
+  regenerate: () => Promise<void>;
   generateSlides: (topic: string, context?: string) => Promise<void>;
   generateImage: (prompt: string, size: string) => Promise<void>;
   generateDocs: (topic: string, seed?: string) => Promise<void>;
@@ -581,7 +594,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    send: async (text) => {
+    send: async (text, opts) => {
       const trimmed = text.trim();
       if (!trimmed || get().sending) return;
 
@@ -634,7 +647,18 @@ export const useChatStore = create<ChatState>((set, get) => {
         const persona = getPersona(current.personaId);
         if (persona?.system) personaSystem = persona.system;
       }
-      const systemContent = [MODE_PROMPTS[current.mode], personaSystem].filter(Boolean).join("\n\n");
+      // 能力开关 / 附件作为附加系统指令（不污染用户气泡里显示的原文）
+      const extras: string[] = [];
+      if (opts?.deep) extras.push(DEEP_THINK_PROMPT);
+      if (opts?.attachment?.content) {
+        const body = opts.attachment.content.slice(0, 12000);
+        extras.push(
+          `【附件：${opts.attachment.name}】以下是用户上传的文件内容，请基于它回答问题：\n${body}`,
+        );
+      }
+      const systemContent = [MODE_PROMPTS[current.mode], personaSystem, ...extras]
+        .filter(Boolean)
+        .join("\n\n");
 
       const apiMessages = [
         { role: "system" as const, content: systemContent },
@@ -724,6 +748,123 @@ export const useChatStore = create<ChatState>((set, get) => {
         persistMessage(current.id, userMsg);
         persistMessage(current.id, { ...assistantMsg, content, error: !aborted });
       } finally {
+        set({ sending: false });
+      }
+    },
+
+    regenerate: async () => {
+      const { activeId, sending } = get();
+      if (sending) return;
+      const convo = get().conversations.find((c) => c.id === activeId);
+      if (!convo) return;
+      const msgs = convo.messages;
+      const last = msgs[msgs.length - 1];
+      // 只在最后一条是 AI 回复时可重新生成
+      if (!last || last.role !== "assistant") {
+        toast("最后一条不是 AI 回复，无法重新生成", "info");
+        return;
+      }
+      const model = convo.model ?? get().model;
+      const modelProvider = convo.modelProvider;
+
+      // 就地重置这条回复，再基于它之前的上下文重新流式生成
+      patchConvo(convo.id, {
+        messages: msgs.map((m) =>
+          m.id === last.id ? { ...m, content: "", streaming: true, error: false } : m,
+        ),
+      });
+      set({ sending: true });
+
+      let personaSystem = "";
+      if (convo.personaId) {
+        const persona = getPersona(convo.personaId);
+        if (persona?.system) personaSystem = persona.system;
+      }
+      const systemContent = [MODE_PROMPTS[convo.mode], personaSystem].filter(Boolean).join("\n\n");
+      const apiMessages = [
+        { role: "system" as const, content: systemContent },
+        ...msgs.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+      ];
+
+      const controller = newAbort();
+      let finalContent = "";
+      let errored: string | null = null;
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: apiMessages,
+            overrides: getOverrides(),
+            provider: modelProvider ?? undefined,
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) throw new Error(`请求失败 ${res.status}`);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            const evt = parseSSE<
+              { type: "token"; delta: string } | { type: "error"; message: string }
+            >(t);
+            if (!evt) continue;
+            if (evt.type === "token") {
+              const cur = get().conversations.find((c) => c.id === convo.id);
+              const m = cur?.messages.find((x) => x.id === last.id);
+              const next = (m?.content ?? "") + evt.delta;
+              patchConvo(convo.id, {
+                messages: get()
+                  .conversations.find((c) => c.id === convo.id)!
+                  .messages.map((mm) => (mm.id === last.id ? { ...mm, content: next } : mm)),
+              });
+            } else if (evt.type === "error") {
+              errored = evt.message;
+            }
+          }
+        }
+        finalContent =
+          errored !== null
+            ? `⚠️ ${errored}`
+            : get()
+                .conversations.find((c) => c.id === convo.id)
+                ?.messages.find((m) => m.id === last.id)?.content ?? "";
+      } catch (err) {
+        const aborted = (err as Error)?.name === "AbortError";
+        const soFar =
+          get()
+            .conversations.find((c) => c.id === convo.id)
+            ?.messages.find((m) => m.id === last.id)?.content ?? "";
+        finalContent = aborted
+          ? soFar || "已停止生成。"
+          : `⚠️ ${err instanceof Error ? err.message : "网络错误，请重试"}`;
+        if (!aborted) errored = finalContent;
+      } finally {
+        patchConvo(convo.id, {
+          messages: get()
+            .conversations.find((c) => c.id === convo.id)!
+            .messages.map((m) =>
+              m.id === last.id
+                ? { ...m, streaming: false, error: Boolean(errored), content: finalContent }
+                : m,
+            ),
+        });
+        // 同一条消息就地更新，避免数据库里堆叠旧版本
+        void fetch("/api/messages", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: last.id, content: finalContent, error: Boolean(errored) }),
+        }).catch(() => undefined);
         set({ sending: false });
       }
     },

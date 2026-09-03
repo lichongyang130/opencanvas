@@ -187,6 +187,13 @@ export const repo = {
     getDb().prepare("UPDATE conversations SET updatedAt = ? WHERE id = ?").run(Date.now(), m.conversationId);
   },
 
+  /** 更新消息内容（重新生成时覆盖同一条，避免历史里堆叠旧版本） */
+  updateMessage(id: string, content: string, error?: boolean): void {
+    getDb()
+      .prepare("UPDATE messages SET content = ?, error = ? WHERE id = ?")
+      .run(content, error ? 1 : 0, id);
+  },
+
   /** 更新归档/置顶/标题等标记 */
   patchFlags(id: string, flags: { archived?: boolean; pinned?: boolean; title?: string }): void {
     const sets: string[] = [];
