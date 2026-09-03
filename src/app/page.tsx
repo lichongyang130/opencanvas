@@ -271,28 +271,8 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* 用户卡片 */}
-        <div className="border-t border-stone-100 p-3">
-          <button
-            onClick={() => router.push("/membership")}
-            className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50"
-          >
-            <Image
-              src="/avatar.png"
-              alt="Alex Chen"
-              width={36}
-              height={36}
-              className="h-9 w-9 rounded-full object-cover"
-            />
-            <span className="flex min-w-0 flex-1 flex-col items-start">
-              <span className="text-[13.5px] font-medium text-stone-800">Alex Chen</span>
-              <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-orange-50 px-1.5 py-px text-[10px] font-medium text-orange-600">
-                <Sparkles className="h-2.5 w-2.5" /> 专业版
-              </span>
-            </span>
-            <ChevronDown className="h-4 w-4 text-stone-400" />
-          </button>
-        </div>
+        {/* 用户卡片（真实登录态） */}
+        <AuthBadge variant="card" />
       </aside>
 
       {/* ============ 主区域 ============ */}
