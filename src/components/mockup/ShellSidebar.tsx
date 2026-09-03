@@ -19,7 +19,15 @@ import {
 } from "lucide-react";
 import { useChatStore } from "@/lib/store/chat";
 
-export type ShellActive = "chat" | "agents" | "knowledge" | "docs" | "templates" | "tools" | "apps";
+export type ShellActive =
+  | "chat"
+  | "agents"
+  | "knowledge"
+  | "docs"
+  | "templates"
+  | "tools"
+  | "apps"
+  | "membership";
 
 const NAV = [
   { label: "首页", icon: Home, route: "/" },

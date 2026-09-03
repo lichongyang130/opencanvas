@@ -11,7 +11,6 @@ import {
   Mail,
   Presentation,
   Search,
-  Send,
   Square,
   Video,
   Wand2,
@@ -22,105 +21,17 @@ import { PersonaPicker } from "./PersonaPicker";
 import { ModelSelector } from "./ModelSelector";
 import { MODELS } from "@/lib/gateway/models";
 import { toast } from "@/lib/store/toast";
+import { CAPABILITIES, type SubCapability } from "@/lib/capabilities";
 import { getOverrides } from "@/lib/settings";
-import { SLASH_COMMANDS, matchSlash, TONE_CHIPS, LENGTH_CHIPS, AUDIENCE_CHIPS, type PromptChip } from "@/lib/slash";
+import {
+  SLASH_COMMANDS,
+  matchSlash,
+  TONE_CHIPS,
+  LENGTH_CHIPS,
+  AUDIENCE_CHIPS,
+  type PromptChip,
+} from "@/lib/slash";
 import { cn } from "@/lib/utils";
-
-/* ═══════════════════════════════════════════
- *  能力体系（E5 分体式输入舱用）
- * ═══════════════════════════════════════════ */
-
-interface SubCapability {
-  id: string;
-  label: string;
-  emoji: string;
-  mode: WorkspaceMode;
-}
-
-interface CatDef {
-  id: string;
-  label: string;
-  emoji: string;
-  items: SubCapability[];
-}
-
-const CAPABILITIES: CatDef[] = [
-  {
-    id: "brand",
-    label: "品牌与传播",
-    emoji: "🌐",
-    items: [
-      { id: "brand-website", label: "产品官网", emoji: "🌐", mode: "docs" },
-      { id: "brand-landing", label: "营销落地页", emoji: "", mode: "docs" },
-      { id: "brand-mall", label: "品牌商城", emoji: "🛒", mode: "docs" },
-      { id: "brand-visual", label: "品牌主视觉", emoji: "", mode: "image" },
-      { id: "brand-poster", label: "活动海报", emoji: "🪧", mode: "image" },
-      { id: "brand-launch", label: "产品发布会", emoji: "🎤", mode: "slides" },
-    ],
-  },
-  {
-    id: "content",
-    label: "内容与视频",
-    emoji: "",
-    items: [
-      { id: "content-concept", label: "产品概念图", emoji: "💡", mode: "image" },
-      { id: "content-promo", label: "产品宣传片", emoji: "🎬", mode: "video" },
-      { id: "content-short", label: "社交短视频", emoji: "", mode: "video" },
-      { id: "content-tutorial", label: "功能讲解", emoji: "🎓", mode: "video" },
-      { id: "content-3d", label: "3D 产品展示", emoji: "🧊", mode: "image" },
-      { id: "content-hall", label: "3D 虚拟展厅", emoji: "🏛️", mode: "image" },
-    ],
-  },
-  {
-    id: "product",
-    label: "产品与体验",
-    emoji: "📱",
-    items: [
-      { id: "product-flow", label: "用户流程图", emoji: "🗺️", mode: "docs" },
-      { id: "product-wire", label: "低保真原型", emoji: "️", mode: "docs" },
-      { id: "product-app", label: "移动应用 MVP", emoji: "📲", mode: "docs" },
-      { id: "product-companion", label: "设备伴侣", emoji: "🤖", mode: "docs" },
-      { id: "product-web", label: "Web 应用", emoji: "💻", mode: "docs" },
-      { id: "product-ext", label: "浏览器扩展", emoji: "🧩", mode: "docs" },
-    ],
-  },
-  {
-    id: "data",
-    label: "数据与运营",
-    emoji: "📊",
-    items: [
-      { id: "data-ops", label: "运营看板", emoji: "📈", mode: "docs" },
-      { id: "data-cockpit", label: "管理驾驶舱", emoji: "🛰️", mode: "docs" },
-      { id: "data-monitor", label: "系统监控台", emoji: "🔭", mode: "docs" },
-      { id: "data-agent", label: "AI Agent 工作流", emoji: "🕸️", mode: "docs" },
-    ],
-  },
-  {
-    id: "consult",
-    label: "咨询与策划",
-    emoji: "💼",
-    items: [
-      { id: "consult-pitch", label: "融资路演", emoji: "💼", mode: "slides" },
-      { id: "consult-strategy", label: "战略方案", emoji: "♟️", mode: "docs" },
-      { id: "consult-research", label: "研究报告", emoji: "🔬", mode: "research" },
-      { id: "consult-prd", label: "产品需求文档", emoji: "📐", mode: "docs" },
-      { id: "consult-training", label: "培训课件", emoji: "", mode: "slides" },
-    ],
-  },
-];
-
-const EXAMPLES: Record<WorkspaceMode, string[]> = {
-  chat: ["帮我写一封商务合作邮件", "解释一下什么是 RAG", "把这段话翻译成英文"],
-  research: ["研究 2025 年 AI 搜索赛道的竞争格局", "调研美国精品咖啡市场规模与趋势"],
-  slides: ["为「AI 写作助手产品发布会」生成一套 10 页 PPT", "做一份季度经营复盘 PPT 大纲"],
-  image: [
-    "一只戴宇航头盔的柯基在月球上，电影感海报",
-    "新中式茶饮品牌的社媒宣传图，清新水彩风",
-    "赛博朋克风格的未来城市夜景，霓虹灯",
-  ],
-  video: ["为新款降噪耳机写一条 15 秒带货短视频脚本", "生成咖啡品牌上市的短视频分镜"],
-  docs: ["写一份 SaaS 产品商业计划书", "起草一份远程办公管理制度"],
-};
 
 const IMAGE_SIZES = [
   { id: "1024x1024", label: "方形 1:1" },
@@ -243,6 +154,8 @@ function SplitComposer({
   slashIdx,
   setSlashIdx,
   runSlash,
+  applyChip,
+  chipOn,
 }: {
   input: string;
   setInput: (v: string | ((prev: string) => string)) => void;
@@ -261,6 +174,8 @@ function SplitComposer({
   slashIdx: number;
   setSlashIdx: (v: number | ((prev: number) => number)) => void;
   runSlash: (cmd: (typeof SLASH_COMMANDS)[number]) => void;
+  applyChip: (chip: PromptChip) => void;
+  chipOn: (chip: PromptChip) => boolean;
 }) {
   const [activeCat, setActiveCat] = useState<string>("brand");
   const activeCategory = CAPABILITIES.find((c) => c.id === activeCat) ?? CAPABILITIES[0];
@@ -323,7 +238,8 @@ function SplitComposer({
         </div>
 
         {/* ──── 右侧输入区 (约 62%) ──── */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* relative：斜杠命令菜单 absolute 定位的参照物 */}
+        <div className="relative flex min-w-0 flex-1 flex-col">
           {/* 图片模式参数 */}
           {mode === "image" && (
             <div className="flex flex-wrap items-center gap-1.5 border-b border-stone-100 px-3 py-1.5">
@@ -387,23 +303,56 @@ function SplitComposer({
             </div>
           )}
 
-          {/* 文字类模式参数 */}
+          {/* 文字类模式参数：语气 / 长度 / 受众（点击即追加约束，再点取消） */}
           {mode !== "image" && !slashMatches && (
             <div className="flex flex-wrap items-center gap-1 border-b border-stone-100 px-3 py-1.5">
               <span className="text-[10px] text-stone-400">语气</span>
-              {TONE_CHIPS.slice(0, 4).map((c) => (
+              {TONE_CHIPS.map((c) => (
                 <button
                   key={c.id}
-                  className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] text-stone-500 transition hover:border-brand-300"
+                  type="button"
+                  title={c.suffix}
+                  onClick={() => applyChip(c)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] transition",
+                    chipOn(c)
+                      ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
                 >
                   {c.label}
                 </button>
               ))}
               <span className="ml-1 text-[10px] text-stone-400">长度</span>
-              {LENGTH_CHIPS.slice(0, 3).map((c) => (
+              {LENGTH_CHIPS.map((c) => (
                 <button
                   key={c.id}
-                  className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] text-stone-500 transition hover:border-brand-300"
+                  type="button"
+                  title={c.suffix}
+                  onClick={() => applyChip(c)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] transition",
+                    chipOn(c)
+                      ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+              <span className="ml-1 text-[10px] text-stone-400">受众</span>
+              {AUDIENCE_CHIPS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  title={c.suffix}
+                  onClick={() => applyChip(c)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] transition",
+                    chipOn(c)
+                      ? "border-brand-500 bg-brand-50 font-medium text-brand-700"
+                      : "border-stone-200 text-stone-500 hover:border-brand-300"
+                  )}
                 >
                   {c.label}
                 </button>
@@ -670,6 +619,8 @@ export function ChatPanel() {
                   slashIdx={slashIdx}
                   setSlashIdx={setSlashIdx}
                   runSlash={runSlash}
+                  applyChip={applyChip}
+                  chipOn={chipOn}
                 />
               </div>
               <p className="mt-2 text-xs text-[#a8977f]">回车发送 · Shift+回车换行 · 点击左侧能力卡片快速开始</p>
@@ -738,6 +689,8 @@ export function ChatPanel() {
               slashIdx={slashIdx}
               setSlashIdx={setSlashIdx}
               runSlash={runSlash}
+              applyChip={applyChip}
+              chipOn={chipOn}
             />
           </div>
         </div>

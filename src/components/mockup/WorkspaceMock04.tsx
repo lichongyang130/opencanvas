@@ -19,7 +19,6 @@ import {
   Presentation,
   RefreshCw,
   Search,
-  Send,
   Settings,
   Share2,
   Star,

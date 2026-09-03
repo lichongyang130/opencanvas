@@ -80,6 +80,13 @@ export const MODE_LABELS: Record<WorkspaceMode, string> = {
 let idSeq = 0;
 const nextId = () => `${Date.now()}-${idSeq++}`;
 
+/**
+ * 窄屏（<768px）下产物画布只能以浮层覆盖对话区，
+ * 因此默认收起，避免一进页面就把聊天区遮住；用户可从顶栏按钮手动打开。
+ */
+const isNarrowScreen = () =>
+  typeof window !== "undefined" && window.innerWidth < 768;
+
 /** 当前请求的中断控制器（停止生成 / 超时用） */
 let activeAbort: AbortController | null = null;
 function newAbort(timeoutMs = 120_000) {
@@ -105,6 +112,8 @@ interface ChatState {
   setSettingsOpen: (v: boolean) => void;
   /** 产物画布是否展开 */
   artifactOpen: boolean;
+  /** 用户是否手动收起了画布（收起后不再被「有产物就自动弹出」覆盖） */
+  artifactDismissed: boolean;
   setArtifactOpen: (v: boolean) => void;
   stopGeneration: () => void;
   hydrate: () => Promise<void>;
@@ -214,12 +223,15 @@ export const useChatStore = create<ChatState>((set, get) => {
     sending: false,
     hydrated: false,
     settingsOpen: false,
-    artifactOpen: true,
+    artifactOpen: !isNarrowScreen(),
+    artifactDismissed: isNarrowScreen(),
     docBusy: false,
     pendingInput: null,
 
     setSettingsOpen: (v) => set({ settingsOpen: v }),
-    setArtifactOpen: (v) => set({ artifactOpen: v }),
+    // 手动收起画布时打上 dismissed 标记，避免「有产物自动弹出」把用户的收起操作顶掉；
+    // 重新展开（点顶栏画布按钮）或新一轮生成开始时清除该标记。
+    setArtifactOpen: (v) => set({ artifactOpen: v, artifactDismissed: !v }),
 
     stopGeneration: () => {
       activeAbort?.abort();
@@ -339,7 +351,12 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     newConversation: async (mode = "chat") => {
       const convo = createConversation(mode, get().model);
-      set((s) => ({ conversations: [convo, ...s.conversations], activeId: convo.id, model: convo.model }));
+      set((s) => ({
+        conversations: [convo, ...s.conversations],
+        activeId: convo.id,
+        model: convo.model,
+        artifactDismissed: false,
+      }));
       await api("/api/conversations", {
         method: "POST",
         body: JSON.stringify({ id: convo.id, title: convo.title, mode, model: convo.model }),
@@ -348,7 +365,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     selectConversation: async (id) => {
-      set({ activeId: id });
+      set({ activeId: id, artifactDismissed: false });
       const convo = get().conversations.find((c) => c.id === id);
       if (!convo) return;
       set({ model: convo.model });
@@ -512,7 +529,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         messages: [...current.messages, userMsg, assistantMsg],
       });
       if (title !== current.title) persistConvo(current.id, { title });
-      set({ sending: true });
+      set({ sending: true, artifactDismissed: false });
 
       const ov = getOverrides();
       let imageModel = "demo-image";
@@ -609,7 +626,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         messages: [...current.messages, userMsg, assistantMsg],
       });
       if (title !== current.title) persistConvo(current.id, { title });
-      set({ sending: true });
+      set({ sending: true, artifactDismissed: false });
 
       // AI 角色 system prompt（叠加在模式提示词之后）
       let personaSystem = "";
@@ -737,7 +754,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         messages: [...current.messages, userMsg, assistantMsg],
       });
       persistConvo(current.id, { title, deckStatus: "loading" });
-      set({ sending: true });
+      set({ sending: true, artifactDismissed: false });
 
       const updateAssistant = (content: string, extra?: Partial<UIMessage>) => {
         patchConvo(current.id, {
@@ -853,7 +870,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         messages: [...current.messages, userMsg, assistantMsg],
       });
       if (title !== current.title) persistConvo(current.id, { title });
-      set({ sending: true });
+      set({ sending: true, artifactDismissed: false });
 
       const updateAssistant = (content: string, extra?: Partial<UIMessage>) => {
         patchConvo(current.id, {
@@ -1013,7 +1030,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       const title = (p || "文档").slice(0, 30);
       patchConvo(current.id, { title });
       persistConvo(current.id, { title });
-      set({ docBusy: true, sending: true });
+      set({ docBusy: true, sending: true, artifactDismissed: false });
 
       const ov = getOverrides();
       // 密钥可能只配在服务端 .env（localStorage 看不到），需问服务端真实配置状态，

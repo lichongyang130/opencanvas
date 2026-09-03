@@ -1,6 +1,6 @@
 import { resolveModel } from "./models";
 import { calcUsageCost, estimateTokens } from "./credits";
-import { buildProviders, getProviders, getProviderConfigStatus } from "./providers";
+import { buildProviders, getProviders } from "./providers";
 import type { ChatMessage, ProviderId, ProviderOverrides } from "./types";
 
 export * from "./types";

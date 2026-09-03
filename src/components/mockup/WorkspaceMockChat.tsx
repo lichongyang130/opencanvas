@@ -38,17 +38,6 @@ import {
  *  - 消息流来自 /api/chat（SSE 流式）
  * ──────────────────────────────────────────────── */
 
-const NAV_ITEMS = [
-  { icon: Home, label: "首页", route: "/" },
-  { icon: MessageSquare, label: "AI 对话", route: "/chat" },
-  { icon: Bot, label: "智能体", route: "/agents" },
-  { icon: Database, label: "知识库", route: "/knowledge" },
-  { icon: FileText, label: "文档中心", route: "/chat" },
-  { icon: LayoutTemplate, label: "模板中心", route: "/chat" },
-  { icon: Wrench, label: "工具箱", route: "/chat" },
-  { icon: LayoutGrid, label: "更多应用", route: "/chat" },
-];
-
 const QUICK_SUGGESTIONS = [
   "帮我写一篇关于时间管理的文章",
   "分析一下这个文件的内容",
@@ -159,7 +148,6 @@ export default function WorkspaceMockChat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const convo = conversations.find((c) => c.id === activeId);
   const messages = convo?.messages ?? [];
-  const list = conversations.filter((c) => !c.archived).slice(0, 5);
 
   useEffect(() => {
     void hydrate();

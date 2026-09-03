@@ -8,7 +8,6 @@ import {
   Bell,
   BookOpen,
   Box,
-  Briefcase,
   ChevronRight,
   FileText,
   Folder,
