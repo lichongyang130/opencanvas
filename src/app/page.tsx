@@ -239,25 +239,25 @@ export default function HomePage() {
       </div>
 
       {/* ============ 左侧导航 ============ */}
-      <aside className="hidden w-[256px] shrink-0 flex-col border-r border-stone-100 bg-white md:flex">
+      <aside className="hidden w-[208px] shrink-0 flex-col border-r border-stone-100 bg-white md:flex">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 pb-2 pt-5">
+        <div className="flex items-center gap-2.5 px-4 pb-2 pt-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-lg font-bold text-white shadow-sm">
             O
           </div>
-          <span className="text-[17px] font-semibold tracking-tight">AI 对话</span>
+          <span className="text-[16px] font-semibold tracking-tight">AI 对话</span>
         </div>
 
         {/* 导航 */}
-        <nav className="mt-3 flex flex-col gap-0.5 px-3">
+        <nav className="mt-3 flex flex-col gap-0.5 px-2">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.label}
               onClick={() => (item.active ? undefined : router.push(item.route))}
               className={
                 item.active
-                  ? "flex items-center gap-3 rounded-xl bg-orange-50 px-3.5 py-2.5 text-[14px] font-medium text-orange-600"
-                  : "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+                  ? "flex items-center gap-3 rounded-xl bg-orange-50 px-2.5 py-2.5 text-[13.5px] font-medium text-orange-600"
+                  : "flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13.5px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
               }
             >
               <item.icon className="h-[18px] w-[18px]" strokeWidth={item.active ? 2.2 : 1.8} />
@@ -267,7 +267,7 @@ export default function HomePage() {
         </nav>
 
         {/* 最近对话 */}
-        <div className="mt-5 flex-1 overflow-y-auto px-5">
+        <div className="mt-5 flex-1 overflow-y-auto px-3.5">
           <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
           <div className="flex flex-col gap-0.5 -mx-2">
             {recent.length === 0 && (
@@ -293,7 +293,7 @@ export default function HomePage() {
         </div>
 
         {/* 用户卡片 */}
-        <div className="border-t border-stone-100 p-3">
+        <div className="border-t border-stone-100 p-2">
           <button
             onClick={() => router.push("/membership")}
             className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 transition hover:bg-stone-50"
@@ -316,11 +316,11 @@ export default function HomePage() {
         </div>
 
         {/* 设置入口 */}
-        <div className="px-3 pb-3">
+        <div className="px-2 pb-3">
           <button
             onClick={() => router.push("/settings")}
             title="设置中心"
-            className="flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13.5px] text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
           >
             <Settings className="h-[18px] w-[18px]" strokeWidth={1.8} />
             设置
