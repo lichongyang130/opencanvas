@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Box,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   FileText,
   Folder,
   Gauge,
@@ -20,39 +22,53 @@ import {
   Shield,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   Users,
 } from "lucide-react";
 import { ShellSidebar } from "@/components/mockup/ShellSidebar";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
 import {
+  addDoc,
+  allTags,
   createKnowledgeBase,
+  loadAbilities,
   loadKnowledgeBases,
+  removeDoc,
+  removeKnowledgeBase,
+  saveAbilities,
   summarize,
+  updateKnowledgeBase,
+  type KbAbilities,
+  type KbDoc,
+  type KbOwner,
   type KbRow,
 } from "@/lib/knowledge";
+import { KbFormModal } from "@/components/knowledge/KbFormModal";
+import { KbDocsModal } from "@/components/knowledge/KbDocsModal";
+import { DocDetailModal } from "@/components/knowledge/DocDetailModal";
 
-const STATS_META = [
-  { icon: Box, label: "知识库总数", unit: "个", tint: "bg-violet-50 text-violet-600" },
-  { icon: FileText, label: "文档总数", unit: "个", tint: "bg-sky-50 text-sky-600" },
-  { icon: Layers, label: "向量条目数", unit: "条", tint: "bg-orange-50 text-orange-600" },
-  { icon: Gauge, label: "总大小", unit: "GB", tint: "bg-emerald-50 text-emerald-600" },
+const TABS: { label: string; owner: KbOwner | null }[] = [
+  { label: "全部知识库", owner: null },
+  { label: "我的知识库", owner: "me" },
+  { label: "共享给我", owner: "shared" },
+  { label: "团队知识库", owner: "team" },
 ];
 
-const TABS = ["全部知识库", "我的知识库", "共享给我", "团队知识库"];
-const TAGS = ["产品", "需求", "设计", "PRD"];
+const OWNER_LABEL: Record<KbOwner, string> = { me: "我的", shared: "共享给我", team: "团队" };
+
 const ABILITIES = [
-  { icon: Sparkles, label: "语义搜索", desc: "基于语义理解的智能搜索" },
-  { icon: GraduationCap, label: "问答增强", desc: "基于知识库内容回答问题" },
-  { icon: FileText, label: "引用来源", desc: "展示答案引用的文档来源" },
-];
-const RECENT_DOCS = [
-  { name: "产品需求文档PRD v2.1", time: "今天 14:30", tint: "bg-sky-50 text-sky-600" },
-  { name: "用户体验设计规范", time: "今天 11:15", tint: "bg-violet-50 text-violet-600" },
-  { name: "产品功能清单 v1.3", time: "昨天 16:45", tint: "bg-orange-50 text-orange-600" },
-];
+  { key: "semantic", icon: Sparkles, label: "语义搜索", desc: "基于语义理解的智能搜索" },
+  { key: "qa", icon: GraduationCap, label: "问答增强", desc: "基于知识库内容回答问题" },
+  { key: "cite", icon: FileText, label: "引用来源", desc: "展示答案引用的文档来源" },
+] as const;
 
-const PAGE_SIZE = 6;
+const SORTS: { value: "updated" | "count" | "size" | "name"; label: string }[] = [
+  { value: "updated", label: "按更新时间" },
+  { value: "count", label: "按文档数量" },
+  { value: "size", label: "按容量大小" },
+  { value: "name", label: "按名称" },
+];
 
 function formatSize(n: number) {
   if (n <= 0) return "0 B";
@@ -61,51 +77,150 @@ function formatSize(n: number) {
 }
 
 export default function KnowledgePage() {
+  const router = useRouter();
   const [rows, setRows] = useState<KbRow[]>([]);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string>("kb-prod");
-  const [abilities, setAbilities] = useState<Record<string, boolean>>({
-    semantic: true,
-    qa: true,
-    cite: false,
-  });
+  const [pageSize, setPageSize] = useState(6);
+  const [tab, setTab] = useState(0);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [sort, setSort] = useState<"updated" | "count" | "size" | "name">("updated");
+  const [selectedId, setSelectedId] = useState("");
+  const [abilities, setAbilities] = useState<KbAbilities>({ semantic: true, qa: true, cite: false });
+  const [formOpen, setFormOpen] = useState<{ open: boolean; row: KbRow | null }>({ open: false, row: null });
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docDetail, setDocDetail] = useState<KbDoc | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [shareLink, setShareLink] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const refresh = () => setRows(loadKnowledgeBases());
 
   useEffect(() => {
-    setRows(loadKnowledgeBases());
+    const list = loadKnowledgeBases();
+    setRows(list);
+    setSelectedId((prev) => prev || list[0]?.id || "");
+  }, []);
+
+  useEffect(() => {
+    if (selectedId) setAbilities(loadAbilities(selectedId));
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFor(null);
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
   const filtered = useMemo(() => {
+    const owner = TABS[tab].owner;
+    let arr = rows;
+    if (owner) arr = arr.filter((r) => r.owner === owner);
+    if (tagFilter) arr = arr.filter((r) => r.tags.includes(tagFilter));
     const q = query.trim().toLowerCase();
-    const base = q ? rows.filter((r) => r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q)) : rows;
-    return base;
-  }, [rows, query]);
+    if (q) {
+      arr = arr.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          r.desc.toLowerCase().includes(q) ||
+          r.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    arr = [...arr];
+    if (sort === "updated") arr.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    else if (sort === "count") arr.sort((a, b) => b.count - a.count);
+    else if (sort === "size") arr.sort((a, b) => b.sizeGb - a.sizeGb);
+    else arr.sort((a, b) => a.name.localeCompare(b.name, "zh"));
+    return arr;
+  }, [rows, tab, tagFilter, query, sort]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = Math.min(page, pageCount);
-  const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const pageRows = filtered.slice((current - 1) * pageSize, current * pageSize);
   const selected = rows.find((r) => r.id === selectedId) ?? rows[0];
   const summary = summarize(rows);
+  const tags = useMemo(() => allTags(rows), [rows]);
 
-  const demo = (label: string) => toast(`演示预览：${label} 功能即将接入`, "info");
-
-  const createNew = () => {
-    const name = window.prompt("请输入新知识库名称", "新建知识库");
-    if (name === null) return;
-    const row = createKnowledgeBase(name);
-    setRows(loadKnowledgeBases());
-    setSelectedId(row.id);
-    setQuery("");
-    setPage(1);
-    toast(`已创建知识库「${row.name}」`, "success");
+  const toggleAbility = (key: keyof KbAbilities) => {
+    if (!selected) return;
+    const next = { ...abilities, [key]: !abilities[key] };
+    setAbilities(next);
+    saveAbilities(selected.id, next);
+    toast(`「${selected.name}」已${next[key] ? "开启" : "关闭"}${ABILITIES.find((a) => a.key === key)?.label ?? ""}`, "info");
   };
 
-  const toggleAbility = (key: keyof typeof abilities) => {
-    setAbilities((s) => {
-      const next = { ...s, [key]: !s[key] };
-      toast(`${next[key] ? "已开启" : "已关闭"}`, "info");
-      return next;
-    });
+  const saveForm = (input: { name: string; desc: string; tags: string[]; owner: KbOwner }) => {
+    const row = formOpen.row;
+    if (row) {
+      updateKnowledgeBase(row.id, input);
+      toast("知识库已更新", "success");
+    } else {
+      const created = createKnowledgeBase(input);
+      setSelectedId(created.id);
+      setTab(0);
+      toast(`已创建知识库「${created.name}」`, "success");
+    }
+    setFormOpen({ open: false, row: null });
+    refresh();
+  };
+
+  const removeKb = (row: KbRow) => {
+    removeKnowledgeBase(row.id);
+    setMenuFor(null);
+    if (selectedId === row.id) setSelectedId("");
+    refresh();
+    toast(`已删除「${row.name}」`, "info");
+  };
+
+  const exportKb = (row: KbRow) => {
+    const blob = new Blob([JSON.stringify(row, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${row.name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMenuFor(null);
+    toast("已导出知识库信息", "success");
+  };
+
+  const shareKb = async (row: KbRow) => {
+    setMenuFor(null);
+    try {
+      const res = await fetch("/api/cases/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: `kb:${row.id}`,
+          label: row.name,
+          prompt: `【知识库】${row.name}\n${row.desc}\n标签：${row.tags.join("、") || "无"}\n文档数：${row.count}\n容量：${row.size}`,
+          source: "知识库",
+        }),
+      });
+      const data = (await res.json()) as { code?: string; error?: string };
+      if (!res.ok || !data.code) throw new Error(data.error ?? "生成失败");
+      const url = `${window.location.origin}/s/${data.code}`;
+      setShareLink(url);
+      await navigator.clipboard?.writeText(url).catch(() => {});
+      toast("分享链接已生成并复制", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "生成分享失败", "error");
+    }
+  };
+
+  const quickUpload = (files: FileList | null) => {
+    if (!selected || !files || files.length === 0) return;
+    for (const f of Array.from(files)) {
+      addDoc(selected.id, { name: f.name, sizeKb: Math.max(1, Math.round(f.size / 1024)) });
+    }
+    refresh();
+    toast(`已向「${selected.name}」添加 ${files.length} 个文档`, "success");
   };
 
   const stat = (label: string, n: number | string, unit: string, tint: string, Icon: typeof Box) => (
@@ -134,14 +249,22 @@ export default function KnowledgePage() {
             <p className="mt-0.5 text-[12.5px] text-stone-400">管理和使用你的知识资源，让 AI 更好地理解和回答</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
+            <button
+              onClick={() => toast("演示版暂未接入通知中心", "info")}
+              title="通知"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
               <Bell className="h-[18px] w-[18px]" />
             </button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
+            <button
+              onClick={() => router.push("/apps")}
+              title="更多应用"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
               <LayoutGrid className="h-[18px] w-[18px]" />
             </button>
             <button
-              onClick={createNew}
+              onClick={() => setFormOpen({ open: true, row: null })}
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[#f0c9a8] bg-white px-4 py-2 text-[13px] font-medium text-[#c05f3c] transition hover:bg-[#fdeee1]"
             >
               <Plus className="h-4 w-4" /> 新建知识库
@@ -165,18 +288,21 @@ export default function KnowledgePage() {
             <div className="mt-5 rounded-2xl border border-[#ece6db] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
               {/* 标签栏 */}
               <div className="flex flex-wrap items-center gap-1 border-b border-[#f0eadf] px-4 pt-3">
-                {TABS.map((tab, i) => (
+                {TABS.map((t, i) => (
                   <button
-                    key={tab}
-                    onClick={() => (i === 0 ? null : demo(tab))}
+                    key={t.label}
+                    onClick={() => {
+                      setTab(i);
+                      setPage(1);
+                    }}
                     className={
-                      i === 0
+                      i === tab
                         ? "relative px-3 pb-3 pt-1 text-[13px] font-medium text-[#c05f3c]"
                         : "px-3 pb-3 pt-1 text-[13px] text-stone-500 transition hover:text-stone-800"
                     }
                   >
-                    {tab}
-                    {i === 0 && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#f07a3f]" />}
+                    {t.label}
+                    {i === tab && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#f07a3f]" />}
                   </button>
                 ))}
                 <div className="ml-auto flex items-center gap-2 pb-2">
@@ -192,26 +318,85 @@ export default function KnowledgePage() {
                       className="w-36 bg-transparent text-[12.5px] text-stone-700 outline-none placeholder:text-stone-400"
                     />
                   </div>
-                  <button
-                    onClick={() => demo("筛选")}
-                    className="flex items-center gap-1 rounded-lg border border-[#ece6db] bg-white px-3 py-1.5 text-[12.5px] text-stone-500 transition hover:text-stone-700"
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" /> 筛选
-                  </button>
+                  {/* 筛选：标签 + 排序 */}
+                  <div className="relative" ref={filterRef}>
+                    <button
+                      onClick={() => setFilterOpen((v) => !v)}
+                      className={`flex items-center gap-1 rounded-lg border bg-white px-3 py-1.5 text-[12.5px] transition hover:text-stone-700 ${
+                        tagFilter ? "border-[#e0b79c] text-[#c05f3c]" : "border-[#ece6db] text-stone-500"
+                      }`}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" /> {tagFilter ?? "筛选"}
+                    </button>
+                    {filterOpen && (
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-30 max-h-80 w-56 overflow-y-auto rounded-xl border border-[#ece6db] bg-white p-1.5 shadow-xl">
+                        <p className="px-2 py-1 text-[11px] text-stone-400">标签</p>
+                        <button
+                          onClick={() => {
+                            setTagFilter(null);
+                            setPage(1);
+                            setFilterOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[12.5px] hover:bg-[#fdfaf5] ${
+                            tagFilter === null ? "text-[#c05f3c]" : "text-stone-600"
+                          }`}
+                        >
+                          全部标签 <span className="text-[11px] text-stone-400">{rows.length}</span>
+                        </button>
+                        {tags.map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => {
+                              setTagFilter(t);
+                              setPage(1);
+                              setFilterOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[12.5px] hover:bg-[#fdfaf5] ${
+                              tagFilter === t ? "text-[#c05f3c]" : "text-stone-600"
+                            }`}
+                          >
+                            {t}
+                            <span className="text-[11px] text-stone-400">
+                              {rows.filter((r) => r.tags.includes(t)).length}
+                            </span>
+                          </button>
+                        ))}
+                        <div className="my-1 border-t border-stone-100" />
+                        <p className="px-2 py-1 text-[11px] text-stone-400">排序</p>
+                        {SORTS.map((s) => (
+                          <button
+                            key={s.value}
+                            onClick={() => {
+                              setSort(s.value);
+                              setFilterOpen(false);
+                            }}
+                            className={`flex w-full rounded-lg px-2.5 py-1.5 text-left text-[12.5px] hover:bg-[#fdfaf5] ${
+                              sort === s.value ? "text-[#c05f3c]" : "text-stone-600"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* 表头 */}
               <div className="flex items-center px-5 py-2.5 text-[12px] text-stone-400">
                 <span className="w-[24%]">名称</span>
-                <span className="w-[42%]">描述</span>
-                <span className="w-[13%]">文档数量</span>
-                <span className="w-[13%]">大小</span>
-                <span className="w-[15%]">更新时间</span>
+                <span className="w-[38%]">描述</span>
+                <span className="w-[11%]">文档数量</span>
+                <span className="w-[11%]">大小</span>
+                <span className="w-[13%]">更新时间</span>
                 <span className="flex-1 text-right">操作</span>
               </div>
 
               {/* 行 */}
+              {pageRows.length === 0 && (
+                <p className="py-14 text-center text-sm text-stone-400">没有匹配的知识库</p>
+              )}
               {pageRows.map((r) => (
                 <div
                   key={r.id}
@@ -224,22 +409,62 @@ export default function KnowledgePage() {
                     <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${r.tint}`}>
                       <Folder className="h-5 w-5" />
                     </span>
-                    <span className="truncate text-[13.5px] font-medium text-stone-700">{r.name}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13.5px] font-medium text-stone-700">{r.name}</span>
+                      <span className="block text-[10.5px] text-stone-400">{OWNER_LABEL[r.owner]}</span>
+                    </span>
                   </div>
-                  <span className="w-[42%] truncate pr-2 text-xs text-stone-400">{r.desc}</span>
-                  <span className="w-[13%] text-[13px] text-stone-700">{r.count}</span>
-                  <span className="w-[13%] text-[13px] text-stone-500">{r.size}</span>
-                  <span className="w-[15%] text-[13px] text-stone-500">{r.time}</span>
+                  <span className="w-[38%] truncate pr-2 text-xs text-stone-400">{r.desc}</span>
+                  <span className="w-[11%] text-[13px] text-stone-700">{r.count}</span>
+                  <span className="w-[11%] text-[13px] text-stone-500">{r.size}</span>
+                  <span className="w-[13%] text-[13px] text-stone-500">{r.time}</span>
                   <div className="flex flex-1 items-center justify-end gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        demo("更多操作");
-                      }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
+                    <div className="relative" ref={menuFor === r.id ? menuRef : undefined}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuFor(menuFor === r.id ? null : r.id);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                      {menuFor === r.id && (
+                        <div
+                          className="absolute right-0 top-[calc(100%+4px)] z-30 w-40 overflow-hidden rounded-xl border border-[#ece6db] bg-white p-1.5 text-left shadow-xl"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => {
+                              setMenuFor(null);
+                              setFormOpen({ open: true, row: r });
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12.5px] text-stone-600 hover:bg-[#fdfaf5]"
+                          >
+                            <Users className="h-3.5 w-3.5" /> 管理知识库
+                          </button>
+                          <button
+                            onClick={() => void shareKb(r)}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12.5px] text-stone-600 hover:bg-[#fdfaf5]"
+                          >
+                            <Share2 className="h-3.5 w-3.5" /> 分享
+                          </button>
+                          <button
+                            onClick={() => exportKb(r)}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12.5px] text-stone-600 hover:bg-[#fdfaf5]"
+                          >
+                            <Download className="h-3.5 w-3.5" /> 导出信息
+                          </button>
+                          <div className="my-1 border-t border-stone-100" />
+                          <button
+                            onClick={() => removeKb(r)}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12.5px] text-red-500 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> 删除
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -248,9 +473,20 @@ export default function KnowledgePage() {
               <div className="flex items-center justify-between border-t border-[#f0eadf] px-5 py-3.5 text-[12.5px] text-stone-500">
                 <span>共 {filtered.length} 条</span>
                 <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-1 rounded-lg border border-[#ece6db] bg-white px-2.5 py-1.5 transition hover:text-stone-700">
-                    {PAGE_SIZE} 条 / 页 <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="rounded-lg border border-[#ece6db] bg-white px-2 py-1.5 text-[12.5px] text-stone-500 outline-none"
+                  >
+                    {[6, 12, 24].map((n) => (
+                      <option key={n} value={n}>
+                        {n} 条 / 页
+                      </option>
+                    ))}
+                  </select>
                   <div className="flex items-center gap-1">
                     <button
                       disabled={current <= 1}
@@ -299,28 +535,33 @@ export default function KnowledgePage() {
           <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-[#ece6db] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)] xl:flex">
             {selected ? (
               <>
-                <div className="px-5 pt-5">
+                <div className="max-h-[45vh] overflow-y-auto px-5 pt-5">
                   <div className="flex items-start gap-3">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
                       <Folder className="h-6 w-6" />
                     </div>
                     <div className="min-w-0 flex-1 pt-0.5">
                       <p className="flex items-center gap-1.5 text-[16px] font-semibold text-stone-800">
-                        {selected.name} <Shield className="h-3.5 w-3.5 text-stone-400" />
+                        <span className="truncate">{selected.name}</span>{" "}
+                        <Shield className="h-3.5 w-3.5 shrink-0 text-stone-400" />
                       </p>
                       <p className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-600">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 已启用
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 已启用 · {OWNER_LABEL[selected.owner]}
                       </p>
                     </div>
                   </div>
                   <div className="mt-3 space-y-1 text-[12px] text-stone-400">
-                    <p><span className="text-stone-500">类别</span> · {selected.tags[0] ?? "产品"}</p>
-                    <p><span className="text-stone-500">创建人</span> · Alex Chen</p>
-                    <p><span className="text-stone-500">创建时间</span> · {selected.updatedAt}</p>
+                    <p>
+                      <span className="text-stone-500">类别</span> · {selected.tags[0] ?? "未分类"}
+                    </p>
+                    <p>
+                      <span className="text-stone-500">创建人</span> · Alex Chen
+                    </p>
+                    <p>
+                      <span className="text-stone-500">创建时间</span> · {selected.updatedAt}
+                    </p>
                   </div>
-                  <p className="mt-3 text-[12.5px] leading-6 text-stone-500">
-                    描述：{selected.desc}
-                  </p>
+                  <p className="mt-3 text-[12.5px] leading-6 text-stone-500">描述：{selected.desc}</p>
                 </div>
 
                 {/* 统计 */}
@@ -343,12 +584,21 @@ export default function KnowledgePage() {
                 <div className="mt-5 px-5">
                   <p className="text-[13.5px] font-semibold text-stone-800">标签</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {selected.tags.length ? selected.tags.map((t) => (
-                      <span key={t} className="rounded-full border border-[#ece6db] bg-[#fbf8f4] px-2.5 py-1 text-[11px] text-stone-500">
-                        {t}
-                      </span>
-                    )) : (
-                      <span className="text-[11px] text-stone-400">暂无标签</span>
+                    {selected.tags.length ? (
+                      selected.tags.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => {
+                            setTagFilter(t);
+                            setPage(1);
+                          }}
+                          className="rounded-full border border-[#ece6db] bg-[#fbf8f4] px-2.5 py-1 text-[11px] text-stone-500 transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
+                        >
+                          {t}
+                        </button>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-stone-400">暂无标签，可在「管理知识库」里添加</span>
                     )}
                   </div>
                 </div>
@@ -357,64 +607,100 @@ export default function KnowledgePage() {
                 <div className="mt-5 px-5">
                   <p className="text-[13.5px] font-semibold text-stone-800">能力设置</p>
                   <div className="mt-2 space-y-1">
-                    {ABILITIES.map((s, idx) => {
-                      const key = (["semantic", "qa", "cite"] as const)[idx];
-                      return (
-                        <div key={s.label} className="flex items-center gap-3 py-2">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fbf3ec] text-[#c05f3c]">
-                            <s.icon className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-medium text-stone-700">{s.label}</p>
-                            <p className="text-[11px] text-stone-400">{s.desc}</p>
-                          </div>
-                          <button
-                            onClick={() => toggleAbility(key)}
-                            className={`relative h-5 w-9 rounded-full transition ${abilities[key] ? "bg-[#ff6a3d]" : "bg-stone-200"}`}
-                          >
-                            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${abilities[key] ? "right-0.5" : "left-0.5"}`} />
-                          </button>
+                    {ABILITIES.map((s) => (
+                      <div key={s.key} className="flex items-center gap-3 py-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fbf3ec] text-[#c05f3c]">
+                          <s.icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-medium text-stone-700">{s.label}</p>
+                          <p className="text-[11px] text-stone-400">{s.desc}</p>
                         </div>
-                      );
-                    })}
+                        <button
+                          onClick={() => toggleAbility(s.key)}
+                          className={`relative h-5 w-9 rounded-full transition ${abilities[s.key] ? "bg-[#ff6a3d]" : "bg-stone-200"}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                              abilities[s.key] ? "right-0.5" : "left-0.5"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* 最近更新 */}
                 <div className="mt-5 px-5">
-                  <p className="text-[13.5px] font-semibold text-stone-800">最近更新的文档</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13.5px] font-semibold text-stone-800">最近更新的文档</p>
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="text-[11px] text-stone-400 transition hover:text-[#c05f3c]"
+                    >
+                      + 上传
+                    </button>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        quickUpload(e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </div>
                   <div className="mt-2 space-y-0.5">
-                    {RECENT_DOCS.map((d) => (
+                    {selected.docs.length === 0 && (
+                      <p className="px-2 py-2 text-[11.5px] text-stone-400">还没有文档，点「+ 上传」添加</p>
+                    )}
+                    {selected.docs.slice(0, 3).map((d) => (
                       <button
-                        key={d.name}
-                        onClick={() => demo("打开文档")}
+                        key={d.id}
+                        onClick={() => setDocDetail(d)}
                         className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left transition hover:bg-[#fdfaf5]"
                       >
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${d.tint}`}>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
                           <FileText className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-stone-700">{d.name}</span>
-                        <span className="shrink-0 text-[11px] text-stone-400">{d.time}</span>
+                        <span className="shrink-0 text-[11px] text-stone-400">{d.updatedAt.slice(5, 16)}</span>
                       </button>
                     ))}
                     <button
-                      onClick={() => demo("查看全部文档")}
+                      onClick={() => setDocsOpen(true)}
                       className="flex items-center gap-1 px-2 py-1 text-[12px] text-[#c05f3c] transition hover:opacity-80"
                     >
-                      查看全部文档 <ChevronRight className="h-3.5 w-3.5" />
+                      查看全部文档（{selected.docs.length}） <ChevronRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
 
+                {shareLink && (
+                  <div className="mx-5 mt-4 rounded-xl border border-[#e0b79c] bg-[#fdf1e3] px-3 py-2">
+                    <p className="text-[11px] text-stone-500">分享链接（已复制）</p>
+                    <a
+                      href={shareLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block truncate text-[12px] text-[#c05f3c] underline"
+                    >
+                      {shareLink}
+                    </a>
+                  </div>
+                )}
+
                 <div className="mt-auto flex items-center gap-2 border-t border-[#f0eadf] p-4">
                   <button
-                    onClick={() => demo("分享知识库")}
+                    onClick={() => void shareKb(selected)}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#ece6db] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-[#e0b79c]"
                   >
                     <Share2 className="h-4 w-4" /> 分享知识库
                   </button>
                   <button
-                    onClick={() => demo("管理知识库")}
+                    onClick={() => setFormOpen({ open: true, row: selected })}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105"
                   >
                     <Users className="h-4 w-4" /> 管理知识库
@@ -427,6 +713,21 @@ export default function KnowledgePage() {
           </aside>
         </div>
       </main>
+
+      {formOpen.open && (
+        <KbFormModal initial={formOpen.row} onClose={() => setFormOpen({ open: false, row: null })} onSave={saveForm} />
+      )}
+      {docsOpen && selected && (
+        <KbDocsModal
+          kb={selected}
+          onClose={() => setDocsOpen(false)}
+          onChange={refresh}
+          onOpenDoc={(d) => setDocDetail(d)}
+        />
+      )}
+      {docDetail && selected && (
+        <DocDetailModal doc={docDetail} kbName={selected.name} onClose={() => setDocDetail(null)} />
+      )}
       <Toaster />
     </div>
   );

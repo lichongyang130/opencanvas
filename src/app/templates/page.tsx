@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -25,9 +25,12 @@ import {
   extractVariables,
   type Template,
 } from "@/lib/templates";
+import { usePromptStore } from "@/lib/prompt-store";
 import { useChatStore } from "@/lib/store/chat";
 import { toast } from "@/lib/store/toast";
 import { Toaster } from "@/components/Toaster";
+import { CreateTemplateModal } from "@/components/templates/CreateTemplateModal";
+import { MyTemplatesModal } from "@/components/templates/MyTemplatesModal";
 
 interface UseTmplState {
   tpl: Template;
@@ -48,12 +51,18 @@ const CAT_UI: Record<string, { icon: string; tint: string; bg: string }> = {
 };
 
 const TABS = ["热门模板", "最新模板", "高评分模板"];
+const PAGE_STEP = 8;
 
-/** 依据真实模板生成卡片，评分/使用量用稳定的伪值保持视觉统一 */
-function scoreOf(t: Template, idx: number) {
-  const rating = (4.5 + ((t.id.length + idx) % 5) * 0.1).toFixed(1);
-  const usage = [12.5, 8.7, 6.2, 9.3, 7.0, 5.1, 15.2, 11.3][idx % 8];
-  return { rating, usage: `${usage}k 使用` };
+/** 稳定哈希：让评分/热度对同一模板始终一致（不随渲染顺序跳动） */
+function hashOf(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) % 100003;
+  return h;
+}
+
+function scoreOf(t: Template) {
+  const h = hashOf(t.id);
+  return { rating: (4.4 + (h % 6) * 0.1).toFixed(1), usage: 3 + (h % 150) / 10 };
 }
 
 function PreviewThumb({ variant }: { variant: number }) {
@@ -89,6 +98,7 @@ function PreviewThumb({ variant }: { variant: number }) {
 function UseTemplateModal({ state, onClose }: { state: UseTmplState | null; onClose: () => void }) {
   const router = useRouter();
   const { runTemplate } = useChatStore();
+  const markUsed = usePromptStore((s) => s.markUsed);
   const [values, setValues] = useState<Record<string, string>>({});
 
   if (!state) return null;
@@ -104,6 +114,7 @@ function UseTemplateModal({ state, onClose }: { state: UseTmplState | null; onCl
       return;
     }
     const prompt = applyVariables(tpl.prompt, values);
+    markUsed(tpl.id);
     onClose();
     toast(`已创建「${tpl.label}」任务，正在生成…`, "success");
     await runTemplate({ mode: tpl.mode, prompt });
@@ -118,7 +129,10 @@ function UseTemplateModal({ state, onClose }: { state: UseTmplState | null; onCl
             <span className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${ui?.bg}`}>{ui?.icon}</span>
             <div>
               <h3 className="text-[15px] font-semibold text-stone-800">{tpl.label}</h3>
-              <p className="text-[11px] text-stone-400">{CATEGORY_LABELS[tpl.category]} · {MODE_LABEL_OF[tpl.mode]}</p>
+              <p className="text-[11px] text-stone-400">
+                {CATEGORY_LABELS[tpl.category]} · {MODE_LABEL_OF[tpl.mode]}
+                {!tpl.builtin && " · 我的模板"}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100">
@@ -155,29 +169,72 @@ function UseTemplateModal({ state, onClose }: { state: UseTmplState | null; onCl
 }
 
 export default function TemplatesPage() {
+  const router = useRouter();
+  const storedCustom = usePromptStore((s) => s.custom);
+  const addCustom = usePromptStore((s) => s.addCustom);
+  // 自建模板存在 localStorage，服务端渲染时读不到；挂载后再使用，避免水合不一致
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const custom = useMemo(() => (mounted ? storedCustom : []), [mounted, storedCustom]);
+
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [modal, setModal] = useState<UseTmplState | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [myOpen, setMyOpen] = useState(false);
+  const [sceneOpen, setSceneOpen] = useState(false);
+  const [recOffset, setRecOffset] = useState(0);
+  const [limit, setLimit] = useState(PAGE_STEP);
+  const sceneRef = useRef<HTMLDivElement>(null);
 
-  const demo = (label: string) => toast(`演示预览：${label} 功能即将接入`, "info");
+  useEffect(() => {
+    if (!sceneOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (sceneRef.current && !sceneRef.current.contains(e.target as Node)) setSceneOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [sceneOpen]);
+
+  /** 内置模板 + 我的自建模板（自建排在前） */
+  const all = useMemo(() => [...custom, ...TEMPLATES], [custom]);
 
   const categoryCount = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const t of TEMPLATES) m[t.category] = (m[t.category] ?? 0) + 1;
+    for (const t of all) m[t.category] = (m[t.category] ?? 0) + 1;
     return m;
-  }, []);
+  }, [all]);
 
   const list = useMemo(() => {
-    let arr = TEMPLATES;
+    let arr = all;
     if (cat) arr = arr.filter((t) => t.category === cat);
-    if (tab === 0) arr = [...arr].sort((a, b) => a.label.localeCompare(b.label, "zh")).slice(0, 4).concat(arr.slice(4).slice(0, 4));
-    if (tab === 2) arr = [...arr].sort((a, b) => b.id.length - a.id.length).slice(0, 8);
-    if (tab === 1) arr = arr.slice(-8);
     const q = query.trim().toLowerCase();
-    if (q) arr = arr.filter((t) => t.label.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q));
-    return arr.slice(0, 8);
-  }, [query, cat, tab]);
+    if (q) {
+      arr = arr.filter(
+        (t) =>
+          t.label.toLowerCase().includes(q) ||
+          t.desc.toLowerCase().includes(q) ||
+          t.prompt.toLowerCase().includes(q)
+      );
+    }
+    arr = [...arr];
+    if (tab === 0) arr.sort((a, b) => scoreOf(b).usage - scoreOf(a).usage);
+    else if (tab === 1)
+      arr.sort((a, b) => Number(b.id.startsWith("custom-")) - Number(a.id.startsWith("custom-")) || b.id.localeCompare(a.id));
+    else arr.sort((a, b) => Number(scoreOf(b).rating) - Number(scoreOf(a).rating));
+    return arr;
+  }, [all, cat, query, tab]);
+
+  const visible = list.slice(0, limit);
+  const hasMore = list.length > visible.length;
+
+  const recs = useMemo(() => {
+    if (all.length === 0) return [];
+    return Array.from({ length: Math.min(5, all.length) }, (_, i) => all[(recOffset + i) % all.length]);
+  }, [all, recOffset]);
+
+  const openUse = (t: Template) => setModal({ tpl: t, values: {} });
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#fbf8f4] text-stone-800">
@@ -191,14 +248,22 @@ export default function TemplatesPage() {
             <p className="mt-0.5 text-[12.5px] text-stone-400">精选各类专业模板，助你高效完成各类工作</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
+            <button
+              onClick={() => toast("演示版暂未接入通知中心", "info")}
+              title="通知"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
               <Bell className="h-[18px] w-[18px]" />
             </button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700">
+            <button
+              onClick={() => router.push("/apps")}
+              title="更多应用"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
+            >
               <LayoutGrid className="h-[18px] w-[18px]" />
             </button>
             <button
-              onClick={() => demo("提交模板")}
+              onClick={() => setCreateOpen(true)}
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[#f0c9a8] bg-white px-4 py-2 text-[13px] font-medium text-[#c05f3c] transition hover:bg-[#fdeee1]"
             >
               <Plus className="h-4 w-4" /> 提交模板
@@ -216,24 +281,78 @@ export default function TemplatesPage() {
                 <Search className="h-4 w-4" />
                 <input
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setLimit(PAGE_STEP);
+                  }}
                   placeholder="搜索模板名称、描述或关键词"
                   className="w-full bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-400"
                 />
+                {query && (
+                  <button onClick={() => setQuery("")} className="text-stone-300 hover:text-stone-500">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => demo("场景筛选")}
-                className="flex items-center gap-2 rounded-xl border border-[#ece6db] bg-white px-4 py-2.5 text-[13px] text-stone-600 transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
-              >
-                <Filter className="h-4 w-4" /> 全部场景 <ChevronDown className="h-3.5 w-3.5 text-stone-400" />
-              </button>
+              {/* 场景筛选：真实过滤列表 */}
+              <div className="relative" ref={sceneRef}>
+                <button
+                  onClick={() => setSceneOpen((v) => !v)}
+                  className={`flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-[13px] transition ${
+                    cat ? "border-[#e0b79c] text-[#c05f3c]" : "border-[#ece6db] text-stone-600 hover:border-[#e0b79c] hover:text-[#c05f3c]"
+                  }`}
+                >
+                  <Filter className="h-4 w-4" /> {cat ? CATEGORY_LABELS[cat as never] ?? cat : "全部场景"}{" "}
+                  <ChevronDown className={`h-3.5 w-3.5 text-stone-400 transition ${sceneOpen ? "rotate-180" : ""}`} />
+                </button>
+                {sceneOpen && (
+                  <div className="absolute right-0 top-[calc(100%+6px)] z-30 max-h-80 w-52 overflow-y-auto rounded-xl border border-[#ece6db] bg-white p-1.5 shadow-xl">
+                    <button
+                      onClick={() => {
+                        setCat(null);
+                        setLimit(PAGE_STEP);
+                        setSceneOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[12.5px] transition hover:bg-[#fdfaf5] ${
+                        cat === null ? "text-[#c05f3c]" : "text-stone-600"
+                      }`}
+                    >
+                      全部场景 <span className="text-[11px] text-stone-400">{all.length}</span>
+                    </button>
+                    {CATEGORIES.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setCat(c.id);
+                          setLimit(PAGE_STEP);
+                          setSceneOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[12.5px] transition hover:bg-[#fdfaf5] ${
+                          cat === c.id ? "text-[#c05f3c]" : "text-stone-600"
+                        }`}
+                      >
+                        <span>
+                          {CAT_UI[c.id]?.icon} {c.label}
+                        </span>
+                        <span className="text-[11px] text-stone-400">{categoryCount[c.id] ?? 0}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 按场景分类 */}
             <div className="mt-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-[15px] font-semibold text-stone-800">按场景分类</h2>
-                <button onClick={() => setCat(null)} className="flex items-center gap-1 text-[12.5px] text-stone-400 transition hover:text-[#c05f3c]">
+                <button
+                  onClick={() => {
+                    setCat(null);
+                    setLimit(PAGE_STEP);
+                  }}
+                  className="flex items-center gap-1 text-[12.5px] text-stone-400 transition hover:text-[#c05f3c]"
+                >
                   查看全部 <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -244,14 +363,17 @@ export default function TemplatesPage() {
                   return (
                     <button
                       key={c.id}
-                      onClick={() => setCat(active ? null : c.id)}
+                      onClick={() => {
+                        setCat(active ? null : c.id);
+                        setLimit(PAGE_STEP);
+                      }}
                       className={`rounded-2xl border p-4 text-left transition hover:shadow-md ${
                         active ? "border-[#f0c9a8] bg-[#fdf1e3]" : "border-[#ece6db] bg-white"
                       }`}
                     >
                       <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg ${ui?.bg}`}>{ui?.icon}</span>
                       <p className={`mt-2 text-[13px] font-semibold ${active ? "text-[#c05f3c]" : "text-stone-800"}`}>{c.label}</p>
-                      <p className="mt-1 text-[11px] leading-4 text-stone-400">{TEMPLATES.filter((t) => t.category === c.id).length} 个模板</p>
+                      <p className="mt-1 text-[11px] leading-4 text-stone-400">{categoryCount[c.id] ?? 0} 个模板</p>
                     </button>
                   );
                 })}
@@ -265,7 +387,10 @@ export default function TemplatesPage() {
                   {TABS.map((t, i) => (
                     <button
                       key={t}
-                      onClick={() => setTab(i)}
+                      onClick={() => {
+                        setTab(i);
+                        setLimit(PAGE_STEP);
+                      }}
                       className={`relative pb-3 pt-1 text-[13px] ${i === tab ? "font-medium text-[#c05f3c]" : "text-stone-500 transition hover:text-stone-800"}`}
                     >
                       {t}
@@ -277,22 +402,30 @@ export default function TemplatesPage() {
               </div>
 
               <div className="mt-4 grid grid-cols-4 gap-3">
-                {list.map((t, i) => {
-                  const sc = scoreOf(t, i);
+                {visible.map((t, i) => {
+                  const sc = scoreOf(t);
                   return (
                     <div
                       key={t.id}
-                      onClick={() => setModal({ tpl: t, values: {} })}
+                      onClick={() => openUse(t)}
                       className="cursor-pointer rounded-2xl border border-[#ece6db] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition hover:shadow-md"
                     >
                       <PreviewThumb variant={i} />
-                      <p className="mt-3 text-[13.5px] font-semibold text-stone-800">{t.label}</p>
+                      <p className="mt-3 flex items-center gap-1 text-[13.5px] font-semibold text-stone-800">
+                        <span className="truncate">{t.label}</span>
+                        {!t.builtin && (
+                          <span className="shrink-0 rounded bg-[#fdf1e3] px-1 py-px text-[9px] font-normal text-[#c05f3c]">我的</span>
+                        )}
+                      </p>
                       <p className="mt-1 min-h-[36px] text-xs leading-5 text-stone-400">{t.desc}</p>
                       <div className="mt-2 flex items-center gap-2 text-[11px] text-stone-400">
                         <span className="rounded-md bg-[#fbf3ec] px-1.5 py-0.5 font-medium text-[#c05f3c]">{CATEGORY_LABELS[t.category]}</span>
                         <span className="text-[10px] text-stone-400">{MODE_LABEL_OF[t.mode]}</span>
-                        <span className="flex items-center gap-0.5 text-amber-400"><Star className="h-3 w-3 fill-current" />{sc.rating}</span>
-                        <span className="ml-auto">{sc.usage}</span>
+                        <span className="flex items-center gap-0.5 text-amber-400">
+                          <Star className="h-3 w-3 fill-current" />
+                          {sc.rating}
+                        </span>
+                        <span className="ml-auto">{sc.usage.toFixed(1)}k 使用</span>
                       </div>
                     </div>
                   );
@@ -301,12 +434,22 @@ export default function TemplatesPage() {
 
               {list.length === 0 && <div className="py-16 text-center text-sm text-stone-400">没有找到匹配的模板</div>}
 
-              <button
-                onClick={() => setCat(null)}
-                className="mx-auto mt-5 flex items-center gap-1 rounded-full border border-[#ece6db] bg-white px-4 py-2 text-[12.5px] text-stone-500 transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
-              >
-                查看更多模板 <ChevronDown className="h-3.5 w-3.5" />
-              </button>
+              {hasMore && (
+                <button
+                  onClick={() => setLimit((l) => l + PAGE_STEP)}
+                  className="mx-auto mt-5 flex items-center gap-1 rounded-full border border-[#ece6db] bg-white px-4 py-2 text-[12.5px] text-stone-500 transition hover:border-[#e0b79c] hover:text-[#c05f3c]"
+                >
+                  查看更多模板 <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {!hasMore && list.length > PAGE_STEP && (
+                <button
+                  onClick={() => setLimit(PAGE_STEP)}
+                  className="mx-auto mt-5 flex items-center gap-1 rounded-full border border-[#ece6db] bg-white px-4 py-2 text-[12.5px] text-stone-400 transition hover:text-[#c05f3c]"
+                >
+                  收起
+                </button>
+              )}
             </div>
           </div>
 
@@ -315,21 +458,31 @@ export default function TemplatesPage() {
             {/* 推荐模板 */}
             <div className="border-b border-[#f0eadf] p-5">
               <div className="flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-[14px] font-semibold text-stone-800"><Sparkles className="h-4 w-4 text-orange-500" />推荐模板</p>
-                <button onClick={() => demo("换一批")} className="text-[11px] text-stone-400 transition hover:text-[#c05f3c]">换一批</button>
+                <p className="flex items-center gap-1.5 text-[14px] font-semibold text-stone-800">
+                  <Sparkles className="h-4 w-4 text-orange-500" />推荐模板
+                </p>
+                <button
+                  onClick={() => setRecOffset((o) => (o + 5) % Math.max(1, all.length))}
+                  className="text-[11px] text-stone-400 transition hover:text-[#c05f3c]"
+                >
+                  换一批
+                </button>
               </div>
               <div className="mt-3 space-y-1">
-                {TEMPLATES.slice(0, 5).map((t) => {
+                {recs.map((t) => {
                   const ui = CAT_UI[t.category];
-                  const sc = scoreOf(t, 0);
+                  const sc = scoreOf(t);
                   return (
-                    <button key={t.id} onClick={() => setModal({ tpl: t, values: {} })} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[#fdfaf5]">
+                    <button key={t.id} onClick={() => openUse(t)} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[#fdfaf5]">
                       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg ${ui?.bg}`}>{ui?.icon}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[12.5px] font-medium text-stone-700">{t.label}</span>
                         <span className="block text-[10px] text-stone-400">{CATEGORY_LABELS[t.category]}</span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-amber-400"><Star className="h-3 w-3 fill-current" />{sc.rating}</span>
+                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-amber-400">
+                        <Star className="h-3 w-3 fill-current" />
+                        {sc.rating}
+                      </span>
                     </button>
                   );
                 })}
@@ -340,20 +493,32 @@ export default function TemplatesPage() {
             <div className="border-b border-[#f0eadf] p-5">
               <p className="text-[14px] font-semibold text-stone-800">我的模板</p>
               <div className="mt-3 space-y-1">
-                {TEMPLATES.slice(5, 8).map((t) => {
+                {custom.length === 0 && (
+                  <p className="px-2 py-2 text-[11.5px] leading-5 text-stone-400">
+                    还没有自建模板，点「提交模板」把你常用的提示词存成模板。
+                  </p>
+                )}
+                {custom.slice(0, 3).map((t) => {
                   const ui = CAT_UI[t.category];
                   return (
-                    <button key={t.id} onClick={() => setModal({ tpl: t, values: {} })} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[#fdfaf5]">
-                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ui?.bg}`}><FileText className="h-4 w-4" /></span>
+                    <button key={t.id} onClick={() => openUse(t)} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[#fdfaf5]">
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ui?.bg}`}>
+                        <FileText className="h-4 w-4" />
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[12.5px] font-medium text-stone-700">{t.label}</span>
-                        <span className="block text-[10px] text-stone-400">{CATEGORY_LABELS[t.category]} · {MODE_LABEL_OF[t.mode]}</span>
+                        <span className="block text-[10px] text-stone-400">
+                          {CATEGORY_LABELS[t.category]} · {MODE_LABEL_OF[t.mode]}
+                        </span>
                       </span>
                     </button>
                   );
                 })}
-                <button onClick={() => demo("查看全部")} className="flex items-center gap-1 px-2 py-1 text-[12px] text-[#c05f3c] transition hover:opacity-80">
-                  查看全部 <ChevronRight className="h-3.5 w-3.5" />
+                <button
+                  onClick={() => setMyOpen(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-[12px] text-[#c05f3c] transition hover:opacity-80"
+                >
+                  查看全部（{custom.length}） <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
@@ -363,7 +528,7 @@ export default function TemplatesPage() {
               <p className="text-[14px] font-semibold text-stone-800">没有找到合适的模板？</p>
               <p className="mt-1 text-[12px] text-stone-400">提交你的模板，与更多人分享</p>
               <button
-                onClick={() => demo("提交模板")}
+                onClick={() => setCreateOpen(true)}
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#f0c9a8] bg-white py-2.5 text-[13px] font-medium text-[#c05f3c] transition hover:bg-[#fdeee1]"
               >
                 <Plus className="h-4 w-4" /> 提交模板
@@ -372,7 +537,19 @@ export default function TemplatesPage() {
           </aside>
         </div>
       </main>
+
       <UseTemplateModal state={modal} onClose={() => setModal(null)} />
+      {createOpen && (
+        <CreateTemplateModal
+          onClose={() => setCreateOpen(false)}
+          onSave={(p) => {
+            addCustom(p);
+            setCreateOpen(false);
+            toast(`模板「${p.label}」已保存到我的模板`, "success");
+          }}
+        />
+      )}
+      {myOpen && <MyTemplatesModal onClose={() => setMyOpen(false)} onUse={(t) => { setMyOpen(false); openUse(t); }} />}
       <Toaster />
     </div>
   );
