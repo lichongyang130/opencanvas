@@ -286,7 +286,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
               )}
               {editable ? (
                 <input
-                  value={st.label}
+                  value={tt(st.label)}
                   onChange={(e) => {
                     const next = [...(slide.stats ?? [])];
                     next[i] = { ...next[i], label: e.target.value };
@@ -297,7 +297,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
                 />
               ) : (
                 <div className="mt-[0.8cqw] text-[1.8cqw]" style={{ color: t.muted }}>
-                  {st.label}
+                  {tt(st.label)}
                 </div>
               )}
             </div>

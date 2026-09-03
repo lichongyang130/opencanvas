@@ -9,6 +9,7 @@ import {
   Video,
 } from "lucide-react";
 import { useChatStore, MODE_LABELS, type WorkspaceMode } from "@/lib/store/chat";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const TABS: { mode: WorkspaceMode; icon: React.ReactNode }[] = [
@@ -21,6 +22,7 @@ const TABS: { mode: WorkspaceMode; icon: React.ReactNode }[] = [
 ];
 
 export function ModeSwitcher() {
+  const { tt } = useI18n();
   const { conversations, activeId, setMode } = useChatStore();
   const convo = conversations.find((c) => c.id === activeId);
   const mode = convo?.mode ?? "chat";
@@ -37,10 +39,10 @@ export function ModeSwitcher() {
               ? "bg-brand-600 font-medium text-white"
               : "text-stone-500 hover:bg-stone-100"
           )}
-          title={MODE_LABELS[t.mode]}
+          title={tt(MODE_LABELS[t.mode])}
         >
           {t.icon}
-          <span className="hidden lg:inline">{MODE_LABELS[t.mode]}</span>
+          <span className="hidden lg:inline">{tt(MODE_LABELS[t.mode])}</span>
         </button>
       ))}
     </div>

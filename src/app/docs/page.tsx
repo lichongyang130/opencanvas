@@ -93,7 +93,7 @@ function DocIcon({ type }: { type: DocType }) {
 }
 
 export default function DocsPage() {
-  const { t } = useI18n();
+  const { t, tt } = useI18n();
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -174,10 +174,10 @@ export default function DocsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ restore: true }),
         });
-        toast("已恢复文档", "success");
+        toast(tt("已恢复文档"), "success");
       } else {
         await fetch(`/api/documents/${id}`, { method: "DELETE" });
-        toast("已移入回收站", "info");
+        toast(tt("已移入回收站"), "info");
       }
       await load();
     } catch {
@@ -186,10 +186,10 @@ export default function DocsPage() {
   };
 
   const hardDelete = async (id: string) => {
-    if (!window.confirm("彻底删除该文档？此操作不可恢复。")) return;
+    if (!window.confirm(tt("彻底删除该文档？此操作不可恢复。"))) return;
     try {
       await fetch(`/api/documents/${id}?hard=1`, { method: "DELETE" });
-      toast("已彻底删除", "success");
+      toast(tt("已彻底删除"), "success");
       await load();
     } catch {
       toast("删除失败", "error");
@@ -250,7 +250,7 @@ export default function DocsPage() {
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
             <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.docs")}</h1>
-            <p className="mt-0.5 text-[12.5px] text-stone-400">上传、预览与管理你的文档（支持 PDF / Word / Markdown / TXT）</p>
+            <p className="mt-0.5 text-[12.5px] text-stone-400">{tt("上传、预览与管理你的文档（支持 PDF / Word / Markdown / TXT）")}</p>
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
@@ -261,7 +261,7 @@ export default function DocsPage() {
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[var(--oc-brand-border-soft)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)] disabled:opacity-50"
             >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {uploading ? "上传中…" : "上传文档"}
+              {uploading ? tt("上传中…") : tt("上传文档")}
             </button>
             <input
               ref={fileRef}
@@ -289,7 +289,7 @@ export default function DocsPage() {
                     <s.icon className="h-[22px] w-[22px]" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[12px] text-stone-400">{s.label}</p>
+                    <p className="text-[12px] text-stone-400">{tt(s.label)}</p>
                     <p className="text-[20px] font-bold leading-tight text-stone-800">
                       {s.value} <span className="text-[12px] font-normal text-stone-400">{s.unit}</span>
                     </p>
@@ -327,7 +327,7 @@ export default function DocsPage() {
                         : "px-3 pb-3 pt-1 text-[13px] text-stone-500 transition hover:text-stone-800"
                     }
                   >
-                    {t}
+                    {tt(t)}
                     {i === tab && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--oc-brand-bright)]" />}
                   </button>
                 ))}
@@ -340,13 +340,13 @@ export default function DocsPage() {
                         setQuery(e.target.value);
                         setPage(1);
                       }}
-                      placeholder="搜索文档名称或正文…"
+                      placeholder={tt("搜索文档名称或正文…")}
                       className="w-44 bg-transparent text-[12.5px] text-stone-700 outline-none placeholder:text-stone-400"
                     />
                   </div>
                   {dragOver && (
                     <span className="rounded-lg bg-orange-100 px-3 py-1.5 text-[12px] font-medium text-orange-600">
-                      松开上传
+                      {tt("松开上传")}
                     </span>
                   )}
                 </div>
@@ -354,23 +354,23 @@ export default function DocsPage() {
 
               {/* 表头 */}
               <div className="flex items-center px-5 py-2.5 text-[12px] text-stone-400">
-                <span className="w-[46%]">文档名称</span>
-                <span className="w-[18%]">类型</span>
-                <span className="w-[14%]">更新时间</span>
-                <span className="w-[10%]">大小</span>
-                <span className="flex-1 text-right">操作</span>
+                <span className="w-[46%]">{tt("文档名称")}</span>
+                <span className="w-[18%]">{tt("类型")}</span>
+                <span className="w-[14%]">{tt("更新时间")}</span>
+                <span className="w-[10%]">{tt("大小")}</span>
+                <span className="flex-1 text-right">{tt("操作")}</span>
               </div>
 
               {/* 行 */}
               {loading ? (
                 <div className="flex flex-col items-center gap-2 py-14 text-stone-400">
                   <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
-                  <p className="text-sm">加载文档中…</p>
+                  <p className="text-sm">{tt("加载文档中…")}</p>
                 </div>
               ) : pageRows.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-14 text-stone-400">
                   <Trash2 className="h-8 w-8 text-stone-300" />
-                  <p className="text-sm">{tab === 2 ? "回收站是空的" : "暂无文档，点击右上角「上传文档」开始"}</p>
+                  <p className="text-sm">{tab === 2 ? tt("回收站是空的") : tt("暂无文档，点击右上角「上传文档」开始")}</p>
                 </div>
               ) : (
                 pageRows.map((r) => {
@@ -398,13 +398,13 @@ export default function DocsPage() {
                               onClick={() => void toggleTrash(r.id)}
                               className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-stone-500 transition hover:bg-stone-100 hover:text-emerald-600"
                             >
-                              <RotateCcw className="h-3.5 w-3.5" /> 恢复
+                              <RotateCcw className="h-3.5 w-3.5" /> {tt("恢复")}
                             </button>
                             <button
                               onClick={() => void hardDelete(r.id)}
                               className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-stone-500 transition hover:bg-red-50 hover:text-red-600"
                             >
-                              <Trash2 className="h-3.5 w-3.5" /> 彻底删除
+                              <Trash2 className="h-3.5 w-3.5" /> {tt("彻底删除")}
                             </button>
                           </>
                         ) : (
@@ -417,21 +417,21 @@ export default function DocsPage() {
                             </button>
                             <button
                               onClick={() => downloadDoc(r.id)}
-                              title="下载原文件"
+                              title={tt("下载原文件")}
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
                             >
                               <Download className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => void openDoc(r)}
-                              title="预览"
+                              title={tt("预览")}
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
                             >
                               <FileText className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => void toggleTrash(r.id)}
-                              title="移入回收站"
+                              title={tt("移入回收站")}
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-500"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -497,9 +497,9 @@ export default function DocsPage() {
 
           {/* 右侧面板 */}
           <aside className="hidden w-[320px] shrink-0 flex-col overflow-hidden rounded-2xl border border-[var(--oc-border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)] xl:flex">
-            {/* 存储空间 */}
+            {/* {tt("存储空间")} */}
             <div className="border-b border-[var(--oc-border-soft)] p-5">
-              <p className="text-[14px] font-semibold text-stone-800">存储空间</p>
+              <p className="text-[14px] font-semibold text-stone-800">{tt("存储空间")}</p>
               <div className="mt-4 flex items-center gap-5">
                 <div className="relative h-28 w-28 shrink-0">
                   <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
@@ -508,57 +508,57 @@ export default function DocsPage() {
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <p className="text-[16px] font-bold text-stone-800">{fmtSize(totalSize)}</p>
-                    <p className="text-[11px] text-stone-400">本地存储</p>
+                    <p className="text-[11px] text-stone-400">{tt("本地存储")}</p>
                   </div>
                 </div>
                 <div className="flex-1 space-y-2 text-[12px] text-stone-500">
                   <p className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" />文档文件</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" />{tt("文档文件")}</span>
                     <span>{fmtSize(totalSize)}</span>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-300" />文本正文</span>
-                    <span>实时提取</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-300" />{tt("文本正文")}</span>
+                    <span>{tt("实时提取")}</span>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-stone-300" />上限</span>
-                    <span>单文件 30MB</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-stone-300" />{tt("上限")}</span>
+                    <span>{tt("单文件 30MB")}</span>
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* 快速操作 */}
+            {/* {tt("快速操作")} */}
             <div className="border-b border-[var(--oc-border-soft)] p-5">
-              <p className="text-[14px] font-semibold text-stone-800">快速操作</p>
+              <p className="text-[14px] font-semibold text-stone-800">{tt("快速操作")}</p>
               <div className="mt-3 space-y-1">
                 <button onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition hover:bg-[var(--oc-hover)]">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Upload className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-medium text-stone-700">上传文档</span>
-                    <span className="block text-[11px] text-stone-400">支持拖拽或选择文件上传</span>
+                    <span className="block text-[13px] font-medium text-stone-700">{tt("上传文档")}</span>
+                    <span className="block text-[11px] text-stone-400">{tt("支持拖拽或选择文件上传")}</span>
                   </span>
                 </button>
                 <button onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition hover:bg-[var(--oc-hover)]">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><FolderPlus className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-medium text-stone-700">批量上传</span>
-                    <span className="block text-[11px] text-stone-400">一次选择多个文档</span>
+                    <span className="block text-[13px] font-medium text-stone-700">{tt("批量上传")}</span>
+                    <span className="block text-[11px] text-stone-400">{tt("一次选择多个文档")}</span>
                   </span>
                 </button>
                 <button onClick={() => void load()} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition hover:bg-[var(--oc-hover)]">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><Layers className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-medium text-stone-700">刷新列表</span>
-                    <span className="block text-[11px] text-stone-400">重新从数据库加载</span>
+                    <span className="block text-[13px] font-medium text-stone-700">{tt("刷新列表")}</span>
+                    <span className="block text-[11px] text-stone-400">{tt("重新从数据库加载")}</span>
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* 最近文档 */}
+            {/* {tt("最近文档")} */}
             <div className="flex-1 overflow-y-auto p-5">
-              <p className="text-[14px] font-semibold text-stone-800">最近文档</p>
+              <p className="text-[14px] font-semibold text-stone-800">{tt("最近文档")}</p>
               <div className="mt-3 space-y-1">
                 {rows.slice(0, 6).map((d) => (
                   <button key={d.id} onClick={() => void openDoc(d)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-[var(--oc-hover)]">
@@ -569,7 +569,7 @@ export default function DocsPage() {
                     </span>
                   </button>
                 ))}
-                {rows.length === 0 && <p className="px-2 py-1 text-xs text-stone-300">暂无文档</p>}
+                {rows.length === 0 && <p className="px-2 py-1 text-xs text-stone-300">{tt("暂无文档")}</p>}
               </div>
             </div>
           </aside>
@@ -593,7 +593,7 @@ export default function DocsPage() {
               <div className="flex shrink-0 items-center gap-1">
                 <button
                   onClick={() => downloadDoc(opening.id)}
-                  title="下载"
+                  title={tt("下载")}
                   className="rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
                 >
                   <Download className="h-4 w-4" />

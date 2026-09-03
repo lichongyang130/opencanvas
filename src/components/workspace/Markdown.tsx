@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useI18n } from "@/lib/i18n";
 
 /**
  * 轻量 Markdown 渲染（无第三方依赖）：
@@ -103,6 +104,7 @@ function highlightCode(code: string, lang: string): React.ReactNode[] {
 }
 
 export function Markdown({ content }: { content: string }) {
+  const { tt } = useI18n();
   const blocks = content.split(/```(\w*)\n?/);
   // blocks: [text, lang, code, text, lang, code...]
   const nodes: React.ReactNode[] = [];
@@ -178,7 +180,7 @@ export function Markdown({ content }: { content: string }) {
           {lang && (
             <div className="flex items-center justify-between border-b border-white/10 px-3 py-1.5">
               <span className="text-[10px] uppercase tracking-wide text-stone-400">{lang}</span>
-              <span className="text-[10px] text-stone-500">{code.split("\n").length} 行</span>
+              <span className="text-[10px] text-stone-500">{code.split("\n").length} {tt("行")}</span>
             </div>
           )}
           <pre className="overflow-x-auto p-3 text-xs leading-5 text-stone-100">

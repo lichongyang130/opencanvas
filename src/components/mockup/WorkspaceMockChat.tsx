@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import CreditsBadge from "@/components/CreditsBadge";
+import { useI18n } from "@/lib/i18n";
 
 /* ────────────────────────────────────────────────
  *  AI 对话工作台（保持设计稿 1:1 视觉，接真实数据流）
@@ -42,25 +43,9 @@ import CreditsBadge from "@/components/CreditsBadge";
  *  - 消息流来自 /api/chat（SSE 流式）
  * ──────────────────────────────────────────────── */
 
-const NAV_ITEMS = [
-  { icon: Home, label: "首页", route: "/" },
-  { icon: MessageSquare, label: "AI 对话", route: "/chat" },
-  { icon: Bot, label: "智能体", route: "/agents" },
-  { icon: Database, label: "知识库", route: "/knowledge" },
-  { icon: FileText, label: "文档中心", route: "/chat" },
-  { icon: LayoutTemplate, label: "模板中心", route: "/chat" },
-  { icon: Wrench, label: "工具箱", route: "/chat" },
-  { icon: LayoutGrid, label: "更多应用", route: "/chat" },
-];
-
-const QUICK_SUGGESTIONS = [
-  "帮我写一篇关于时间管理的文章",
-  "分析一下这个文件的内容",
-  "生成一个营销活动的创意方案",
-  "解释这个概念：区块链技术",
-];
 
 function AILogo() {
+  const { tt } = useI18n();
   return (
     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-blue-500 text-white">
       <Sparkles className="h-3 w-3" />
@@ -93,6 +78,7 @@ function UserBubble({ msg }: { msg: UIMessage }) {
 }
 
 function AIBubble({ msg }: { msg: UIMessage }) {
+  const { tt } = useI18n();
   const [copied, setCopied] = useState(false);
   const time = new Date(Number(msg.id.split("-")[0]) || Date.now()).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -101,7 +87,7 @@ function AIBubble({ msg }: { msg: UIMessage }) {
   const copy = () => {
     navigator.clipboard?.writeText(msg.content).then(() => {
       setCopied(true);
-      toast("已复制", "success");
+      toast(tt("已复制"), "success");
       setTimeout(() => setCopied(false), 1500);
     });
   };
@@ -110,7 +96,7 @@ function AIBubble({ msg }: { msg: UIMessage }) {
       <AILogo />
       <div className="min-w-0 max-w-[840px] flex-1">
         <div className="rounded-xl rounded-tl-sm border border-[var(--oc-border-strong)] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          <p className="mb-2 text-xs text-stone-400">AI 助手 {time}</p>
+          <p className="mb-2 text-xs text-stone-400">{tt("AI 助手 {time}", { time })}</p>
           {msg.error ? (
             <p className="text-[13px] text-red-600">{msg.content}</p>
           ) : (
@@ -123,7 +109,7 @@ function AIBubble({ msg }: { msg: UIMessage }) {
         <div className="mt-1.5 flex items-center gap-3 px-1 text-stone-300">
           <button
             onClick={copy}
-            title="复制"
+            title={tt("复制")}
             className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-500"
           >
             {copied ? <ThumbsUp className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -162,6 +148,24 @@ export default function WorkspaceMockChat() {
     setArtifactOpen,
     sendKey,
   } = useChatStore();
+  const { tt } = useI18n();
+  const NAV_ITEMS = [
+    { icon: Home, label: tt("首页"), route: "/" },
+    { icon: MessageSquare, label: tt("AI 对话"), route: "/chat" },
+    { icon: Bot, label: tt("智能体"), route: "/agents" },
+    { icon: Database, label: tt("知识库"), route: "/knowledge" },
+    { icon: FileText, label: tt("文档中心"), route: "/chat" },
+    { icon: LayoutTemplate, label: tt("模板中心"), route: "/chat" },
+    { icon: Wrench, label: tt("工具箱"), route: "/chat" },
+    { icon: LayoutGrid, label: tt("更多应用"), route: "/chat" },
+  ];
+  
+  const QUICK_SUGGESTIONS = [
+    tt("帮我写一篇关于时间管理的文章"),
+    tt("分析一下这个文件的内容"),
+    tt("生成一个营销活动的创意方案"),
+    tt("解释这个概念：区块链技术"),
+  ];
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const convo = conversations.find((c) => c.id === activeId);
@@ -229,7 +233,7 @@ export default function WorkspaceMockChat() {
   const sendMessage = () => {
     const text = input.trim();
     if (!text) {
-      toast("请先输入你的问题或需求", "info");
+      toast(tt("请先输入你的问题或需求"), "info");
       return;
     }
     setInput("");
@@ -253,9 +257,9 @@ export default function WorkspaceMockChat() {
         {/* 顶栏 */}
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
-            <h1 className="text-[18px] font-semibold text-stone-900">AI 对话</h1>
+            <h1 className="text-[18px] font-semibold text-stone-900">{tt("AI 对话")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">
-              {convo ? `与 AI 助手的智能对话 · ${convo.title}` : "与 AI 助手的智能对话"}
+              {convo ? tt("与 AI 助手的智能对话 · {title}", { title: convo.title }) : tt("与 AI 助手的智能对话")}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -263,14 +267,14 @@ export default function WorkspaceMockChat() {
             <CreditsBadge />
             <button
               onClick={() => setSettingsOpen(true)}
-              title="设置"
+              title={tt("设置")}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white hover:text-stone-700"
             >
               <Settings className="h-[18px] w-[18px]" />
             </button>
             <button
               onClick={() => setArtifactOpen(!artifactOpen)}
-              title={artifactOpen ? "隐藏右侧产物预览" : "开启右侧产物预览"}
+              title={artifactOpen ? tt("隐藏右侧产物预览") : tt("开启右侧产物预览")}
               className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${
                 artifactOpen
                   ? "bg-white text-[var(--oc-brand)] shadow-sm"
@@ -298,7 +302,7 @@ export default function WorkspaceMockChat() {
                   msg={{
                     id: `welcome-0`,
                     role: "assistant",
-                    content: "你好，Alex! 👋\n\n我是你的 AI 助手，有什么可以帮你的吗？你可以问我任何问题，或者让我帮你完成各种任务。",
+                    content: tt("你好，Alex! 👋\\n\\n我是你的 AI 助手，有什么可以帮你的吗？你可以问我任何问题，或者让我帮你完成各种任务。"),
                   }}
                 />
               </>
@@ -353,13 +357,13 @@ export default function WorkspaceMockChat() {
                   }
                 }}
                 rows={2}
-                placeholder="输入你的问题或需求，按 Enter 发送，Shift + Enter 换行"
+                placeholder={tt("输入你的问题或需求，按 Enter 发送，Shift + Enter 换行")}
                 className="w-full resize-none bg-transparent text-[14px] leading-7 text-stone-800 outline-none placeholder:text-stone-400"
               />
               <div className="mt-1 flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <button className="flex items-center gap-1.5 rounded-full border border-[var(--oc-border)] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]">
-                    <BrainCircuit className="h-4 w-4" /> 深度思考 <ChevronDown className="h-3 w-3 text-stone-400" />
+                    <BrainCircuit className="h-4 w-4" />{tt("深度思考")}<ChevronDown className="h-3 w-3 text-stone-400" />
                   </button>
                   <button className="flex items-center gap-1.5 rounded-full border border-[var(--oc-border)] px-3.5 py-2 text-[13px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]">
                     <Globe className="h-4 w-4" /> 联网搜索
@@ -378,7 +382,7 @@ export default function WorkspaceMockChat() {
                   />
                   <button
                     onClick={() => setSettingsOpen(true)}
-                    title="配置模型 API Key"
+                    title={tt("配置模型 API Key")}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100"
                   >
                     <Paperclip className="h-[18px] w-[18px]" />

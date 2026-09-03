@@ -474,7 +474,7 @@ function SplitComposer({
                       {tt(item.label)}
                     </span>
                     <span className="block text-[9px] text-stone-400">
-                      {MODE_LABELS[item.mode]}
+                      {tt(MODE_LABELS[item.mode])}
                     </span>
                   </span>
                 </button>
@@ -653,7 +653,7 @@ function SplitComposer({
                   ? tt("描述你想要的画面…")
                   : mode === "chat"
                     ? tt("分配任务，或问我任何事…（可粘贴图片 / 添加文档）")
-                    : `${MODE_LABELS[mode]}：描述你的需求…`
+                    : `${tt(MODE_LABELS[mode])}：描述你的需求…`
               }
               className="flex-1 min-h-[80px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none placeholder:text-stone-400"
             />
@@ -932,7 +932,7 @@ export function ChatPanel() {
     if (cmd.kind === "action" && cmd.mode) {
       useChatStore.getState().setMode(cmd.mode);
       setInput("");
-      toast(`已切换到${MODE_LABELS[cmd.mode]}工作台`, "info");
+      toast(tt("已切换到{name}工作台", { name: tt(MODE_LABELS[cmd.mode]) }), "info");
       return;
     }
     const raw = input.replace(/^\/[a-z]*\s*/i, "").trim();

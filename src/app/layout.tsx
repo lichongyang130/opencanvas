@@ -53,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale === "en" ? "en" : "zh-CN"}>
       <body>
-        <LocaleProvider>
+        <LocaleProvider initialLocale={locale}>
           <ThemeSync />
           <Observability />
           {children}

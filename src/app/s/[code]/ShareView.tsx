@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 import {
   ArrowLeft,
   Copy,
@@ -186,6 +187,7 @@ function DeckReadonly({ deck }: { deck: SlideDeck }) {
 }
 
 export default function ShareView({ code, initial }: { code: string; initial: SharePayload | null }) {
+  const { tt } = useI18n();
   const router = useRouter();
   const { startAgent, runTemplate, fillTemplate, hydrated } = useChatStore();
   const [data, setData] = useState<SharePayload | null>(initial);
@@ -280,14 +282,14 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
           </span>
           <div>
             <p className="text-[15px] font-semibold text-stone-900">OpenCanvas</p>
-            <p className="text-[11px] text-stone-400">{KIND_LABEL[kind] ?? "共享内容"}</p>
+            <p className="text-[11px] text-stone-400">{tt(KIND_LABEL[kind] ?? "共享内容")}</p>
           </div>
         </div>
         <button
           onClick={() => router.push("/")}
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] text-stone-500 transition hover:bg-white hover:text-stone-700"
         >
-          <ArrowLeft className="h-4 w-4" /> 返回首页
+          <ArrowLeft className="h-4 w-4" /> {tt("返回首页")}
         </button>
       </header>
 
@@ -295,7 +297,7 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
         {state === "loading" && (
           <div className="mt-20 flex flex-col items-center text-stone-400">
             <Sparkles className="h-6 w-6 animate-pulse text-[var(--oc-brand-border)]" />
-            <p className="mt-3 text-[13px]">正在加载共享内容…</p>
+            <p className="mt-3 text-[13px]">{tt("正在加载共享内容…")}</p>
           </div>
         )}
 
@@ -320,7 +322,7 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
             <div className="overflow-hidden rounded-2xl border border-[var(--oc-border)] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
               <div className="bg-gradient-to-br from-[var(--oc-brand-tint)] to-[var(--oc-bg)] px-7 pb-6 pt-7">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
-                  {KIND_LABEL[kind]} · 公开只读
+                  {tt(KIND_LABEL[kind])} · {tt("公开只读")}
                 </p>
                 <h1 className="mt-1.5 text-[22px] font-semibold text-stone-900">{data.title}</h1>
                 {data.description && <p className="mt-2 text-[13px] leading-6 text-stone-600">{data.description}</p>}
@@ -394,7 +396,7 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
                   onClick={() => router.push("/")}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--oc-border)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-[var(--oc-brand-border)]"
                 >
-                  <LayoutDashboard className="h-4 w-4" /> 返回首页
+                  <LayoutDashboard className="h-4 w-4" /> {tt("返回首页")}
                 </button>
 
                 {data.kind === "agent" && (

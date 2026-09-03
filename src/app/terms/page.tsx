@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
+import type { Metadata } from "next";
 import { getLocale } from "@/lib/i18n/server";
 import { LEGAL } from "@/lib/i18n/legal";
 
-export const metadata = {
-  title: "用户协议 · OpenCanvas",
-  description: "OpenCanvas 服务条款：使用规则、积分与付费、内容责任与免责声明。",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const doc = LEGAL[locale].terms;
+  return {
+    title: `${doc.title} · OpenCanvas`,
+    description: `${doc.title}：${doc.sections[0]?.title ?? ""}、${doc.sections[1]?.title ?? ""}、${doc.sections[2]?.title ?? ""}。`,
+  };
+}
 
 export default async function TermsPage() {
   const doc = LEGAL[await getLocale()].terms;

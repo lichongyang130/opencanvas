@@ -68,7 +68,6 @@ const CAT_UI: Record<string, { icon: string; tint: string; bg: string }> = {
   productivity: { icon: "⚡", tint: "text-stone-600", bg: "bg-stone-100" },
 };
 
-const TABS = ["热门模板", "最新模板", "我的提交"];
 
 /** 把共享模板转成统一 Template 结构 */
 function sharedToTemplate(s: SharedTemplate): Template {
@@ -82,8 +81,8 @@ function sharedToTemplate(s: SharedTemplate): Template {
   };
 }
 
-function usesText(uses: number) {
-  return uses >= 1000 ? `${(uses / 1000).toFixed(1)}k 使用` : `${uses} 次使用`;
+function usesText(uses: number, tt: (s: string, p?: Record<string, string | number>) => string) {
+  return uses >= 1000 ? tt("{n}k 使用", { n: (uses / 1000).toFixed(1) }) : tt("{n} 次使用", { n: uses });
 }
 
 /** 稳定伪评分，保持视觉统一 */
@@ -131,6 +130,7 @@ function UseTemplateModal({
   onClose: () => void;
   onUsed?: (id: string) => void;
 }) {
+  const { tt } = useI18n();
   const router = useRouter();
   const { runTemplate } = useChatStore();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -144,12 +144,12 @@ function UseTemplateModal({
 
   const start = async () => {
     if (vars.some((v) => !values[v]?.trim())) {
-      toast("请先填写所有变量", "error");
+      toast(tt("请先填写所有变量"), "error");
       return;
     }
     const prompt = applyVariables(tpl.prompt, values);
     onClose();
-    toast(`已创建「${tpl.label}」任务，正在生成…`, "success");
+    toast(tt("已创建「{label}」任务，正在生成…", { label: tpl.label }), "success");
     // 共享模板记录一次使用
     if (!tpl.builtin) {
       void fetch(`/api/templates/${tpl.id}`, {
@@ -171,18 +171,18 @@ function UseTemplateModal({
           <div className="flex items-center gap-3">
             <span className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${ui?.bg}`}>{ui?.icon}</span>
             <div>
-              <h3 className="text-[15px] font-semibold text-stone-800">{tpl.label}</h3>
-              <p className="text-[11px] text-stone-400">{CATEGORY_LABELS[tpl.category]} · {MODE_LABEL_OF[tpl.mode]}</p>
+              <h3 className="text-[15px] font-semibold text-stone-800">{tt(tpl.label)}</h3>
+              <p className="text-[11px] text-stone-400">{tt(CATEGORY_LABELS[tpl.category])} · {tt(MODE_LABEL_OF[tpl.mode])}</p>
             </div>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-3 text-[12.5px] leading-6 text-stone-500">{tpl.desc}</p>
+        <p className="mt-3 text-[12.5px] leading-6 text-stone-500">{tt(tpl.desc)}</p>
         <div className="mt-4 space-y-3">
           {vars.length === 0 ? (
-            <p className="rounded-lg bg-[var(--oc-brand-tint)] px-3 py-2 text-[12px] text-[var(--oc-brand)]">此模板无需额外信息，点击开始将直接生成。</p>
+            <p className="rounded-lg bg-[var(--oc-brand-tint)] px-3 py-2 text-[12px] text-[var(--oc-brand)]">{tt("此模板无需额外信息，点击开始将直接生成。")}</p>
           ) : (
             vars.map((v) => (
               <label key={v} className="block">
@@ -190,7 +190,7 @@ function UseTemplateModal({
                 <input
                   value={values[v] ?? ""}
                   onChange={(e) => setVal(v, e.target.value)}
-                  placeholder={`请输入${v}`}
+                  placeholder={tt("请输入{v}", { v })}
                   className="w-full rounded-xl border border-[var(--oc-border)] bg-white px-3 py-2 text-[13px] text-stone-700 outline-none transition placeholder:text-stone-400 focus:border-[var(--oc-brand-border)]"
                 />
               </label>
@@ -217,6 +217,7 @@ function SubmitTemplateModal({
   onClose: () => void;
   onSubmitted: () => void;
 }) {
+  const { tt } = useI18n();
   const [label, setLabel] = useState("");
   const [desc, setDesc] = useState("");
   const [category, setCategory] = useState<string>("productivity");
@@ -228,7 +229,7 @@ function SubmitTemplateModal({
 
   const submit = async () => {
     if (!label.trim() || !prompt.trim()) {
-      toast("请填写模板名称与提示词", "error");
+      toast(tt("请填写模板名称与提示词"), "error");
       return;
     }
     setSubmitting(true);
@@ -239,15 +240,15 @@ function SubmitTemplateModal({
         body: JSON.stringify({ label, desc, category, mode, prompt }),
       });
       const data = (await res.json()) as { template?: SharedTemplate; error?: string };
-      if (!res.ok || !data.template) throw new Error(data.error ?? "提交失败");
-      toast(`模板「${label}」已发布`, "success");
+      if (!res.ok || !data.template) throw new Error(data.error ?? tt("提交失败"));
+      toast(tt("模板「{label}」已发布", { label }), "success");
       setLabel("");
       setDesc("");
       setPrompt("");
       onSubmitted();
       onClose();
     } catch (e) {
-      toast(`提交失败：${e instanceof Error ? e.message : ""}`, "error");
+      toast(tt("提交失败：{msg}", { msg: e instanceof Error ? e.message : "" }), "error");
     } finally {
       setSubmitting(false);
     }
@@ -261,8 +262,8 @@ function SubmitTemplateModal({
       >
         <header className="flex shrink-0 items-center justify-between border-b border-stone-100 px-5 py-4">
           <div>
-            <h3 className="text-[15px] font-semibold text-stone-800">提交我的模板</h3>
-            <p className="mt-0.5 text-xs text-stone-400">发布后可与所有人共享使用（保存在本地数据库）</p>
+            <h3 className="text-[15px] font-semibold text-stone-800">{tt("提交我的模板")}</h3>
+            <p className="mt-0.5 text-xs text-stone-400">{tt("发布后可与所有人共享使用（保存在本地数据库）")}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700">
             <X className="h-4 w-4" />
@@ -270,38 +271,38 @@ function SubmitTemplateModal({
         </header>
         <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto p-5">
           <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-stone-600">模板名称 *</span>
+            <span className="mb-1 block text-[12.5px] font-medium text-stone-600">{tt("模板名称 *")}</span>
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="例如：小红书爆款标题生成器"
+              placeholder={tt("例如：小红书爆款标题生成器")}
               className="w-full rounded-xl border border-[var(--oc-border)] bg-white px-3 py-2.5 text-[13px] text-stone-700 outline-none transition placeholder:text-stone-400 focus:border-[var(--oc-brand-border)]"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-stone-600">一句话描述</span>
+            <span className="mb-1 block text-[12.5px] font-medium text-stone-600">{tt("一句话描述")}</span>
             <input
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="这个模板用来做什么"
+              placeholder={tt("这个模板用来做什么")}
               className="w-full rounded-xl border border-[var(--oc-border)] bg-white px-3 py-2.5 text-[13px] text-stone-700 outline-none transition placeholder:text-stone-400 focus:border-[var(--oc-brand-border)]"
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-stone-600">场景分类</span>
+              <span className="mb-1 block text-[12.5px] font-medium text-stone-600">{tt("场景分类")}</span>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full rounded-xl border border-[var(--oc-border)] bg-white px-3 py-2.5 text-[13px] text-stone-700 outline-none focus:border-[var(--oc-brand-border)]"
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
+                  <option key={c.id} value={c.id}>{tt(c.label)}</option>
                 ))}
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-stone-600">产出模式</span>
+              <span className="mb-1 block text-[12.5px] font-medium text-stone-600">{tt("产出模式")}</span>
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value)}
@@ -316,17 +317,17 @@ function SubmitTemplateModal({
           <label className="block">
             <span className="mb-1 flex items-center justify-between text-[12.5px] font-medium text-stone-600">
               提示词 *
-              <span className="text-[11px] font-normal text-stone-400">用 {"{{变量}}"} 占位，运行时会要求填写</span>
+              <span className="text-[11px] font-normal text-stone-400">{tt("用 {{变量}} 占位，运行时会要求填写")}</span>
             </span>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={6}
-              placeholder="例：为「{{产品}}」写 5 条小红书种草文案，每条含标题、正文和标签…"
+              placeholder={tt("例：为「{{产品}}」写 5 条小红书种草文案，每条含标题、正文和标签…")}
               className="w-full resize-none rounded-xl border border-[var(--oc-border)] bg-white px-3 py-2.5 text-[13px] leading-6 text-stone-700 outline-none transition placeholder:text-stone-400 focus:border-[var(--oc-brand-border)]"
             />
             <div className="mt-1 flex items-center justify-between text-[11px] text-stone-400">
-              <span>{extractVariables(prompt).length} 个变量：{extractVariables(prompt).join("、") || "无"}</span>
+              <span>{tt("{n} 个变量：{vars}", { n: extractVariables(prompt).length, vars: extractVariables(prompt).join("、") || tt("无") })}</span>
               <span>{prompt.length}/4000</span>
             </div>
           </label>
@@ -353,7 +354,8 @@ function SubmitTemplateModal({
 }
 
 export default function TemplatesPage() {
-  const { t } = useI18n();
+  const { t , tt} = useI18n();
+  const TABS = [tt("热门模板"), tt("最新模板"), tt("我的提交")];
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -368,11 +370,11 @@ export default function TemplatesPage() {
       const data = (await res.json()) as { templates?: SharedTemplate[] };
       setShared(data.templates ?? []);
     } catch {
-      toast("加载共享模板失败", "error");
+      toast(tt("加载共享模板失败"), "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tt]);
 
   useEffect(() => {
     void loadShared();
@@ -416,7 +418,7 @@ export default function TemplatesPage() {
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
             <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.templates")}</h1>
-            <p className="mt-0.5 text-[12.5px] text-stone-400">精选各类专业模板，助你高效完成各类工作</p>
+            <p className="mt-0.5 text-[12.5px] text-stone-400">{tt("精选各类专业模板，助你高效完成各类工作")}</p>
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
@@ -425,7 +427,7 @@ export default function TemplatesPage() {
               onClick={() => setSubmitOpen(true)}
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[var(--oc-brand-border-soft)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)]"
             >
-              <Plus className="h-4 w-4" /> 提交模板
+              <Plus className="h-4 w-4" /> {tt("提交模板")}
             </button>
           </div>
         </header>
@@ -441,7 +443,7 @@ export default function TemplatesPage() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索模板名称、描述或关键词"
+                  placeholder={tt("搜索模板名称、描述或关键词")}
                   className="w-full bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-400"
                 />
               </div>
@@ -453,10 +455,10 @@ export default function TemplatesPage() {
                 }}
                 className="flex items-center gap-2 rounded-xl border border-[var(--oc-border)] bg-white px-4 py-2.5 text-[13px] text-stone-600 outline-none transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]"
               >
-                <option value="">全部场景</option>
+                <option value="">{tt("全部场景")}</option>
                 {CATEGORIES.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.label}（{categoryCount[c.id] ?? 0}）
+                    {tt(c.label)}（{categoryCount[c.id] ?? 0}）
                   </option>
                 ))}
               </select>
@@ -465,9 +467,9 @@ export default function TemplatesPage() {
             {/* 按场景分类 */}
             <div className="mt-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-[15px] font-semibold text-stone-800">按场景分类</h2>
+                <h2 className="text-[15px] font-semibold text-stone-800">{tt("按场景分类")}</h2>
                 <button onClick={() => setCat(null)} className="flex items-center gap-1 text-[12.5px] text-stone-400 transition hover:text-[var(--oc-brand)]">
-                  查看全部 <ChevronRight className="h-3.5 w-3.5" />
+                  {tt("查看全部")} <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
               <div className="mt-3 grid grid-cols-6 gap-3">
@@ -483,8 +485,8 @@ export default function TemplatesPage() {
                       }`}
                     >
                       <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg ${ui?.bg}`}>{ui?.icon}</span>
-                      <p className={`mt-2 text-[13px] font-semibold ${active ? "text-[var(--oc-brand)]" : "text-stone-800"}`}>{c.label}</p>
-                      <p className="mt-1 text-[11px] leading-4 text-stone-400">{categoryCount[c.id] ?? 0} 个模板</p>
+                      <p className={`mt-2 text-[13px] font-semibold ${active ? "text-[var(--oc-brand)]" : "text-stone-800"}`}>{tt(c.label)}</p>
+                      <p className="mt-1 text-[11px] leading-4 text-stone-400">{tt("{n} 个模板", { n: categoryCount[c.id] ?? 0 })}</p>
                     </button>
                   );
                 })}
@@ -502,7 +504,7 @@ export default function TemplatesPage() {
                       className={`relative pb-3 pt-1 text-[13px] ${i === tab ? "font-medium text-[var(--oc-brand)]" : "text-stone-500 transition hover:text-stone-800"}`}
                     >
                       {t}
-                      {t === "热门模板" && <span className="ml-1 text-[10px] text-orange-400">🔥</span>}
+                      {t === tt("热门模板") && <span className="ml-1 text-[10px] text-orange-400">🔥</span>}
                       {i === tab && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[var(--oc-brand-bright)]" />}
                     </button>
                   ))}
@@ -512,14 +514,14 @@ export default function TemplatesPage() {
               {loading ? (
                 <div className="flex flex-col items-center gap-2 py-16 text-stone-400">
                   <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-                  <p className="text-sm">加载模板中…</p>
+                  <p className="text-sm">{tt("加载模板中…")}</p>
                 </div>
               ) : (
                 <div className="mt-4 grid grid-cols-4 gap-3">
                   {list.map((t, i) => {
                     const sc = scoreOf(t, i);
                     const isMine = !t.builtin && (t as TemplateEx).uses !== undefined;
-                    const hot = TABS[tab] === "热门模板" && i < 3;
+                    const hot = TABS[tab] === tt("热门模板") && i < 3;
                     return (
                       <div
                         key={t.id}
@@ -535,33 +537,33 @@ export default function TemplatesPage() {
                         )}
                         <PreviewThumb variant={i} />
                         <div className="mt-3 flex items-start justify-between gap-2">
-                          <p className="truncate text-[13.5px] font-semibold text-stone-800">{t.label}</p>
+                          <p className="truncate text-[13.5px] font-semibold text-stone-800">{tt(t.label)}</p>
                           {isMine && (
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                if (!window.confirm(`删除模板「${t.label}」？`)) return;
+                                if (!window.confirm(tt("删除模板「{label}」？", { label: t.label }))) return;
                                 try {
                                   await fetch(`/api/templates/${t.id}`, { method: "DELETE" });
-                                  toast("已删除", "success");
+                                  toast(tt("已删除"), "success");
                                   await loadShared();
                                 } catch {
-                                  toast("删除失败", "error");
+                                  toast(tt("删除失败"), "error");
                                 }
                               }}
-                              title="删除我的模板"
+                              title={tt("删除我的模板")}
                               className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-stone-300 transition hover:bg-red-50 hover:text-red-500 group-hover:flex"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           )}
                         </div>
-                        <p className="mt-1 min-h-[36px] text-xs leading-5 text-stone-400">{t.desc || "（无描述）"}</p>
+                        <p className="mt-1 min-h-[36px] text-xs leading-5 text-stone-400">{t.desc || tt("（无描述）")}</p>
                         <div className="mt-2 flex items-center gap-2 text-[11px] text-stone-400">
-                          <span className="rounded-md bg-[var(--oc-brand-tint)] px-1.5 py-0.5 font-medium text-[var(--oc-brand)]">{CATEGORY_LABELS[t.category] ?? t.category}</span>
-                          <span className="text-[10px] text-stone-400">{MODE_LABEL_OF[t.mode] ?? t.mode}</span>
+                          <span className="rounded-md bg-[var(--oc-brand-tint)] px-1.5 py-0.5 font-medium text-[var(--oc-brand)]">{tt(CATEGORY_LABELS[t.category] ?? t.category)}</span>
+                          <span className="text-[10px] text-stone-400">{tt(MODE_LABEL_OF[t.mode] ?? t.mode)}</span>
                           <span className="flex items-center gap-0.5 text-amber-400"><Star className="h-3 w-3 fill-current" />{sc.rating}</span>
-                          <span className="ml-auto">{isMine ? usesText((t as TemplateEx).uses ?? 0) : "内置"}</span>
+                          <span className="ml-auto">{isMine ? usesText((t as TemplateEx).uses ?? 0, tt) : tt("内置")}</span>
                         </div>
                       </div>
                     );
@@ -572,7 +574,7 @@ export default function TemplatesPage() {
               {!loading && list.length === 0 && (
                 <div className="flex flex-col items-center gap-2 py-16 text-stone-400">
                   <Sparkles className="h-8 w-8 text-stone-300" />
-                  <p className="text-sm">暂无模板，点击右上角「提交模板」分享你的第一个模板</p>
+                  <p className="text-sm">{tt("暂无模板，点击右上角「提交模板」分享你的第一个模板")}</p>
                 </div>
               )}
 
@@ -592,7 +594,7 @@ export default function TemplatesPage() {
             {/* 推荐模板 */}
             <div className="border-b border-[var(--oc-border-soft)] p-5">
               <div className="flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-[14px] font-semibold text-stone-800"><Sparkles className="h-4 w-4 text-orange-500" />推荐模板</p>
+                <p className="flex items-center gap-1.5 text-[14px] font-semibold text-stone-800"><Sparkles className="h-4 w-4 text-orange-500" />{tt("推荐模板")}</p>
                 <button
                   onClick={() => {
                     const seed = Math.floor(Math.random() * 997);
@@ -601,7 +603,7 @@ export default function TemplatesPage() {
                   }}
                   className="text-[11px] text-stone-400 transition hover:text-[var(--oc-brand)]"
                 >
-                  随机来一个
+                  {tt("随机来一个")}
                 </button>
               </div>
               <div className="mt-3 space-y-1">
@@ -612,8 +614,8 @@ export default function TemplatesPage() {
                     <button key={t.id} onClick={() => setModal({ tpl: t, values: {} })} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[var(--oc-hover)]">
                       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg ${ui?.bg}`}>{ui?.icon}</span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12.5px] font-medium text-stone-700">{t.label}</span>
-                        <span className="block text-[10px] text-stone-400">{CATEGORY_LABELS[t.category] ?? t.category}</span>
+                        <span className="block truncate text-[12.5px] font-medium text-stone-700">{tt(t.label)}</span>
+                        <span className="block text-[10px] text-stone-400">{tt(CATEGORY_LABELS[t.category] ?? t.category)}</span>
                       </span>
                       <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-amber-400"><Star className="h-3 w-3 fill-current" />{sc.rating}</span>
                     </button>
@@ -625,13 +627,13 @@ export default function TemplatesPage() {
             {/* 我的模板 */}
             <div className="border-b border-[var(--oc-border-soft)] p-5">
               <div className="flex items-center justify-between">
-                <p className="text-[14px] font-semibold text-stone-800">我的模板</p>
+                <p className="text-[14px] font-semibold text-stone-800">{tt("我的模板")}</p>
                 <button onClick={() => setTab(2)} className="flex items-center gap-0.5 text-[11px] text-stone-400 transition hover:text-[var(--oc-brand)]">
-                  查看全部 <ChevronRight className="h-3 w-3" />
+                  {tt("查看全部")} <ChevronRight className="h-3 w-3" />
                 </button>
               </div>
               <div className="mt-3 space-y-1">
-                {shared.length === 0 && <p className="px-2 py-1 text-xs text-stone-300">还没有提交过模板</p>}
+                {shared.length === 0 && <p className="px-2 py-1 text-xs text-stone-300">{tt("还没有提交过模板")}</p>}
                 {shared.slice(0, 5).map((s) => {
                   const ui = CAT_UI[s.category];
                   return (
@@ -640,19 +642,19 @@ export default function TemplatesPage() {
                         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ui?.bg}`}><FileText className="h-4 w-4" /></span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12.5px] font-medium text-stone-700">{s.label}</span>
-                          <span className="block text-[10px] text-stone-400">{CATEGORY_LABELS[s.category as keyof typeof CATEGORY_LABELS] ?? s.category} · {MODE_LABEL_OF[s.mode as keyof typeof MODE_LABEL_OF] ?? s.mode} · {usesText(s.uses)}</span>
+                          <span className="block text-[10px] text-stone-400">{tt(CATEGORY_LABELS[s.category as keyof typeof CATEGORY_LABELS] ?? s.category)} · {tt(MODE_LABEL_OF[s.mode as keyof typeof MODE_LABEL_OF] ?? s.mode)} · {usesText(s.uses, tt)}</span>
                         </span>
                       </button>
                       <button
-                        title="删除"
+                        title={tt("删除")}
                         onClick={async () => {
-                          if (!window.confirm(`删除模板「${s.label}」？`)) return;
+                          if (!window.confirm(tt("删除模板「{label}」？", { label: s.label }))) return;
                           try {
                             await fetch(`/api/templates/${s.id}`, { method: "DELETE" });
-                            toast("已删除", "success");
+                            toast(tt("已删除"), "success");
                             await loadShared();
                           } catch {
-                            toast("删除失败", "error");
+                            toast(tt("删除失败"), "error");
                           }
                         }}
                         className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-stone-300 transition hover:bg-red-50 hover:text-red-500 group-hover:flex"
@@ -667,13 +669,13 @@ export default function TemplatesPage() {
 
             {/* 提交模板 */}
             <div className="p-5">
-              <p className="text-[14px] font-semibold text-stone-800">没有找到合适的模板？</p>
-              <p className="mt-1 text-[12px] text-stone-400">提交你的模板，与更多人分享</p>
+              <p className="text-[14px] font-semibold text-stone-800">{tt("没有找到合适的模板？")}</p>
+              <p className="mt-1 text-[12px] text-stone-400">{tt("提交你的模板，与更多人分享")}</p>
               <button
                 onClick={() => setSubmitOpen(true)}
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--oc-brand-border-soft)] bg-white py-2.5 text-[13px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)]"
               >
-                <Plus className="h-4 w-4" /> 提交模板
+                <Plus className="h-4 w-4" /> {tt("提交模板")}
               </button>
             </div>
           </aside>

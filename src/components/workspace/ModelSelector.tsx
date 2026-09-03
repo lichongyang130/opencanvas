@@ -111,7 +111,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
       }
     }
     return PROVIDER_ORDER.map((p) => ({ provider: p, items: map.get(p) ?? [] }));
-  }, [dynamic]);
+  }, [dynamic, tt]);
 
   const currentModel =
     MODELS.find((m) => m.id === value) ?? { id: value, label: value, provider: inferProvider(value) ?? "demo" };
@@ -137,7 +137,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
     }
   };
 
-  const short = shortLabel(currentModel.label);
+  const short = tt(shortLabel(currentModel.label));
   const online = providerAvailable(currentModel.provider);
 
   return (
@@ -222,7 +222,7 @@ export function ModelSelector({ value, onChange }: { value: string; onChange: (i
                   {items.map(({ info, dynamic: isDynamic }) => (
                     <ModelRow
                       key={info.id}
-                      label={info.label}
+                      label={tt(info.label)}
                       sub={isDynamic ? tt("动态") : !avail ? tt("未配置") : tt(REGION_LABEL[info.region])}
                       provider={g.provider}
                       active={value === info.id}

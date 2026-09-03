@@ -63,19 +63,22 @@ function groupToCat(group: string): AgentCat {
   return "效率";
 }
 
-function fmtTime(ts: number): string {
+function fmtTime(ts: number, tt: (s: string) => string): string {
   if (!ts) return "—";
   const d = Date.now() - ts;
-  if (d < 60_000) return "刚刚";
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)} 分钟前`;
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} 小时前`;
-  if (d < 172_800_000) return "昨天";
+  if (d < 60_000) return tt("刚刚");
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)} ${tt("分钟前")}`;
+  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} ${tt("小时前")}`;
+  if (d < 172_800_000) return tt("昨天");
   const date = new Date(ts);
   return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 export default function AgentsPage() {
-  const { t } = useI18n();
+  const { t , tt} = useI18n();
+  /** 官方内置智能体文案需翻译；用户自定义的 name/desc 是用户内容，原样显示 */
+  const nl = (a: AgentEx) => (a.builtin ? tt(a.name) : a.name);
+  const dl = (a: AgentEx) => (a.builtin ? tt(a.desc) : a.desc);
   const router = useRouter();
   const { startAgent } = useChatStore();
 
@@ -171,7 +174,7 @@ export default function AgentsPage() {
 
   const openShare = async (a: AgentEx) => {
     if (a.builtin) {
-      toast("内置智能体由官方维护，暂不支持分享", "info");
+      toast(tt("内置智能体由官方维护，暂不支持分享"), "info");
       return;
     }
     if (a.shared && a.shareCode) {
@@ -189,7 +192,7 @@ export default function AgentsPage() {
         setShareTarget({ ...a, shared: true, shareCode: r.shareCode });
       }
     } catch {
-      toast("分享失败，请重试", "error");
+      toast(tt("分享失败，请重试"), "error");
     }
   };
 
@@ -201,11 +204,11 @@ export default function AgentsPage() {
     }
     try {
       await fetch(`/api/agents/${a.id}`, { method: "DELETE" });
-      toast(`已删除「${a.name}」`, "success");
+      toast(tt("已删除「{name}」", { name: a.name }), "success");
       setDeleting(null);
       await loadAgents();
     } catch {
-      toast("删除失败，请重试", "error");
+      toast(tt("删除失败，请重试"), "error");
     }
   };
 
@@ -218,7 +221,7 @@ export default function AgentsPage() {
         <header className="flex shrink-0 items-center justify-between border-b border-[var(--oc-border-soft)] bg-[var(--oc-bg)] px-6 py-4">
           <div>
             <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.agents")}</h1>
-            <p className="mt-0.5 text-[12.5px] text-stone-400">创建、管理和使用你的 AI 智能体团队</p>
+            <p className="mt-0.5 text-[12.5px] text-stone-400">{tt("创建、管理和使用你的 AI 智能体团队")}</p>
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
@@ -227,7 +230,7 @@ export default function AgentsPage() {
               onClick={() => setModal({ kind: "create" })}
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[var(--oc-brand-border-soft)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)]"
             >
-              <Plus className="h-4 w-4" /> 创建智能体
+              <Plus className="h-4 w-4" /> {tt("创建智能体")}
             </button>
           </div>
         </header>
@@ -239,14 +242,14 @@ export default function AgentsPage() {
             {/* 我的智能体 */}
             <div className="flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-stone-800">
-                我的智能体
-                <span className="ml-2 text-[12px] font-normal text-stone-400">{custom.length} 个</span>
+                {tt("我的智能体")}
+                <span className="ml-2 text-[12px] font-normal text-stone-400">{tt("{n} 个", { n: custom.length })}</span>
               </h2>
               <button
                 onClick={() => setModal({ kind: "create" })}
                 className="flex items-center gap-1 text-[12.5px] text-[var(--oc-brand)] transition hover:text-[#a34c2c]"
               >
-                <Plus className="h-3.5 w-3.5" /> 新建
+                <Plus className="h-3.5 w-3.5" /> {tt("新建")}
               </button>
             </div>
 
@@ -258,10 +261,10 @@ export default function AgentsPage() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--oc-brand-tint)] text-[var(--oc-brand)]">
                   <Sparkles className="h-5 w-5" />
                 </span>
-                <p className="mt-3 text-[13.5px] font-medium text-stone-600">还没有自己的智能体</p>
-                <p className="mt-1 text-xs text-stone-400">定义角色、系统提示词与开场白，创建你的第一个智能体</p>
+                <p className="mt-3 text-[13.5px] font-medium text-stone-600">{tt("还没有自己的智能体")}</p>
+                <p className="mt-1 text-xs text-stone-400">{tt("定义角色、系统提示词与开场白，创建你的第一个智能体")}</p>
                 <span className="mt-3 rounded-lg bg-gradient-to-r from-orange-400 to-red-500 px-4 py-1.5 text-[12.5px] font-medium text-white shadow-sm">
-                  创建智能体
+                  {tt("创建智能体")}
                 </span>
               </button>
             ) : (
@@ -275,7 +278,7 @@ export default function AgentsPage() {
                     >
                       <button
                         onClick={() => void openShare(a)}
-                        title={a.shared ? "已分享" : "分享"}
+                        title={a.shared ? tt("已分享") : tt("分享")}
                         className={`absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-stone-100 ${a.shared ? "text-[var(--oc-brand)]" : "text-stone-300 hover:text-stone-500"}`}
                       >
                         <Share2 className="h-3.5 w-3.5" />
@@ -284,12 +287,12 @@ export default function AgentsPage() {
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-stone-100 bg-[var(--oc-hover)] text-[30px]">
                           {a.emoji}
                         </div>
-                        <p className="mt-3 text-center text-[14px] font-semibold text-stone-800">{a.name}</p>
+                        <p className="mt-3 text-center text-[14px] font-semibold text-stone-800">{nl(a)}</p>
                         <div className="mt-1 flex justify-center">
-                          <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>{a.category}</span>
+                          <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>{tt(a.category)}</span>
                         </div>
-                        <p className="mt-2 text-center text-xs leading-5 text-stone-400">{a.desc || "点击开始对话"}</p>
-                        <p className="mt-2 text-center text-[10.5px] text-stone-300">{a.uses} 次使用</p>
+                        <p className="mt-2 text-center text-xs leading-5 text-stone-400">{dl(a) || tt("点击开始对话")}</p>
+                        <p className="mt-2 text-center text-[10.5px] text-stone-300">{tt("{n} 次使用", { n: a.uses })}</p>
                       </button>
                       <span className={`absolute left-3 top-3 h-2 w-2 rounded-full ${s.dot}`} />
                     </div>
@@ -300,7 +303,7 @@ export default function AgentsPage() {
                   className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--oc-border-strong)] p-4 text-stone-400 transition hover:border-[var(--oc-brand-border)] hover:text-[var(--oc-brand)]"
                 >
                   <Plus className="h-6 w-6" />
-                  <span className="mt-1.5 text-[12px] font-medium">创建智能体</span>
+                  <span className="mt-1.5 text-[12px] font-medium">{tt("创建智能体")}</span>
                 </button>
               </div>
             )}
@@ -308,8 +311,8 @@ export default function AgentsPage() {
             {/* 官方智能体 */}
             <div className="mt-6 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-stone-800">
-                官方智能体
-                <span className="ml-2 text-[12px] font-normal text-stone-400">{builtins.length} 个角色，系统提示词真实生效</span>
+                {tt("官方智能体")}
+                <span className="ml-2 text-[12px] font-normal text-stone-400">{tt("{n} 个角色，系统提示词真实生效", { n: builtins.length })}</span>
               </h2>
             </div>
             <div className="mt-3 grid grid-cols-5 gap-3">
@@ -325,12 +328,12 @@ export default function AgentsPage() {
                     <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-stone-100 bg-[var(--oc-hover)] text-[30px]">
                       {a.emoji}
                     </div>
-                    <p className="mt-3 text-center text-[14px] font-semibold text-stone-800">{a.name}</p>
+                    <p className="mt-3 text-center text-[14px] font-semibold text-stone-800">{nl(a)}</p>
                     <div className="mt-1 flex justify-center">
-                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>{a.category}</span>
+                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>{tt(a.category)}</span>
                     </div>
-                    <p className="mt-2 text-center text-xs leading-5 text-stone-400">{a.desc}</p>
-                    <p className="mt-2 text-center text-[10.5px] text-stone-300">{a.uses > 0 ? `${a.uses} 次使用` : "官方角色"}</p>
+                    <p className="mt-2 text-center text-xs leading-5 text-stone-400">{dl(a)}</p>
+                    <p className="mt-2 text-center text-[10.5px] text-stone-300">{a.uses > 0 ? tt("{n} 次使用", { n: a.uses }) : tt("官方角色")}</p>
                   </button>
                 );
               })}
@@ -350,7 +353,7 @@ export default function AgentsPage() {
                         : "px-3 pb-3 pt-1 text-[13px] text-stone-500 transition hover:text-stone-800"
                     }
                   >
-                    {t}
+                    {tt(t)}
                     {tab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--oc-brand-bright)]" />}
                   </button>
                 ))}
@@ -360,7 +363,7 @@ export default function AgentsPage() {
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder="搜索智能体"
+                      placeholder={tt("搜索智能体")}
                       className="w-36 bg-transparent text-[12.5px] text-stone-700 outline-none placeholder:text-stone-400"
                     />
                   </div>
@@ -369,20 +372,20 @@ export default function AgentsPage() {
 
               {/* 表头 */}
               <div className="flex items-center px-5 py-2.5 text-[12px] text-stone-400">
-                <span className="w-[42%]">名称</span>
-                <span className="w-[14%]">分类</span>
-                <span className="w-[13%]">使用次数</span>
-                <span className="w-[16%]">更新时间</span>
-                <span className="flex-1 text-right">操作</span>
+                <span className="w-[42%]">{tt("名称")}</span>
+                <span className="w-[14%]">{tt("分类")}</span>
+                <span className="w-[13%]">{tt("使用次数")}</span>
+                <span className="w-[16%]">{tt("更新时间")}</span>
+                <span className="flex-1 text-right">{tt("操作")}</span>
               </div>
 
               {/* 行 */}
               {filtered.length === 0 && (
                 <div className="flex flex-col items-center border-t border-[var(--oc-border-faint)] py-10 text-stone-400">
                   <Sparkles className="h-6 w-6 text-stone-300" />
-                  <p className="mt-2 text-[13px]">没有匹配的智能体</p>
+                  <p className="mt-2 text-[13px]">{tt("没有匹配的智能体")}</p>
                   <button onClick={() => setModal({ kind: "create" })} className="mt-2 text-[12.5px] text-[var(--oc-brand)] hover:underline">
-                    创建一个？
+                    {tt("创建一个？")}
                   </button>
                 </div>
               )}
@@ -399,26 +402,26 @@ export default function AgentsPage() {
                       </span>
                       <span className="min-w-0">
                         <span className="flex items-center gap-2">
-                          <span className="truncate text-[13.5px] font-semibold text-stone-800">{a.name}</span>
+                          <span className="truncate text-[13.5px] font-semibold text-stone-800">{nl(a)}</span>
                           {a.builtin && (
-                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-400">官方</span>
+                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-400">{tt("官方")}</span>
                           )}
                           {!a.builtin && a.shared && (
-                            <span className="rounded bg-[var(--oc-brand-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--oc-brand)]">已分享</span>
+                            <span className="rounded bg-[var(--oc-brand-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--oc-brand)]">{tt("已分享")}</span>
                           )}
                         </span>
-                        <span className="mt-0.5 block truncate text-xs text-stone-400">{a.desc}</span>
+                        <span className="mt-0.5 block truncate text-xs text-stone-400">{dl(a)}</span>
                         <span className={`mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-medium ${s.bg} ${s.text}`}>
-                          {a.category}
+                          {tt(a.category)}
                         </span>
                       </span>
                     </button>
                     <span className="w-[13%] text-[13px] text-stone-600">{a.uses}</span>
-                    <span className="w-[16%] text-[13px] text-stone-500">{a.builtin ? "—" : fmtTime(a.updatedAt)}</span>
+                    <span className="w-[16%] text-[13px] text-stone-500">{a.builtin ? "—" : fmtTime(a.updatedAt, tt)}</span>
                     <span className="flex flex-1 items-center justify-end gap-1">
                       <button
                         onClick={() => void start(a)}
-                        title={`与 ${a.name} 开始对话`}
+                        title={tt("与 {name} 开始对话", { name: nl(a) })}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
                       >
                         <Play className="h-4 w-4" />
@@ -427,26 +430,26 @@ export default function AgentsPage() {
                         <>
                           <button
                             onClick={() => setModal({ kind: "edit", agent: a })}
-                            title="编辑"
+                            title={tt("编辑")}
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => void openShare(a)}
-                            title={a.shared ? "已分享" : "分享"}
+                            title={a.shared ? tt("已分享") : tt("分享")}
                             className={`flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-stone-100 hover:text-stone-600 ${a.shared ? "text-[var(--oc-brand)]" : "text-stone-400"}`}
                           >
                             <Share2 className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => void confirmDelete(a)}
-                            title={deleting === a.id ? "再次点击确认删除" : "删除"}
+                            title={deleting === a.id ? tt("再次点击确认删除") : tt("删除")}
                             className={`flex h-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-500 ${deleting === a.id ? "w-auto gap-1 bg-red-50 px-2 text-[11px] font-medium text-red-500" : "w-8"}`}
                           >
                             {deleting === a.id ? (
                               <>
-                                <Trash2 className="h-4 w-4" /> 确认
+                                <Trash2 className="h-4 w-4" /> {tt("确认")}
                               </>
                             ) : (
                               <Trash2 className="h-4 w-4" />
@@ -466,7 +469,7 @@ export default function AgentsPage() {
             {!selected ? (
               <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-stone-400">
                 <Sparkles className="h-6 w-6 text-stone-200" />
-                <p className="mt-2 text-[13px]">点击列表中的智能体查看详情</p>
+                <p className="mt-2 text-[13px]">{tt("点击列表中的智能体查看详情")}</p>
               </div>
             ) : (
               <>
@@ -474,9 +477,9 @@ export default function AgentsPage() {
                   <span
                     className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${(CAT_STYLE[selected.category as AgentCat] ?? CAT_STYLE.自定义).bg} ${(CAT_STYLE[selected.category as AgentCat] ?? CAT_STYLE.自定义).text}`}
                   >
-                    {selected.category}
+                    {tt(selected.category)}
                   </span>
-                  <span className="text-[11px] text-stone-400">{selected.builtin ? "官方" : "自定义"}</span>
+                  <span className="text-[11px] text-stone-400">{selected.builtin ? tt("官方") : tt("自定义")}</span>
                 </div>
 
                 <div className="flex items-start gap-3 px-5 pt-2">
@@ -484,52 +487,52 @@ export default function AgentsPage() {
                     {selected.emoji}
                   </div>
                   <div className="min-w-0 pt-1">
-                    <p className="text-[16px] font-semibold text-stone-800">{selected.name}</p>
+                    <p className="text-[16px] font-semibold text-stone-800">{nl(selected)}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-600">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 可使用
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {tt("可使用")}
                     </p>
                     <p className="mt-1 text-[12px] text-stone-400">
-                      {selected.builtin ? "内置角色 · 官方维护" : `v1.0 · ${fmtTime(selected.updatedAt)} 更新`}
+                      {selected.builtin ? tt("内置角色 · 官方维护") : tt("v1.0 · {time} 更新", { time: fmtTime(selected.updatedAt, tt) })}
                     </p>
                   </div>
                 </div>
 
-                <p className="mt-3 px-5 text-[12.5px] leading-6 text-stone-500">{selected.desc || "暂无描述"}</p>
+                <p className="mt-3 px-5 text-[12.5px] leading-6 text-stone-500">{dl(selected) || tt("暂无描述")}</p>
 
                 {/* 统计 */}
                 <div className="mx-5 mt-4 grid grid-cols-3 divide-x divide-[var(--oc-border-soft)] rounded-xl border border-[var(--oc-border-soft)] py-3 text-center">
                   <div>
                     <p className="text-[18px] font-bold text-stone-800">{selected.uses}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">使用次数</p>
+                    <p className="mt-0.5 text-[11px] text-stone-400">{tt("使用次数")}</p>
                   </div>
                   <div>
-                    <p className="text-[18px] font-bold text-stone-800">{selected.system ? "已配置" : "—"}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">系统提示词</p>
+                    <p className="text-[18px] font-bold text-stone-800">{selected.system ? tt("已配置") : "—"}</p>
+                    <p className="mt-0.5 text-[11px] text-stone-400">{tt("系统提示词")}</p>
                   </div>
                   <div>
                     <p className="text-[18px] font-bold text-stone-800">{selected.starter ? "1" : "—"}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">开场白</p>
+                    <p className="mt-0.5 text-[11px] text-stone-400">{tt("开场白")}</p>
                   </div>
                 </div>
 
                 {/* 系统提示词 */}
                 <div className="mt-5 px-5">
-                  <p className="text-[13.5px] font-semibold text-stone-800">系统提示词</p>
+                  <p className="text-[13.5px] font-semibold text-stone-800">{tt("系统提示词")}</p>
                   <div className="mt-2 max-h-36 overflow-y-auto rounded-xl border border-[var(--oc-border-soft)] bg-[var(--oc-hover)] px-3 py-2.5 text-[12px] leading-5 text-stone-500">
-                    {selected.system || "未设置系统提示词"}
+                    {selected.system ? (selected.builtin ? tt(selected.system) : selected.system) : tt("未设置系统提示词")}
                   </div>
                 </div>
 
                 {/* 开场白 */}
                 {selected.starter && (
                   <div className="mt-4 px-5">
-                    <p className="text-[13.5px] font-semibold text-stone-800">开场白</p>
+                    <p className="text-[13.5px] font-semibold text-stone-800">{tt("开场白")}</p>
                     <button
                       onClick={() => void start(selected)}
                       className="mt-2 flex w-full items-center gap-2.5 rounded-xl border border-[var(--oc-border-soft)] px-3 py-2.5 text-left text-[12.5px] text-stone-600 transition hover:border-[var(--oc-brand-border)] hover:bg-[var(--oc-hover)]"
                     >
                       <MessageCircle className="h-4 w-4 shrink-0 text-[var(--oc-brand)]" />
-                      {selected.starter}
+                      {tt(selected.starter)}
                     </button>
                   </div>
                 )}
@@ -540,13 +543,13 @@ export default function AgentsPage() {
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--oc-border)] bg-white py-2.5 text-[13px] font-medium text-stone-600 transition hover:border-[var(--oc-brand-border)]"
                   >
                     <Share2 className="h-4 w-4" />
-                    {selected.builtin ? "不可分享" : selected.shared ? "查看分享" : "分享智能体"}
+                    {selected.builtin ? tt("不可分享") : selected.shared ? tt("查看分享") : tt("分享智能体")}
                   </button>
                   <button
                     onClick={() => void start(selected)}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105"
                   >
-                    <MessageCircle className="h-4 w-4" /> 开始对话
+                    <MessageCircle className="h-4 w-4" /> {tt("开始对话")}
                   </button>
                 </div>
               </>
@@ -590,6 +593,7 @@ function AgentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { tt } = useI18n();
   const [name, setName] = useState(edit?.name ?? "");
   const [desc, setDesc] = useState(edit?.desc ?? "");
   const [category, setCategory] = useState<AgentCat>(
@@ -608,12 +612,12 @@ function AgentModal({
     if (p.starter) setStarter(p.starter);
     setEmoji(p.emoji);
     setCategory(groupToCat(p.group));
-    toast(`已载入「${p.name}」配置，可在此基础上修改`, "success");
+    toast(tt("已载入「{name}」配置，可在此基础上修改", { name: p.name }), "success");
   };
 
   const submit = async () => {
     if (!name.trim()) {
-      toast("请填写智能体名称", "error");
+      toast(tt("请填写智能体名称"), "error");
       return;
     }
     setSaving(true);
@@ -633,17 +637,17 @@ function AgentModal({
       });
       const data = (await res.json()) as { error?: string; agent?: { id: string } };
       if (!res.ok || !data.agent) {
-        toast(data.error ?? "保存失败", "error");
+        toast(data.error ?? tt("保存失败"), "error");
         setSaving(false);
         return;
       }
       toast(
-        edit ? `已更新「${name.trim()}」` : `已创建智能体「${name.trim()}」，点击列表卡片即可对话`,
+        edit ? tt("已更新「{name}」", { name: name.trim() }) : tt("已创建智能体「{name}」，点击列表卡片即可对话", { name: name.trim() }),
         "success"
       );
       onSaved();
     } catch {
-      toast("网络错误，保存失败", "error");
+      toast(tt("网络错误，保存失败"), "error");
       setSaving(false);
     }
   };
@@ -656,11 +660,11 @@ function AgentModal({
       >
         <div className="flex items-center justify-between border-b border-[var(--oc-border-soft)] px-5 py-4">
           <div>
-            <p className="text-[15px] font-semibold text-stone-800">{edit ? "编辑智能体" : "创建智能体"}</p>
+            <p className="text-[15px] font-semibold text-stone-800">{edit ? tt("编辑智能体") : tt("创建智能体")}</p>
             <p className="mt-0.5 text-[12px] text-stone-400">
               {edit
-                ? "修改后新对话立即生效，历史对话保留原提示词"
-                : "系统提示词会在每次对话时注入，决定 AI 的角色行为"}
+                ? tt("修改后新对话立即生效，历史对话保留原提示词")
+                : tt("系统提示词会在每次对话时注入，决定 AI 的角色行为")}
             </p>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100">
@@ -672,7 +676,7 @@ function AgentModal({
           {/* 官方角色预设（仅创建） */}
           {!edit && (
             <div>
-              <p className="text-[12.5px] font-medium text-stone-600">从官方角色开始（可选）</p>
+              <p className="text-[12.5px] font-medium text-stone-600">{tt("从官方角色开始（可选）")}</p>
               <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
                 {PERSONAS.filter((p) => p.id !== "none")
                   .slice(0, 8)
@@ -680,22 +684,22 @@ function AgentModal({
                     <button
                       key={p.id}
                       onClick={() => applyPreset(p)}
-                      title={p.desc}
+                      title={tt(p.desc)}
                       className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] text-stone-500 transition hover:border-[var(--oc-brand-border)] hover:bg-[var(--oc-brand-tint)] hover:text-[var(--oc-brand)] ${
                         system === p.system ? "border-[var(--oc-brand-border)] bg-[var(--oc-brand-tint)] text-[var(--oc-brand)]" : "border-[var(--oc-border)]"
                       }`}
                     >
-                      <span>{p.emoji}</span> {p.name}
+                      <span>{p.emoji}</span> {tt(p.name)}
                     </button>
                   ))}
               </div>
-              <p className="mt-1 text-[10.5px] text-stone-400">一键填入角色描述、系统提示词与开场白，再按需修改</p>
+              <p className="mt-1 text-[10.5px] text-stone-400">{tt("一键填入角色描述、系统提示词与开场白，再按需修改")}</p>
             </div>
           )}
 
           {/* 头像 */}
           <div>
-            <p className="text-[12.5px] font-medium text-stone-600">头像表情</p>
+            <p className="text-[12.5px] font-medium text-stone-600">{tt("头像表情")}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {EMOJIS.map((e) => (
                 <button
@@ -717,25 +721,25 @@ function AgentModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
-              placeholder="如：小红书爆款文案官"
+              placeholder={tt("如：小红书爆款文案官")}
               className="mt-1.5 w-full rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[13px] text-stone-800 outline-none transition focus:border-[var(--oc-brand-border)]"
             />
           </div>
 
           <div>
-            <p className="text-[12.5px] font-medium text-stone-600">描述</p>
+            <p className="text-[12.5px] font-medium text-stone-600">{tt("描述")}</p>
             <input
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               maxLength={200}
-              placeholder="一句话说明这个智能体擅长什么"
+              placeholder={tt("一句话说明这个智能体擅长什么")}
               className="mt-1.5 w-full rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[13px] text-stone-800 outline-none transition focus:border-[var(--oc-brand-border)]"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[12.5px] font-medium text-stone-600">分类</p>
+              <p className="text-[12.5px] font-medium text-stone-600">{tt("分类")}</p>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as AgentCat)}
@@ -743,18 +747,18 @@ function AgentModal({
               >
                 {AGENT_CATS.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {tt(c)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <p className="text-[12.5px] font-medium text-stone-600">开场白（可选）</p>
+              <p className="text-[12.5px] font-medium text-stone-600">{tt("开场白（可选）")}</p>
               <input
                 value={starter}
                 onChange={(e) => setStarter(e.target.value)}
                 maxLength={200}
-                placeholder="进入对话时预填的问题"
+                placeholder={tt("进入对话时预填的问题")}
                 className="mt-1.5 w-full rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[13px] text-stone-800 outline-none transition focus:border-[var(--oc-brand-border)]"
               />
             </div>
@@ -762,7 +766,7 @@ function AgentModal({
 
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-[12.5px] font-medium text-stone-600">系统提示词</p>
+              <p className="text-[12.5px] font-medium text-stone-600">{tt("系统提示词")}</p>
               <span className="text-[11px] text-stone-300">{system.length} / 8000</span>
             </div>
             <textarea
@@ -770,24 +774,24 @@ function AgentModal({
               onChange={(e) => setSystem(e.target.value)}
               maxLength={8000}
               rows={6}
-              placeholder={"例：你是资深小红书运营，擅长种草文案……\n要求：标题有悬念、正文有情绪、结尾有行动号召。"}
+              placeholder={tt("例：你是资深小红书运营，擅长种草文案……\\n要求：标题有悬念、正文有情绪、结尾有行动号召。")}
               className="mt-1.5 w-full resize-none rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[12.5px] leading-5 text-stone-800 outline-none transition focus:border-[var(--oc-brand-border)]"
             />
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-[var(--oc-border-soft)] px-5 py-4">
-          <p className="text-[11px] text-stone-400">共有 {EMOJIS.length} 个表情可选，提示词支持 8000 字</p>
+          <p className="text-[11px] text-stone-400">{tt("共有 {n} 个表情可选，提示词支持 8000 字", { n: EMOJIS.length })}</p>
           <div className="flex gap-2">
             <button onClick={onClose} className="rounded-xl border border-[var(--oc-border)] px-4 py-2 text-[13px] text-stone-500 transition hover:bg-[var(--oc-hover)]">
-              取消
+              {tt("取消")}
             </button>
             <button
               onClick={() => void submit()}
               disabled={saving}
               className="rounded-xl bg-gradient-to-r from-orange-400 to-red-500 px-5 py-2 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105 disabled:opacity-60"
             >
-              {saving ? "保存中…" : edit ? "保存修改" : "创建智能体"}
+              {saving ? tt("保存中…") : edit ? tt("保存修改") : tt("创建智能体")}
             </button>
           </div>
         </div>
@@ -799,6 +803,7 @@ function AgentModal({
 /* ---------------- 分享弹窗 ---------------- */
 
 function ShareModal({ agent, onClose }: { agent: AgentEx; onClose: () => void }) {
+  const { tt } = useI18n();
   const [copied, setCopied] = useState(false);
   const link = agent.shareCode ? `${typeof window !== "undefined" ? window.location.origin : ""}/s/${agent.shareCode}` : "";
 
@@ -807,24 +812,24 @@ function ShareModal({ agent, onClose }: { agent: AgentEx; onClose: () => void })
       await navigator.clipboard.writeText(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-      toast("分享链接已复制", "success");
+      toast(tt("分享链接已复制"), "success");
     } catch {
-      toast("复制失败，请手动复制", "error");
+      toast(tt("复制失败，请手动复制"), "error");
     }
   };
 
   const unshare = async () => {
-    if (!confirm("取消分享后，该链接将失效，确定吗？")) return;
+    if (!confirm(tt("取消分享后，该链接将失效，确定吗？"))) return;
     try {
       await fetch(`/api/agents/${agent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "unshare" }),
       });
-      toast("已取消分享", "success");
+      toast(tt("已取消分享"), "success");
       onClose();
     } catch {
-      toast("取消失败，请重试", "error");
+      toast(tt("取消失败，请重试"), "error");
     }
   };
 
@@ -836,7 +841,7 @@ function ShareModal({ agent, onClose }: { agent: AgentEx; onClose: () => void })
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--oc-brand-tint)] text-[20px]">{agent.emoji}</span>
             <div>
               <p className="text-[15px] font-semibold text-stone-800">{agent.name}</p>
-              <p className="mt-0.5 text-[12px] text-stone-400">分享智能体</p>
+              <p className="mt-0.5 text-[12px] text-stone-400">{tt("分享智能体")}</p>
             </div>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100">
@@ -845,7 +850,7 @@ function ShareModal({ agent, onClose }: { agent: AgentEx; onClose: () => void })
         </div>
 
         <p className="mt-4 text-[12.5px] leading-5 text-stone-500">
-          任何打开此链接的人都可以在 OpenCanvas 中使用该智能体（包含系统提示词与开场白）。
+          {tt("任何打开此链接的人都可以在 OpenCanvas 中使用该智能体（包含系统提示词与开场白）。")}
         </p>
 
         <div className="mt-3 flex items-center gap-2 rounded-xl border border-[var(--oc-border)] bg-[var(--oc-hover)] px-3 py-2.5">
@@ -855,7 +860,7 @@ function ShareModal({ agent, onClose }: { agent: AgentEx; onClose: () => void })
             className="flex shrink-0 items-center gap-1 rounded-lg bg-gradient-to-r from-orange-400 to-red-500 px-3 py-1.5 text-[12px] font-medium text-white transition hover:brightness-105"
           >
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "已复制" : "复制链接"}
+            {copied ? tt("已复制") : tt("复制链接")}
           </button>
         </div>
 
@@ -866,13 +871,13 @@ function ShareModal({ agent, onClose }: { agent: AgentEx; onClose: () => void })
             rel="noreferrer"
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--oc-border)] py-2.5 text-[12.5px] font-medium text-stone-600 transition hover:border-[var(--oc-brand-border)]"
           >
-            <Play className="h-4 w-4" /> 预览分享页
+            <Play className="h-4 w-4" /> {tt("预览分享页")}
           </a>
           <button
             onClick={() => void unshare()}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-100 py-2.5 text-[12.5px] font-medium text-red-500 transition hover:bg-red-50"
           >
-            <Trash2 className="h-4 w-4" /> 取消分享
+            <Trash2 className="h-4 w-4" /> {tt("取消分享")}
           </button>
         </div>
       </div>

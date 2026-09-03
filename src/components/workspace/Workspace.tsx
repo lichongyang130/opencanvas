@@ -174,7 +174,7 @@ export function Workspace() {
                     title={tt("点击重命名当前任务")}
                     className="max-w-[220px] truncate text-sm text-stone-400 transition hover:text-stone-600"
                   >
-                    · {active.title}
+                    · {tt(active.title)}
                   </button>
                 ))}
             </div>

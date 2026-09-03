@@ -44,11 +44,14 @@ function lookup(d: Dict, key: string): string | undefined {
   }, d) as string | undefined;
 }
 
+/** 全文案翻译：对「中文原文」直接按当前语言返回（zh 原文 / en 查 uiEn），支持 {name} 占位符 */
+type TtFunc = (text: string, params?: Record<string, string | number>) => string;
+
 interface I18nValue {
   locale: Locale;
   t: TFunc;
-  /** 全文案翻译：对「中文原文」直接按当前语言返回（zh 原文 / en 查 uiEn） */
-  tt: (text: string) => string;
+  /** 全文案翻译：对「中文原文」直接按当前语言返回（zh 原文 / en 查 uiEn），支持 {name} 占位符 */
+  tt: TtFunc;
   setLocale: (l: Locale) => void;
 }
 
@@ -59,11 +62,14 @@ const I18nContext = createContext<I18nValue>({
   setLocale: () => {},
 });
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("zh");
+export function LocaleProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
+  const [locale, setLocaleState] = useState<Locale>(initialLocale ?? "zh");
 
   useEffect(() => {
-    setLocaleState(readLocale());
+    const l = readLocale();
+    // SSR 已从 cookie 拿到 initialLocale；这里仅覆盖客户端 localStorage 与 SSR 不一致的情况
+    if (l !== locale) setLocaleState(l);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setLocale = useCallback((l: Locale) => {
@@ -84,8 +90,15 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       }
       return s;
     };
-    const tt = (text: string) =>
-      locale === "en" ? uiEn[text] ?? text : text;
+    const tt: TtFunc = (text, params) => {
+      let s = locale === "en" ? uiEn[text] ?? text : text;
+      if (params) {
+        for (const [k, v] of Object.entries(params)) {
+          s = s.replaceAll(`{${k}}`, String(v));
+        }
+      }
+      return s;
+    };
     return { locale, t, tt, setLocale };
   }, [locale, setLocale]);
 

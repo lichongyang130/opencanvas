@@ -19,6 +19,7 @@ import {
 import { ShellSidebar } from "@/components/mockup/ShellSidebar";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 type Plan = "free" | "pro" | "team";
 
@@ -43,44 +44,7 @@ interface Stats {
   exports: number;
 }
 
-const PLAN_LABEL: Record<Plan, string> = { free: "免费版", pro: "专业版", team: "团队版" };
-const PLAN_AMOUNT: Record<Plan, number> = { free: 0, pro: 39, team: 99 };
 
-const PLANS: Array<{ id: Plan; name: string; price: string; period: string; highlight: boolean; features: string[] }> = [
-  {
-    id: "free",
-    name: "免费版",
-    price: "¥0",
-    period: "永久免费",
-    highlight: false,
-    features: ["每日 10 次对话", "基础模型", "文档 / PPT 导出带水印", "社区支持"],
-  },
-  {
-    id: "pro",
-    name: "专业版",
-    price: "¥39",
-    period: "每月",
-    highlight: true,
-    features: ["无限对话", "全部高级模型", "文档 / PPT 无水印导出", "深度思考 + 联网搜索", "优先体验新功能"],
-  },
-  {
-    id: "team",
-    name: "团队版",
-    price: "¥99",
-    period: "每月 / 席位",
-    highlight: false,
-    features: ["包含专业版全部权益", "团队成员协作", "共享知识库", "统一账单与权限管理"],
-  },
-];
-
-const FEATURES = [
-  { icon: Cpu, color: "from-orange-400 to-red-500", title: "解锁全部模型", desc: "OpenAI / Claude / DeepSeek / 通义 随心切换" },
-  { icon: Gauge, color: "from-violet-400 to-purple-500", title: "深度思考", desc: "复杂推理任务获得更高质量回答" },
-  { icon: Zap, color: "from-sky-400 to-blue-500", title: "联网搜索", desc: "检索互联网最新信息，答案更实时" },
-  { icon: FileText, color: "from-emerald-400 to-teal-500", title: "无水印导出", desc: "文档 / PPT / 报告导出更专业" },
-  { icon: Cloud, color: "from-pink-400 to-rose-500", title: "云同步", desc: "多设备同步会话与知识库" },
-  { icon: Bot, color: "from-amber-400 to-orange-500", title: "智能体生态", desc: "使用全部进阶智能体与工具" },
-];
 
 function fmtDate(ts: number | null) {
   if (!ts) return "—";
@@ -88,6 +52,44 @@ function fmtDate(ts: number | null) {
 }
 
 export default function MembershipPage() {
+  const { tt } = useI18n();
+  const FEATURES = [
+    { icon: Cpu, color: "from-orange-400 to-red-500", title: tt("解锁全部模型"), desc: tt("OpenAI / Claude / DeepSeek / 通义 随心切换") },
+    { icon: Gauge, color: "from-violet-400 to-purple-500", title: tt("深度思考"), desc: tt("复杂推理任务获得更高质量回答") },
+    { icon: Zap, color: "from-sky-400 to-blue-500", title: tt("联网搜索"), desc: tt("检索互联网最新信息，答案更实时") },
+    { icon: FileText, color: "from-emerald-400 to-teal-500", title: tt("无水印导出"), desc: tt("文档 / PPT / 报告导出更专业") },
+    { icon: Cloud, color: "from-pink-400 to-rose-500", title: tt("云同步"), desc: tt("多设备同步会话与知识库") },
+    { icon: Bot, color: "from-amber-400 to-orange-500", title: tt("智能体生态"), desc: tt("使用全部进阶智能体与工具") },
+  ];
+  const PLAN_LABEL: Record<Plan, string> = { free: tt("免费版"), pro: tt("专业版"), team: tt("团队版") };
+  const PLAN_AMOUNT: Record<Plan, number> = { free: 0, pro: 39, team: 99 };
+  
+  const PLANS: Array<{ id: Plan; name: string; price: string; period: string; highlight: boolean; features: string[] }> = [
+    {
+      id: "free",
+      name: tt("免费版"),
+      price: "¥0",
+      period: tt("永久免费"),
+      highlight: false,
+      features: [tt("每日 10 次对话"), tt("基础模型"), tt("文档 / PPT 导出带水印"), tt("社区支持")],
+    },
+    {
+      id: "pro",
+      name: tt("专业版"),
+      price: "¥39",
+      period: tt("每月"),
+      highlight: true,
+      features: [tt("无限对话"), tt("全部高级模型"), tt("文档 / PPT 无水印导出"), tt("深度思考 + 联网搜索"), tt("优先体验新功能")],
+    },
+    {
+      id: "team",
+      name: tt("团队版"),
+      price: "¥99",
+      period: tt("每月 / 席位"),
+      highlight: false,
+      features: [tt("包含专业版全部权益"), tt("团队成员协作"), tt("共享知识库"), tt("统一账单与权限管理")],
+    },
+  ];
   const router = useRouter();
   const [membership, setMembership] = useState<Membership | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -103,11 +105,11 @@ export default function MembershipPage() {
       setStats(data.stats);
       setOrders(data.orders);
     } catch {
-      toast("加载会员数据失败", "error");
+      toast(tt("加载会员数据失败"), "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tt]);
 
   useEffect(() => {
     void refresh();
@@ -123,11 +125,11 @@ export default function MembershipPage() {
         body: JSON.stringify({ plan }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "操作失败");
-      toast(`已购买 ${PLAN_LABEL[plan]}，订单已生成`, "success");
+      if (!res.ok) throw new Error(data.error ?? tt("操作失败"));
+      toast(tt("已购买 {plan}，订单已生成", { plan: PLAN_LABEL[plan] }), "success");
       await refresh();
     } catch (e) {
-      toast(`操作失败：${e instanceof Error ? e.message : ""}`, "error");
+      toast(tt("操作失败：{msg}", { msg: e instanceof Error ? e.message : "" }), "error");
     } finally {
       setBusy(false);
     }
@@ -138,11 +140,11 @@ export default function MembershipPage() {
     setBusy(true);
     try {
       const res = await fetch("/api/membership", { method: "DELETE" });
-      if (!res.ok) throw new Error("取消失败");
-      toast("已关闭自动续费", "info");
+      if (!res.ok) throw new Error(tt("取消失败"));
+      toast(tt("已关闭自动续费"), "info");
       await refresh();
     } catch (e) {
-      toast(`操作失败：${e instanceof Error ? e.message : ""}`, "error");
+      toast(tt("操作失败：{msg}", { msg: e instanceof Error ? e.message : "" }), "error");
     } finally {
       setBusy(false);
     }
@@ -166,10 +168,10 @@ export default function MembershipPage() {
             <div>
               <div className="flex items-center gap-2 text-xs font-medium text-orange-500">
                 <Sparkles className="h-3.5 w-3.5" />
-                会员中心
+                {tt("会员中心")}
               </div>
-              <h1 className="mt-2 text-[26px] font-bold tracking-tight text-stone-900">开启你的专业创作体验</h1>
-              <p className="mt-1.5 text-[14px] text-stone-500">解锁全部模型能力、无水印导出与更快的创作速度</p>
+              <h1 className="mt-2 text-[26px] font-bold tracking-tight text-stone-900">{tt("开启你的专业创作体验")}</h1>
+              <p className="mt-1.5 text-[14px] text-stone-500">{tt("解锁全部模型能力、无水印导出与更快的创作速度")}</p>
             </div>
           </div>
 
@@ -189,14 +191,14 @@ export default function MembershipPage() {
                     <span className="text-[16px] font-semibold text-stone-800">Alex Chen</span>
                     <button
                       onClick={() => void upgrade(plan === "free" ? "pro" : plan)}
-                      title={plan === "free" ? "升级专业版" : "点击续费 / 升级"}
+                      title={plan === "free" ? tt("升级专业版") : tt("点击续费 / 升级")}
                       className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-medium text-white shadow-sm shadow-orange-200 transition hover:bg-orange-600"
                     >
                       <BadgeCheck className="h-3 w-3" /> {PLAN_LABEL[plan]}
                     </button>
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-[12px] text-stone-500">
-                    到期：{fmtDate(membership?.renewAt ?? null)} · {membership?.autoRenew ? "自动续费" : "已关闭自动续费"}
+                    {tt("到期：{date}", { date: fmtDate(membership?.renewAt ?? null) })} · {membership?.autoRenew ? tt("自动续费") : tt("已关闭自动续费")}
                     {membership?.autoRenew && (
                       <button
                         onClick={() => void cancelRenew()}
@@ -216,21 +218,21 @@ export default function MembershipPage() {
                   className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-orange-200 transition hover:brightness-105 disabled:opacity-60"
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  {plan === "pro" ? "续费专业版" : plan === "free" ? "升级专业版" : "续费团队版"}
+                  {plan === "pro" ? tt("续费专业版") : plan === "free" ? tt("升级专业版") : tt("续费团队版")}
                 </button>
                 <button
                   onClick={() => router.push("/chat")}
                   className="rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-600 transition hover:bg-orange-50"
                 >
-                  继续创作
+                  {tt("继续创作")}
                 </button>
               </div>
             </div>
             <div className="grid grid-cols-3 divide-x divide-orange-100 border-t border-orange-100 bg-white/60">
               {[
-                { label: "当前套餐", value: PLAN_LABEL[plan], note: plan === "free" ? "每日限额" : "不限量" },
-                { label: "对话消息", value: stats ? `${stats.messages.toLocaleString()} 条` : "—", note: "累计" },
-                { label: "已导出文档", value: stats ? `${stats.exports} 份` : "—", note: plan === "free" ? "带水印" : "无水印" },
+                { label: tt("当前套餐"), value: PLAN_LABEL[plan], note: plan === "free" ? tt("每日限额") : tt("不限量") },
+                { label: tt("对话消息"), value: stats ? tt("{n} 条", { n: stats.messages.toLocaleString() }) : "—", note: tt("累计") },
+                { label: tt("已导出文档"), value: stats ? tt("{n} 份", { n: stats.exports }) : "—", note: plan === "free" ? tt("带水印") : tt("无水印") },
               ].map((s) => (
                 <div key={s.label} className="px-4 py-3.5 text-center">
                   <div className="text-[15px] font-semibold text-stone-800">{s.value}</div>
@@ -243,7 +245,7 @@ export default function MembershipPage() {
 
           {/* 权益 */}
           <div className="mt-10">
-            <h2 className="text-[16px] font-semibold text-stone-800">专业权益</h2>
+            <h2 className="text-[16px] font-semibold text-stone-800">{tt("专业权益")}</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {FEATURES.map((f) => (
                 <div key={f.title} className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow">
@@ -259,7 +261,7 @@ export default function MembershipPage() {
 
           {/* 套餐 */}
           <div className="mt-10">
-            <h2 className="text-[16px] font-semibold text-stone-800">选择你的方案</h2>
+            <h2 className="text-[16px] font-semibold text-stone-800">{tt("选择你的方案")}</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               {PLANS.map((p) => {
                 const isCurrent = plan === p.id;
@@ -273,7 +275,7 @@ export default function MembershipPage() {
                   >
                     {p.highlight && (
                       <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2.5 py-0.5 text-[10px] font-medium text-white shadow">
-                        最受欢迎
+                        {tt("最受欢迎")}
                       </span>
                     )}
                     <div className="text-[13px] font-medium text-stone-500">{p.name}</div>
@@ -300,7 +302,7 @@ export default function MembershipPage() {
                         isCurrent && "cursor-default bg-stone-100 text-stone-400"
                       )}
                     >
-                      {isCurrent ? "当前方案" : `升级 ${p.name}`}
+                      {isCurrent ? tt("当前方案") : tt("升级 {name}", { name: p.name })}
                     </button>
                   </div>
                 );
@@ -310,11 +312,11 @@ export default function MembershipPage() {
 
           {/* 订单记录 */}
           <div className="mt-10">
-            <h2 className="text-[16px] font-semibold text-stone-800">订单记录</h2>
+            <h2 className="text-[16px] font-semibold text-stone-800">{tt("订单记录")}</h2>
             <div className="mt-4 overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm">
               {orders.length === 0 ? (
                 <div className="px-5 py-8 text-center text-[13px] text-stone-400">
-                  {loading ? "加载中…" : "暂无订单"}
+                  {loading ? tt("加载中…") : tt("暂无订单")}
                 </div>
               ) : (
                 <div className="divide-y divide-stone-100">
@@ -336,7 +338,7 @@ export default function MembershipPage() {
                             o.status === "cancelled" && "bg-stone-100 text-stone-400"
                           )}
                         >
-                          {o.status === "paid" ? "已支付" : o.status === "pending" ? "待支付" : "已取消"}
+                          {o.status === "paid" ? tt("已支付") : o.status === "pending" ? tt("待支付") : tt("已取消")}
                         </span>
                       </div>
                     </div>
@@ -347,7 +349,7 @@ export default function MembershipPage() {
           </div>
 
           <p className="mt-10 text-center text-[11px] text-stone-400">
-            订单与会员数据已接入本地数据库，实际支付渠道将在上线时接入。
+            {tt("订单与会员数据已接入本地数据库，实际支付渠道将在上线时接入。")}
           </p>
         </div>
       </main>

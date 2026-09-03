@@ -107,8 +107,8 @@ export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
           for (const g of groups) {
             if (g.items.length === 0) continue;
             rows.push(
-              <p key={g.label} className="px-2 pb-0.5 pt-2.5 text-[10.5px] font-medium uppercase tracking-wide text-stone-400">
-                {g.label}
+              <p key={tt(g.label)} className="px-2 pb-0.5 pt-2.5 text-[10.5px] font-medium uppercase tracking-wide text-stone-400">
+                {tt(g.label)}
               </p>
             );
             for (const c of g.items) {
@@ -138,7 +138,7 @@ export function HistoryPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
                       {c.title}
                     </span>
                     <span className="mt-0.5 block text-[11px] text-stone-400">
-                      {MODE_LABELS[c.mode]}
+                      {tt(MODE_LABELS[c.mode])}
                     </span>
                   </span>
                   <span className="shrink-0 text-[11px] text-stone-400">

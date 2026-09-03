@@ -49,101 +49,9 @@ import { cn } from "@/lib/utils";
 
 /* ---------------- 数据 ---------------- */
 
-const NAV_ITEMS = [
-  { icon: Home, label: "首页", active: true },
-  { icon: MessageSquare, label: "AI 对话", href: "/chat" },
-  { icon: Bot, label: "智能体", href: "/chat" },
-  { icon: Database, label: "知识库", href: "/chat" },
-  { icon: FileText, label: "文档中心", href: "/chat", mode: "docs" as WorkspaceMode },
-  { icon: LayoutTemplate, label: "模板中心", href: "/chat" },
-  { icon: Wrench, label: "工具箱", href: "/chat" },
-  { icon: LayoutGrid, label: "更多应用", href: "/chat" },
-];
 
-const QUICK_ACTIONS: Array<{
-  icon: typeof FileText;
-  label: string;
-  color: string;
-  mode: WorkspaceMode;
-  prompt?: string;
-}> = [
-  { icon: FileText, label: "写文档", color: "text-blue-500", mode: "docs" },
-  { icon: Presentation, label: "做PPT", color: "text-orange-500", mode: "slides" },
-  { icon: ImageIcon, label: "生成图片", color: "text-emerald-500", mode: "image" },
-  { icon: BarChart3, label: "数据分析", color: "text-violet-500", mode: "chat", prompt: "帮我分析以下数据，给出关键洞察和图表建议：\n" },
-  { icon: Lightbulb, label: "头脑风暴", color: "text-amber-500", mode: "chat", prompt: "围绕以下主题做一次头脑风暴，给出 10 个有创意的想法：" },
-  { icon: Scan, label: "更多", color: "text-stone-500", mode: "chat" },
-];
 
-const RECOMMEND_CARDS: Array<{
-  icon: typeof FileText;
-  title: string;
-  desc: string;
-  tile: string;
-  bg: string;
-  mode: WorkspaceMode;
-  prompt?: string;
-}> = [
-  {
-    icon: Presentation,
-    title: "PPT 生成",
-    desc: "一键生成专业演示文稿",
-    tile: "from-orange-400 to-red-400",
-    bg: "bg-orange-50/60",
-    mode: "slides",
-  },
-  {
-    icon: FileText,
-    title: "文档写作",
-    desc: "撰写各类专业文档",
-    tile: "from-blue-400 to-sky-400",
-    bg: "bg-blue-50/60",
-    mode: "docs",
-  },
-  {
-    icon: Share2,
-    title: "思维导图",
-    desc: "可视化你的思维与创意",
-    tile: "from-emerald-400 to-green-400",
-    bg: "bg-emerald-50/60",
-    mode: "chat",
-    prompt: "请以思维导图的结构（多级列表）帮我梳理这个主题：",
-  },
-  {
-    icon: BarChart3,
-    title: "数据分析",
-    desc: "智能分析，洞察数据价值",
-    tile: "from-violet-400 to-purple-400",
-    bg: "bg-violet-50/60",
-    mode: "chat",
-    prompt: "帮我分析以下数据，输出关键结论、趋势与建议：\n",
-  },
-  {
-    icon: Code2,
-    title: "代码助手",
-    desc: "编写、调试各类代码",
-    tile: "from-indigo-400 to-blue-500",
-    bg: "bg-indigo-50/60",
-    mode: "chat",
-    prompt: "你是资深工程师，请帮我：",
-  },
-  {
-    icon: ImageIcon,
-    title: "AI 绘图",
-    desc: "描述想法，生成精美图片",
-    tile: "from-pink-400 to-rose-400",
-    bg: "bg-pink-50/60",
-    mode: "image",
-  },
-];
 
-const RECENT_USE = [
-  { icon: Presentation, label: "季度汇报 PPT", color: "text-orange-500", mode: "slides" as WorkspaceMode, prompt: "生成一份季度工作汇报 PPT，包含业绩回顾、问题复盘、下季度计划" },
-  { icon: FileText, label: "竞品分析报告", color: "text-blue-500", mode: "docs" as WorkspaceMode, prompt: "写一份竞品分析报告，对比核心功能、定价与市场策略" },
-  { icon: Lightbulb, label: "营销文案", color: "text-amber-500", mode: "chat" as WorkspaceMode, prompt: "为新品上市写 5 条小红书风格的营销文案：" },
-  { icon: BarChart3, label: "周报助手", color: "text-violet-500", mode: "chat" as WorkspaceMode, prompt: "根据以下工作要点，帮我整理一份结构清晰的周报：\n" },
-  { icon: ImageIcon, label: "海报设计", color: "text-pink-500", mode: "image" as WorkspaceMode, prompt: "设计一张暖色调的活动宣传海报，主题：" },
-];
 
 interface RecentConvo {
   id: string;
@@ -154,7 +62,99 @@ interface RecentConvo {
 
 export default function HomePage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t , tt} = useI18n();
+  const RECENT_USE = [
+    { icon: Presentation, label: tt("季度汇报 PPT"), color: "text-orange-500", mode: "slides" as WorkspaceMode, prompt: tt("生成一份季度工作汇报 PPT，包含业绩回顾、问题复盘、下季度计划") },
+    { icon: FileText, label: tt("竞品分析报告"), color: "text-blue-500", mode: "docs" as WorkspaceMode, prompt: tt("写一份竞品分析报告，对比核心功能、定价与市场策略") },
+    { icon: Lightbulb, label: tt("营销文案"), color: "text-amber-500", mode: "chat" as WorkspaceMode, prompt: tt("为新品上市写 5 条小红书风格的营销文案：") },
+    { icon: BarChart3, label: tt("周报助手"), color: "text-violet-500", mode: "chat" as WorkspaceMode, prompt: tt("根据以下工作要点，帮我整理一份结构清晰的周报：\\n") },
+    { icon: ImageIcon, label: tt("海报设计"), color: "text-pink-500", mode: "image" as WorkspaceMode, prompt: tt("设计一张暖色调的活动宣传海报，主题：") },
+  ];
+  const RECOMMEND_CARDS: Array<{
+    icon: typeof FileText;
+    title: string;
+    desc: string;
+    tile: string;
+    bg: string;
+    mode: WorkspaceMode;
+    prompt?: string;
+  }> = [
+    {
+      icon: Presentation,
+      title: tt("PPT 生成"),
+      desc: tt("一键生成专业演示文稿"),
+      tile: "from-orange-400 to-red-400",
+      bg: "bg-orange-50/60",
+      mode: "slides",
+    },
+    {
+      icon: FileText,
+      title: tt("文档写作"),
+      desc: tt("撰写各类专业文档"),
+      tile: "from-blue-400 to-sky-400",
+      bg: "bg-blue-50/60",
+      mode: "docs",
+    },
+    {
+      icon: Share2,
+      title: tt("思维导图"),
+      desc: tt("可视化你的思维与创意"),
+      tile: "from-emerald-400 to-green-400",
+      bg: "bg-emerald-50/60",
+      mode: "chat",
+      prompt: tt("请以思维导图的结构（多级列表）帮我梳理这个主题："),
+    },
+    {
+      icon: BarChart3,
+      title: tt("数据分析"),
+      desc: tt("智能分析，洞察数据价值"),
+      tile: "from-violet-400 to-purple-400",
+      bg: "bg-violet-50/60",
+      mode: "chat",
+      prompt: tt("帮我分析以下数据，输出关键结论、趋势与建议：\\n"),
+    },
+    {
+      icon: Code2,
+      title: tt("代码助手"),
+      desc: tt("编写、调试各类代码"),
+      tile: "from-indigo-400 to-blue-500",
+      bg: "bg-indigo-50/60",
+      mode: "chat",
+      prompt: tt("你是资深工程师，请帮我："),
+    },
+    {
+      icon: ImageIcon,
+      title: tt("AI 绘图"),
+      desc: tt("描述想法，生成精美图片"),
+      tile: "from-pink-400 to-rose-400",
+      bg: "bg-pink-50/60",
+      mode: "image",
+    },
+  ];
+  const QUICK_ACTIONS: Array<{
+    icon: typeof FileText;
+    label: string;
+    color: string;
+    mode: WorkspaceMode;
+    prompt?: string;
+  }> = [
+    { icon: FileText, label: tt("写文档"), color: "text-blue-500", mode: "docs" },
+    { icon: Presentation, label: tt("做PPT"), color: "text-orange-500", mode: "slides" },
+    { icon: ImageIcon, label: tt("生成图片"), color: "text-emerald-500", mode: "image" },
+    { icon: BarChart3, label: tt("数据分析"), color: "text-violet-500", mode: "chat", prompt: tt("帮我分析以下数据，给出关键洞察和图表建议：\\n") },
+    { icon: Lightbulb, label: tt("头脑风暴"), color: "text-amber-500", mode: "chat", prompt: tt("围绕以下主题做一次头脑风暴，给出 10 个有创意的想法：") },
+    { icon: Scan, label: tt("更多"), color: "text-stone-500", mode: "chat" },
+  ];
+  const NAV_ITEMS = [
+    { icon: Home, label: tt("首页"), active: true },
+    { icon: MessageSquare, label: tt("AI 对话"), href: "/chat" },
+    { icon: Bot, label: tt("智能体"), href: "/chat" },
+    { icon: Database, label: tt("知识库"), href: "/chat" },
+    { icon: FileText, label: tt("文档中心"), href: "/chat", mode: "docs" as WorkspaceMode },
+    { icon: LayoutTemplate, label: tt("模板中心"), href: "/chat" },
+    { icon: Wrench, label: tt("工具箱"), href: "/chat" },
+    { icon: LayoutGrid, label: tt("更多应用"), href: "/chat" },
+  ];
   const { model, setModel, settingsOpen, setSettingsOpen } = useChatStore();
   const [input, setInput] = useState("");
   const [greeting, setGreeting] = useState<"night" | "morning" | "afternoon" | "evening">("morning");
@@ -222,14 +222,14 @@ export default function HomePage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-lg font-bold text-white shadow-sm">
             O
           </div>
-          <span className="text-[17px] font-semibold tracking-tight">AI 对话</span>
+          <span className="text-[17px] font-semibold tracking-tight">{tt("AI 对话")}</span>
         </div>
 
         {/* 导航 */}
         <nav className="mt-3 flex flex-col gap-0.5 px-3">
           {NAV_ITEMS.map((item) => (
             <button
-              key={item.label}
+              key={tt(item.label)}
               onClick={() =>
                 item.active
                   ? undefined
@@ -244,17 +244,17 @@ export default function HomePage() {
               }
             >
               <item.icon className="h-[18px] w-[18px]" strokeWidth={item.active ? 2.2 : 1.8} />
-              {item.label}
+              {tt(item.label)}
             </button>
           ))}
         </nav>
 
         {/* 最近对话 */}
         <div className="mt-5 flex-1 overflow-y-auto px-5">
-          <p className="mb-2 text-xs font-medium text-stone-400">最近对话</p>
+          <p className="mb-2 text-xs font-medium text-stone-400">{tt("最近对话")}</p>
           <div className="flex flex-col gap-0.5 -mx-2">
             {recent.length === 0 && (
-              <p className="px-2 py-1 text-xs text-stone-300">暂无历史对话</p>
+              <p className="px-2 py-1 text-xs text-stone-300">{tt("暂无历史对话")}</p>
             )}
             {recent.map((c) => (
               <button
@@ -271,7 +271,7 @@ export default function HomePage() {
             onClick={() => goChat()}
             className="mt-2 flex items-center gap-1 text-xs text-stone-400 transition hover:text-orange-600"
           >
-            查看全部历史记录 <ArrowRight className="h-3 w-3" />
+            {tt("查看全部历史记录")} <ArrowRight className="h-3 w-3" />
           </button>
         </div>
 
@@ -348,7 +348,7 @@ export default function HomePage() {
                 <span className="min-w-0 truncate">{attachedFile}</span>
                 <button
                   onClick={() => setAttachedFile(null)}
-                  aria-label="移除附件"
+                  aria-label={tt("移除附件")}
                   className="ml-auto text-stone-400 transition hover:text-stone-700"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -367,9 +367,9 @@ export default function HomePage() {
                   )}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
-                  功能
+                  {tt("功能")}
                   <span className="text-stone-400">
-                    {[thinking && "深度", webSearch && "联网"].filter(Boolean).join(" · ") || "未开启"}
+                    {[thinking && tt("深度"), webSearch && tt("联网")].filter(Boolean).join(" · ") || tt("未开启")}
                   </span>
                   <ChevronDown
                     className={cn("h-3.5 w-3.5 text-stone-400 transition-transform", featureOpen && "rotate-180")}
@@ -384,8 +384,8 @@ export default function HomePage() {
                     >
                       <BrainCircuit className={cn("h-4 w-4", thinking ? "text-orange-500" : "text-stone-400")} />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] text-stone-800">深度思考</span>
-                        <span className="block text-[11px] text-stone-400">慢速逐点推理，更适合复杂问题</span>
+                        <span className="block text-[13px] text-stone-800">{tt("深度思考")}</span>
+                        <span className="block text-[11px] text-stone-400">{tt("慢速逐点推理，更适合复杂问题")}</span>
                       </span>
                       <Toggle on={thinking} />
                     </button>
@@ -395,8 +395,8 @@ export default function HomePage() {
                     >
                       <Globe className={cn("h-4 w-4", webSearch ? "text-orange-500" : "text-stone-400")} />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] text-stone-800">联网搜索</span>
-                        <span className="block text-[11px] text-stone-400">检索互联网最新信息回答</span>
+                        <span className="block text-[13px] text-stone-800">{tt("联网搜索")}</span>
+                        <span className="block text-[11px] text-stone-400">{tt("检索互联网最新信息回答")}</span>
                       </span>
                       <Toggle on={webSearch} />
                     </button>
@@ -409,8 +409,8 @@ export default function HomePage() {
                     >
                       <FileUp className="h-4 w-4 text-stone-400" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] text-stone-800">上传文件</span>
-                        <span className="block text-[11px] text-stone-400">PDF / Word / 图片等附件</span>
+                        <span className="block text-[13px] text-stone-800">{tt("上传文件")}</span>
+                        <span className="block text-[11px] text-stone-400">{tt("PDF / Word / 图片等附件")}</span>
                       </span>
                       <ChevronRight className="h-3.5 w-3.5 text-stone-300" />
                     </button>
@@ -423,8 +423,8 @@ export default function HomePage() {
                     >
                       <Bot className="h-4 w-4 text-stone-400" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] text-stone-800">选择智能体</span>
-                        <span className="block text-[11px] text-stone-400">指定擅长某个领域的 AI</span>
+                        <span className="block text-[13px] text-stone-800">{tt("选择智能体")}</span>
+                        <span className="block text-[11px] text-stone-400">{tt("指定擅长某个领域的 AI")}</span>
                       </span>
                       <ChevronRight className="h-3.5 w-3.5 text-stone-300" />
                     </button>
@@ -446,7 +446,7 @@ export default function HomePage() {
                 <ModelSelector value={model} onChange={(id, provider) => setModel(id, provider)} />
                 <button
                   onClick={submit}
-                  aria-label="发送"
+                  aria-label={tt("发送")}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-md shadow-orange-200 transition hover:brightness-105 active:scale-95"
                 >
                   <ArrowUp className="h-5 w-5" strokeWidth={2.4} />
@@ -459,7 +459,7 @@ export default function HomePage() {
           <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6">
             {QUICK_ACTIONS.map((a) => (
               <button
-                key={a.label}
+                key={tt(a.label)}
                 onClick={() =>
                   a.prompt
                     ? goChat({ type: "fill", mode: a.mode, text: a.prompt })
@@ -468,7 +468,7 @@ export default function HomePage() {
                 className="flex items-center justify-center gap-2 rounded-xl border border-stone-200/80 bg-white py-3 text-[13.5px] font-medium text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow"
               >
                 <a.icon className={`h-4 w-4 ${a.color}`} />
-                {a.label}
+                {tt(a.label)}
               </button>
             ))}
           </div>
@@ -477,7 +477,7 @@ export default function HomePage() {
           <div className="mt-10">
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-[15px] font-semibold text-stone-800">
-                <Sparkles className="h-4 w-4 text-orange-500" /> 为你推荐
+                <Sparkles className="h-4 w-4 text-orange-500" /> {tt("为你推荐")}
               </h2>
               <div className="flex items-center gap-1.5">
                 <button className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 transition hover:text-stone-700">
@@ -502,7 +502,7 @@ export default function HomePage() {
                   </div>
                   <p className="mt-4 text-[14.5px] font-semibold text-stone-800">{c.title}</p>
                   <p className="mt-1 min-h-[36px] text-xs leading-relaxed text-stone-500">
-                    {c.desc}
+                    {tt(c.desc)}
                   </p>
                   <button
                     onClick={() =>
@@ -512,7 +512,7 @@ export default function HomePage() {
                     }
                     className="mt-3 self-start rounded-lg border border-stone-300/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-stone-600 transition group-hover:border-orange-300 group-hover:text-orange-600"
                   >
-                    立即使用
+                    {tt("立即使用")}
                   </button>
                 </div>
               ))}
@@ -521,7 +521,7 @@ export default function HomePage() {
 
           {/* 最近使用 */}
           <div className="mt-10">
-            <h2 className="text-[15px] font-semibold text-stone-800">最近使用</h2>
+            <h2 className="text-[15px] font-semibold text-stone-800">{tt("最近使用")}</h2>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {RECENT_USE.map((r, i) => (
                 <button
@@ -538,7 +538,7 @@ export default function HomePage() {
               ))}
               <button
                 onClick={() => setShuffleKey((v) => v + 1)}
-                title="随机一个灵感"
+                title={tt("随机一个灵感")}
                 className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 bg-white/60 px-4 py-3.5 text-[13px] text-stone-400 transition hover:border-orange-300 hover:text-orange-600"
               >
                 <Dices className="h-4 w-4" />
@@ -601,7 +601,7 @@ export default function HomePage() {
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-500">
                   <PanelRight className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-semibold text-stone-800">产物实时呈现在右侧画布</h3>
+                <h3 className="text-lg font-semibold text-stone-800">{tt("产物实时呈现在右侧画布")}</h3>
                 <p className="mt-2 text-sm leading-6 text-stone-500">
                   PPT、文档、代码预览与研究报告都会出现在右侧，可编辑、导出与一键转 PPT。
                 </p>

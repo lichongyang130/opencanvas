@@ -62,7 +62,7 @@ export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => voi
           </>
         ) : (
           <>
-            AI 角色
+            {tt("AI 角色")}
             <ChevronDown className="h-3 w-3" />
           </>
         )}
@@ -89,7 +89,7 @@ export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => voi
               return (
                 <div key={g} className="mb-1">
                   <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                    {g}
+                    {tt(g)}
                   </div>
                   {list.map((p) => {
                     const active = convo?.personaId === p.id || (!convo?.personaId && p.id === "none");
@@ -112,15 +112,15 @@ export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => voi
                           <span className="mt-0.5 text-lg leading-none">{p.emoji}</span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-1.5 text-sm font-medium text-stone-800">
-                              {p.name}
+                              {tt(p.name)}
                               {active && <Check className="h-3.5 w-3.5 text-violet-600" />}
                             </span>
-                            <span className="block truncate text-xs text-stone-400">{p.desc}</span>
+                            <span className="block truncate text-xs text-stone-400">{tt(p.desc)}</span>
                           </span>
                         </button>
                         {p.starter && p.id !== "none" && (
                           <button
-                            title={`试用开场白：${p.starter}`}
+                            title={tt("试用开场白：{starter}", { starter: p.starter })}
                             onClick={() => {
                               setPersona(p.id);
                               setOpen(false);
@@ -129,7 +129,7 @@ export function PersonaPicker({ onStarter }: { onStarter?: (text: string) => voi
                             }}
                             className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] text-violet-500 opacity-0 transition hover:bg-violet-100 group-hover:opacity-100"
                           >
-                            试用
+                            {tt("试用")}
                           </button>
                         )}
                       </div>

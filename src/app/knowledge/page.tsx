@@ -58,19 +58,19 @@ function formatSize(n: number): string {
   return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-function fmtTime(ts: number): string {
+function fmtTime(ts: number, tt: (s: string) => string): string {
   if (!ts) return "—";
   const d = Date.now() - ts;
   if (d < 60_000) return "刚刚";
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)} 分钟前`;
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} 小时前`;
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)} ${tt("分钟前")}`;
+  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} ${tt("小时前")}`;
   if (d < 172_800_000) return "昨天";
   const date = new Date(ts);
   return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 export default function KnowledgePage() {
-  const { t } = useI18n();
+  const { t , tt} = useI18n();
   const router = useRouter();
   const [bases, setBases] = useState<Kb[]>([]);
   const [totalSize, setTotalSize] = useState(0);
@@ -102,8 +102,8 @@ export default function KnowledgePage() {
 
   const filtered = useMemo(() => {
     let list = bases;
-    if (tab === "启用中") list = list.filter((b) => b.semantic || b.qa || b.cite);
-    if (tab === "已停用") list = list.filter((b) => !b.semantic && !b.qa && !b.cite);
+    if (tab === tt("启用中")) list = list.filter((b) => b.semantic || b.qa || b.cite);
+    if (tab === tt("已停用")) list = list.filter((b) => !b.semantic && !b.qa && !b.cite);
     const k = query.trim().toLowerCase();
     if (k) {
       list = list.filter(
@@ -114,7 +114,7 @@ export default function KnowledgePage() {
       );
     }
     return list;
-  }, [bases, tab, query]);
+  }, [bases, tab, query, tt]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount);
@@ -131,11 +131,11 @@ export default function KnowledgePage() {
     }
     try {
       await fetch(`/api/knowledge/${b.id}`, { method: "DELETE" });
-      toast(`已删除知识库「${b.name}」`, "success");
+      toast(tt("已删除知识库「{name}」", { name: b.name }), "success");
       setDeleting(null);
       await loadBases();
     } catch {
-      toast("删除失败，请重试", "error");
+      toast(tt("删除失败，请重试"), "error");
     }
   };
 
@@ -163,7 +163,7 @@ export default function KnowledgePage() {
           <div>
             <h1 className="text-[18px] font-semibold text-stone-900">{t("pages.knowledge")}</h1>
             <p className="mt-0.5 text-[12.5px] text-stone-400">
-              添加文档后即可让 AI 基于真实内容检索与回答（本地 RAG）
+              {tt("添加文档后即可让 AI 基于真实内容检索与回答（本地 RAG）")}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -173,7 +173,7 @@ export default function KnowledgePage() {
               onClick={() => setEditModal({})}
               className="ml-2 flex items-center gap-1.5 rounded-xl border border-[var(--oc-brand-border-soft)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-hover)]"
             >
-              <Plus className="h-4 w-4" /> 新建知识库
+              <Plus className="h-4 w-4" /> {tt("新建知识库")}
             </button>
           </div>
         </header>
@@ -184,31 +184,31 @@ export default function KnowledgePage() {
           <div className="min-w-0 flex-1 overflow-y-auto pr-4">
             {/* 统计（真实） */}
             <div className="grid grid-cols-4 gap-3">
-              {stat("知识库总数", String(bases.length), "个", "bg-violet-50 text-violet-600", BookOpen)}
-              {stat("关联文档总数", String(docTotal), "个", "bg-sky-50 text-sky-600", FileText)}
-              {stat("启用中的知识库", String(enabled), "个", "bg-orange-50 text-orange-600", Sparkles)}
-              {stat("知识库总大小", formatSize(totalSize), "", "bg-emerald-50 text-emerald-600", Gauge)}
+              {stat(tt("知识库总数"), String(bases.length), tt("个"), "bg-violet-50 text-violet-600", BookOpen)}
+              {stat(tt("关联文档总数"), String(docTotal), tt("个"), "bg-sky-50 text-sky-600", FileText)}
+              {stat(tt("启用中的知识库"), String(enabled), tt("个"), "bg-orange-50 text-orange-600", Sparkles)}
+              {stat(tt("知识库总大小"), formatSize(totalSize), "", "bg-emerald-50 text-emerald-600", Gauge)}
             </div>
 
             {/* 列表区 */}
             <div className="mt-5 rounded-2xl border border-[var(--oc-border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
               {/* 标签栏 */}
               <div className="flex flex-wrap items-center gap-1 border-b border-[var(--oc-border-soft)] px-4 pt-3">
-                {TABS.map((t) => (
+                {TABS.map((tabv) => (
                   <button
-                    key={t}
+                    key={tabv}
                     onClick={() => {
-                      setTab(t);
+                      setTab(tabv);
                       setPage(1);
                     }}
                     className={
-                      tab === t
+                      tab === tabv
                         ? "relative px-3 pb-3 pt-1 text-[13px] font-medium text-[var(--oc-brand)]"
                         : "px-3 pb-3 pt-1 text-[13px] text-stone-500 transition hover:text-stone-800"
                     }
                   >
-                    {t}
-                    {tab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--oc-brand-bright)]" />}
+                    {tt(tabv)}
+                    {tab === tabv && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--oc-brand-bright)]" />}
                   </button>
                 ))}
                 <div className="ml-auto flex items-center gap-2 pb-2">
@@ -220,7 +220,7 @@ export default function KnowledgePage() {
                         setQuery(e.target.value);
                         setPage(1);
                       }}
-                      placeholder="搜索知识库 / 标签"
+                      placeholder={tt("搜索知识库 / 标签")}
                       className="w-40 bg-transparent text-[12.5px] text-stone-700 outline-none placeholder:text-stone-400"
                     />
                   </div>
@@ -229,21 +229,21 @@ export default function KnowledgePage() {
 
               {/* 表头 */}
               <div className="flex items-center px-5 py-2.5 text-[12px] text-stone-400">
-                <span className="w-[24%]">名称</span>
-                <span className="w-[36%]">描述</span>
-                <span className="w-[12%]">文档数量</span>
-                <span className="w-[13%]">大小</span>
-                <span className="w-[12%]">更新时间</span>
-                <span className="flex-1 text-right">操作</span>
+                <span className="w-[24%]">{tt("名称")}</span>
+                <span className="w-[36%]">{tt("描述")}</span>
+                <span className="w-[12%]">{tt("文档数量")}</span>
+                <span className="w-[13%]">{tt("大小")}</span>
+                <span className="w-[12%]">{tt("更新时间")}</span>
+                <span className="flex-1 text-right">{tt("操作")}</span>
               </div>
 
               {/* 行 */}
               {pageRows.length === 0 && (
                 <div className="flex flex-col items-center border-t border-[var(--oc-border-faint)] py-10 text-stone-400">
                   <BookOpen className="h-6 w-6 text-stone-300" />
-                  <p className="mt-2 text-[13px]">{bases.length === 0 ? "还没有知识库" : "没有匹配的知识库"}</p>
+                  <p className="mt-2 text-[13px]">{bases.length === 0 ? tt("还没有知识库") : tt("没有匹配的知识库")}</p>
                   <button onClick={() => setEditModal({})} className="mt-2 text-[12.5px] text-[var(--oc-brand)] hover:underline">
-                    新建一个？
+                    {tt("新建一个？")}
                   </button>
                 </div>
               )}
@@ -262,21 +262,21 @@ export default function KnowledgePage() {
                     <span className="flex min-w-0 flex-col">
                       <span className="truncate text-[13.5px] font-medium text-stone-700">{r.name}</span>
                       <span className="text-[10.5px] text-stone-400">
-                        {r.semantic && r.qa ? "检索 + 问答" : r.semantic ? "仅检索" : "已停用"}
+                        {r.semantic && r.qa ? tt("检索 + 问答") : r.semantic ? tt("仅检索") : tt("已停用")}
                       </span>
                     </span>
                   </div>
                   <span className="w-[36%] truncate pr-2 text-xs text-stone-400">{r.desc}</span>
                   <span className="w-[12%] text-[13px] text-stone-700">{r.docCount}</span>
                   <span className="w-[13%] text-[13px] text-stone-500">{formatSize(r.totalSize)}</span>
-                  <span className="w-[12%] text-[13px] text-stone-500">{fmtTime(r.updatedAt)}</span>
+                  <span className="w-[12%] text-[13px] text-stone-500">{fmtTime(r.updatedAt, tt)}</span>
                   <div className="flex flex-1 items-center justify-end gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setDocsTarget(r);
                       }}
-                      title="管理文档"
+                      title={tt("管理文档")}
                       className="flex h-8 items-center gap-1 rounded-lg px-2 text-[12px] text-stone-400 transition hover:bg-stone-100 hover:text-[var(--oc-brand)]"
                     >
                       <FileText className="h-4 w-4" /> 文档
@@ -286,7 +286,7 @@ export default function KnowledgePage() {
                         e.stopPropagation();
                         setQueryTarget(r);
                       }}
-                      title="向知识库提问"
+                      title={tt("向知识库提问")}
                       className="flex h-8 items-center gap-1 rounded-lg px-2 text-[12px] text-stone-400 transition hover:bg-stone-100 hover:text-[var(--oc-brand)]"
                     >
                       <Sparkles className="h-4 w-4" /> 提问
@@ -296,7 +296,7 @@ export default function KnowledgePage() {
                         e.stopPropagation();
                         void confirmDelete(r);
                       }}
-                      title={deleting === r.id ? "再次点击确认删除" : "删除"}
+                      title={deleting === r.id ? tt("再次点击确认删除") : tt("删除")}
                       className={`flex h-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-500 ${
                         deleting === r.id ? "w-auto gap-1 bg-red-50 px-2 text-[11px] font-medium text-red-500" : "w-8"
                       }`}
@@ -315,7 +315,7 @@ export default function KnowledgePage() {
 
               {/* 分页 */}
               <div className="flex items-center justify-between border-t border-[var(--oc-border-soft)] px-5 py-3.5 text-[12.5px] text-stone-500">
-                <span>共 {filtered.length} 条</span>
+                <span>{tt("共 {n} 条", { n: filtered.length })}</span>
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1 rounded-lg border border-[var(--oc-border)] bg-white px-2.5 py-1.5">
                     {PAGE_SIZE} 条 / 页 <ChevronDown className="h-3.5 w-3.5" />
@@ -360,9 +360,9 @@ export default function KnowledgePage() {
               <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-stone-400">
                 <BookOpen className="h-6 w-6 text-stone-200" />
                 <p className="mt-2 text-[13px]">
-                  还没有知识库
+                  {tt("还没有知识库")}
                   <br />
-                  点击右上角「新建知识库」开始
+                  {tt("点击右上角「新建知识库」开始")}
                 </p>
               </div>
             ) : (
@@ -373,37 +373,37 @@ export default function KnowledgePage() {
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
                     <p className="flex items-center gap-1.5 text-[16px] font-semibold text-stone-800">
-                      {selected.name}
+                      {tt(selected.name)}
                       {selected.semantic && selected.qa && (
                         <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
                           已启用
                         </span>
                       )}
                     </p>
-                    <p className="mt-1 text-[12px] text-stone-400">本地 RAG · 检索增强问答</p>
+                    <p className="mt-1 text-[12px] text-stone-400">{tt("本地 RAG · 检索增强问答")}</p>
                   </div>
                 </div>
-                <p className="mt-3 px-5 text-[12.5px] leading-6 text-stone-500">{selected.desc || "暂无描述"}</p>
+                <p className="mt-3 px-5 text-[12.5px] leading-6 text-stone-500">{selected.desc || tt("暂无描述")}</p>
 
                 {/* 统计（真实） */}
                 <div className="mx-5 mt-4 grid grid-cols-3 divide-x divide-[var(--oc-border-soft)] rounded-xl border border-[var(--oc-border-soft)] py-3 text-center">
                   <div>
                     <p className="text-[18px] font-bold text-stone-800">{selected.docCount}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">文档数量</p>
+                    <p className="mt-0.5 text-[11px] text-stone-400">{tt("文档数量")}</p>
                   </div>
                   <div>
                     <p className="text-[18px] font-bold text-stone-800">{formatSize(selected.totalSize)}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">占用空间</p>
+                    <p className="mt-0.5 text-[11px] text-stone-400">{tt("占用空间")}</p>
                   </div>
                   <div>
                     <p className="text-[18px] font-bold text-stone-800">{selected.docCount * 3}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">检索片段数</p>
+                    <p className="mt-0.5 text-[11px] text-stone-400">{tt("检索片段数")}</p>
                   </div>
                 </div>
 
                 {/* 标签 */}
                 <div className="mt-5 px-5">
-                  <p className="text-[13.5px] font-semibold text-stone-800">标签</p>
+                  <p className="text-[13.5px] font-semibold text-stone-800">{tt("标签")}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {selected.tags.length ? (
                       selected.tags.map((t) => (
@@ -415,20 +415,20 @@ export default function KnowledgePage() {
                         </span>
                       ))
                     ) : (
-                      <span className="text-[11px] text-stone-400">暂无标签（可在编辑弹窗添加）</span>
+                      <span className="text-[11px] text-stone-400">{tt("暂无标签（可在编辑弹窗添加）")}</span>
                     )}
                   </div>
                 </div>
 
                 {/* 能力设置（真实持久化） */}
                 <div className="mt-5 px-5">
-                  <p className="text-[13.5px] font-semibold text-stone-800">能力设置</p>
+                  <p className="text-[13.5px] font-semibold text-stone-800">{tt("能力设置")}</p>
                   <div className="mt-2 space-y-1">
                     {(
                       [
-                        { key: "semantic", label: "语义检索", desc: "根据问题在文档中检索相关片段" },
-                        { key: "qa", label: "问答增强", desc: "将检索片段注入 AI 上下文作答" },
-                        { key: "cite", label: "引用来源", desc: "回答展示命中的文档与片段" },
+                        { key: "semantic", label: tt("语义检索"), desc: tt("根据问题在文档中检索相关片段") },
+                        { key: "qa", label: tt("问答增强"), desc: tt("将检索片段注入 AI 上下文作答") },
+                        { key: "cite", label: tt("引用来源"), desc: tt("回答展示命中的文档与片段") },
                       ] as const
                     ).map((s) => (
                       <div key={s.key} className="flex items-center gap-3 py-2">
@@ -448,10 +448,10 @@ export default function KnowledgePage() {
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ [s.key]: val }),
                               });
-                              toast(`${s.label}已${val ? "开启" : "关闭"}`, "success");
+                              toast(tt("{label}已{state}", { label: s.label, state: val ? tt("开启") : tt("关闭") }), "success");
                               await loadBases();
                             } catch {
-                              toast("设置失败", "error");
+                              toast(tt("设置失败"), "error");
                             }
                           }}
                           className={`relative h-5 w-9 rounded-full transition ${selected[s.key] ? "bg-[var(--oc-accent)]" : "bg-stone-200"}`}
@@ -523,9 +523,10 @@ function KbModal({ base, onClose, onSaved }: { base?: Kb; onClose: () => void; o
   const [tags, setTags] = useState(base?.tags.join(", ") ?? "");
   const [saving, setSaving] = useState(false);
 
+  const { tt } = useI18n();
   const submit = async () => {
     if (!name.trim()) {
-      toast("请填写知识库名称", "error");
+      toast(tt("请填写知识库名称"), "error");
       return;
     }
     setSaving(true);
@@ -542,14 +543,14 @@ function KbModal({ base, onClose, onSaved }: { base?: Kb; onClose: () => void; o
       });
       const data = (await res.json()) as { error?: string; base?: Kb };
       if (!res.ok || !data.base) {
-        toast(data.error ?? "保存失败", "error");
+        toast(data.error ?? tt("保存失败"), "error");
         setSaving(false);
         return;
       }
-      toast(base ? "已保存修改" : `已创建知识库「${name.trim()}」`, "success");
+      toast(base ? tt("已保存修改") : tt("已创建知识库「{name}」", { name: name.trim() }), "success");
       onSaved();
     } catch {
-      toast("网络错误，保存失败", "error");
+      toast(tt("网络错误，保存失败"), "error");
       setSaving(false);
     }
   };
@@ -559,9 +560,9 @@ function KbModal({ base, onClose, onSaved }: { base?: Kb; onClose: () => void; o
       <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[15px] font-semibold text-stone-800">{base ? "编辑知识库" : "新建知识库"}</p>
+            <p className="text-[15px] font-semibold text-stone-800">{base ? tt("编辑知识库") : tt("新建知识库")}</p>
             <p className="mt-0.5 text-[12px] text-stone-400">
-              {base ? "修改名称、描述与标签" : "创建后到文档中心上传文件，再添加到知识库"}
+              {base ? tt("修改名称、描述与标签") : tt("创建后到文档中心上传文件，再添加到知识库")}
             </p>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100">
@@ -578,26 +579,26 @@ function KbModal({ base, onClose, onSaved }: { base?: Kb; onClose: () => void; o
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
-              placeholder="如：产品文档库"
+              placeholder={tt("如：产品文档库")}
               className="mt-1.5 w-full rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[13px] text-stone-800 outline-none focus:border-[var(--oc-brand-border)]"
             />
           </div>
           <div>
-            <p className="text-[12.5px] font-medium text-stone-600">描述</p>
+            <p className="text-[12.5px] font-medium text-stone-600">{tt("描述")}</p>
             <input
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               maxLength={200}
-              placeholder="这个知识库用来装什么"
+              placeholder={tt("这个知识库用来装什么")}
               className="mt-1.5 w-full rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[13px] text-stone-800 outline-none focus:border-[var(--oc-brand-border)]"
             />
           </div>
           <div>
-            <p className="text-[12.5px] font-medium text-stone-600">标签（逗号分隔）</p>
+            <p className="text-[12.5px] font-medium text-stone-600">{tt("标签（逗号分隔）")}</p>
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="产品, 需求, PRD"
+              placeholder={tt("产品, 需求, PRD")}
               className="mt-1.5 w-full rounded-xl border border-[var(--oc-border)] px-3 py-2 text-[13px] text-stone-800 outline-none focus:border-[var(--oc-brand-border)]"
             />
           </div>
@@ -612,7 +613,7 @@ function KbModal({ base, onClose, onSaved }: { base?: Kb; onClose: () => void; o
             disabled={saving}
             className="rounded-xl bg-gradient-to-r from-orange-400 to-red-500 px-5 py-2 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105 disabled:opacity-60"
           >
-            {saving ? "保存中…" : base ? "保存修改" : "创建知识库"}
+            {saving ? tt("保存中…") : base ? tt("保存修改") : tt("创建知识库")}
           </button>
         </div>
       </div>
@@ -628,6 +629,7 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
   const [allDocs, setAllDocs] = useState<DocItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const { tt } = useI18n();
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -657,11 +659,11 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId: d.id }),
       });
-      toast(`已将「${d.name}」加入知识库`, "success");
+      toast(tt("已将「{name}」加入知识库", { name: d.name }), "success");
       await load();
       await onChanged();
     } catch {
-      toast("添加失败", "error");
+      toast(tt("添加失败"), "error");
     }
   };
 
@@ -672,11 +674,11 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId: d.id }),
       });
-      toast(`已从知识库移除「${d.name}」`, "success");
+      toast(tt("已从知识库移除「{name}」", { name: d.name }), "success");
       await load();
       await onChanged();
     } catch {
-      toast("移除失败", "error");
+      toast(tt("移除失败"), "error");
     }
   };
 
@@ -688,7 +690,7 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
       >
         <div className="flex items-start justify-between border-b border-[var(--oc-border-soft)] px-5 py-4">
           <div>
-            <p className="text-[15px] font-semibold text-stone-800">管理文档 · {kb.name}</p>
+            <p className="text-[15px] font-semibold text-stone-800">{tt("管理文档 · {name}", { name: kb.name })}</p>
             <p className="mt-0.5 text-[12px] text-stone-400">
               已加入 {inDocs.length} 个文档，AI 将基于这些文档检索回答
             </p>
@@ -700,10 +702,10 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
-            <p className="py-10 text-center text-[13px] text-stone-400">加载中…</p>
+            <p className="py-10 text-center text-[13px] text-stone-400">{tt("加载中…")}</p>
           ) : (
             <>
-              <p className="text-[13px] font-semibold text-stone-700">知识库内文档</p>
+              <p className="text-[13px] font-semibold text-stone-700">{tt("知识库内文档")}</p>
               {inDocs.length === 0 ? (
                 <p className="mt-2 rounded-xl border border-dashed border-[var(--oc-border-strong)] px-4 py-6 text-center text-[12.5px] text-stone-400">
                   暂无文档，从下方「可添加文档」中选择，或先去文档中心上传
@@ -717,7 +719,7 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
                       </span>
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-stone-700">{d.name}</span>
                       <span className="shrink-0 text-[11px] text-stone-400">
-                        {formatSize(d.size)} · {fmtTime(d.updatedAt)}
+                        {formatSize(d.size)} · {fmtTime(d.updatedAt, tt)}
                       </span>
                       <button
                         onClick={() => void remove(d)}
@@ -731,7 +733,7 @@ function DocsModal({ kb, onClose, onChanged }: { kb: Kb; onClose: () => void; on
               )}
 
               <p className="mt-5 text-[13px] font-semibold text-stone-700">
-                可添加文档 <span className="font-normal text-stone-400">（{candidates.length} 个）</span>
+                可添加文档 <span className="font-normal text-stone-400">{tt("（{n} 个）", { n: candidates.length })}</span>
               </p>
               {candidates.length === 0 ? (
                 <p className="mt-2 rounded-xl border border-dashed border-[var(--oc-border-strong)] px-4 py-6 text-center text-[12.5px] text-stone-400">
@@ -796,10 +798,11 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
   const [answering, setAnswering] = useState(false);
   const [asked, setAsked] = useState(false);
 
+  const { tt } = useI18n();
   const search = async () => {
     const q = question.trim();
     if (!q) {
-      toast("请输入问题", "error");
+      toast(tt("请输入问题"), "error");
       return;
     }
     setSearching(true);
@@ -813,11 +816,11 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
         body: JSON.stringify({ question: q }),
       }).then((r) => r.json())) as { hits?: Hit[]; empty?: boolean; message?: string };
       if (data.empty) {
-        toast(data.message ?? "知识库还没有文档", "info");
+        toast(data.message ?? tt("知识库还没有文档"), "info");
       }
       setHits(data.hits ?? []);
     } catch {
-      toast("检索失败", "error");
+      toast(tt("检索失败"), "error");
     }
     setSearching(false);
   };
@@ -869,7 +872,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
         }
       }
     } catch {
-      setAnswers(["（生成失败：请检查模型配置）"]);
+      setAnswers([tt("（生成失败：请检查模型配置）")]);
     }
     setAnswering(false);
   };
@@ -882,7 +885,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
       >
         <div className="flex items-start justify-between border-b border-[var(--oc-border-soft)] px-5 py-4">
           <div>
-            <p className="text-[15px] font-semibold text-stone-800">向「{kb.name}」提问</p>
+            <p className="text-[15px] font-semibold text-stone-800">{tt("向「{name}」提问", { name: kb.name })}</p>
             <p className="mt-0.5 text-[12px] text-stone-400">
               检索知识库内文档（真实命中），可让 AI 基于片段作答并给出引用
             </p>
@@ -900,7 +903,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") void search();
               }}
-              placeholder="例如：我们的产品主要解决了什么问题？"
+              placeholder={tt("例如：我们的产品主要解决了什么问题？")}
               className="min-w-0 flex-1 rounded-xl border border-[var(--oc-border)] px-3 py-2.5 text-[13px] text-stone-800 outline-none focus:border-[var(--oc-brand-border)]"
             />
             <button
@@ -908,7 +911,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
               disabled={searching}
               className="shrink-0 rounded-xl bg-gradient-to-r from-orange-400 to-red-500 px-4 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:brightness-105 disabled:opacity-60"
             >
-              {searching ? "检索中…" : "检索"}
+              {searching ? tt("检索中…") : tt("检索")}
             </button>
           </div>
 
@@ -917,7 +920,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
               <div className="flex items-center justify-between">
                 <p className="text-[13px] font-semibold text-stone-700">
                   命中 {hits.length} 个片段
-                  <span className="ml-2 text-[11px] font-normal text-stone-400">按相关度排序</span>
+                  <span className="ml-2 text-[11px] font-normal text-stone-400">{tt("按相关度排序")}</span>
                 </p>
                 <button
                   onClick={() => void answer()}
@@ -925,7 +928,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
                   className="flex items-center gap-1.5 rounded-lg bg-[var(--oc-brand-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--oc-brand)] transition hover:bg-[var(--oc-brand-mid)] disabled:opacity-50"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  {answering ? "AI 回答中…" : asked ? "重新回答" : "让 AI 基于片段回答"}
+                  {answering ? tt("AI 回答中…") : asked ? tt("重新回答") : tt("让 AI 基于片段回答")}
                 </button>
               </div>
 
@@ -936,7 +939,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
                       <span className="font-medium text-[var(--oc-brand)]">
                         资料{i + 1} · {h.docName}
                       </span>
-                      <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-400">相关度 {h.score}</span>
+                      <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-400">{tt("相关度 {n}", { n: h.score })}</span>
                     </p>
                     <p className="mt-1.5 text-[12.5px] leading-5 text-stone-600">
                       <Highlight text={h.snippet} question={question} />
@@ -958,7 +961,7 @@ function QueryModal({ kb, onClose }: { kb: Kb; onClose: () => void }) {
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-[var(--oc-border-soft)] px-5 py-4">
-          <p className="text-[11px] text-stone-400">被 {kb.docCount} 个文档支撑 · 相关度来自本地检索打分</p>
+          <p className="text-[11px] text-stone-400">{tt("被 {n} 个文档支撑 · 相关度来自本地检索打分", { n: kb.docCount })}</p>
           <button onClick={onClose} className="rounded-xl border border-[var(--oc-border)] px-4 py-2 text-[13px] text-stone-500 transition hover:bg-[var(--oc-hover)]">
             关闭
           </button>

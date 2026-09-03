@@ -80,7 +80,7 @@ export function PacksModal({ open, onClose }: { open: boolean; onClose: () => vo
                         className="flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500"
                       >
                         <Icon className="h-3 w-3" />
-                        {s.title}
+                        {tt(s.title)}
                       </span>
                     );
                   })}
@@ -97,7 +97,7 @@ export function PacksModal({ open, onClose }: { open: boolean; onClose: () => vo
               <span className="text-3xl">{pack.emoji}</span>
               <div>
                 <div className="text-base font-semibold">{pack.label}</div>
-                <div className="text-xs text-stone-400">将依次创建 {pack.steps.length} 个任务</div>
+                <div className="text-xs text-stone-400">{tt("将依次创建 {n} 个任务", { n: pack.steps.length })}</div>
               </div>
             </div>
             <div className="mb-4 space-y-2">
@@ -109,7 +109,7 @@ export function PacksModal({ open, onClose }: { open: boolean; onClose: () => vo
                       {i + 1}
                     </span>
                     <Icon className="h-4 w-4 text-stone-400" />
-                    <span className="text-stone-700">{s.title}</span>
+                    <span className="text-stone-700">{tt(s.title)}</span>
                   </div>
                 );
               })}

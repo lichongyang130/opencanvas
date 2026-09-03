@@ -274,9 +274,9 @@ function Segmented<T extends string | number>({
             )}
           >
             <span className={cn("block text-[13px] font-medium", active ? "text-orange-700" : "text-stone-700")}>
-              {o.label}
+              {tt(o.label)}
             </span>
-            {o.desc && <span className="mt-0.5 block text-[11px] text-stone-400">{o.desc}</span>}
+            {o.desc && <span className="mt-0.5 block text-[11px] text-stone-400">{tt(o.desc)}</span>}
           </button>
         );
       })}
@@ -354,7 +354,7 @@ function ProviderCard({
           <ProviderLogo provider={meta.id} className="h-10 w-10 rounded-xl" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[14px] font-semibold text-stone-800">{meta.label}</span>
+              <span className="text-[14px] font-semibold text-stone-800">{tt(meta.label)}</span>
               <StatusPill text={meta.region} kind="info" />
               {configured && <StatusPill text={"已配置"} kind="ok" icon={<Check className="h-3 w-3" />} />}
               {serverConfigured && <StatusPill text={"服务端密钥"} kind="info" />}
@@ -395,7 +395,7 @@ function ProviderCard({
           </button>
           <button
             onClick={onClear}
-            title={"清除此供应商的本地配置"}
+            title={tt("清除此供应商的本地配置")}
             className="rounded-lg border border-stone-200 p-1.5 text-stone-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -403,7 +403,7 @@ function ProviderCard({
         </div>
       </div>
 
-      <label className="mb-1 block text-xs font-medium text-stone-500">API Key {serverConfigured && "（可选，服务端已配置）"}</label>
+      <label className="mb-1 block text-xs font-medium text-stone-500">API Key {serverConfigured && tt("（可选，服务端已配置）")}</label>
       <div className="relative mb-3">
         <input
           type={showKey ? "text" : "password"}
@@ -423,7 +423,7 @@ function ProviderCard({
       </div>
 
       <label className="mb-1 block text-xs font-medium text-stone-500">
-        Base URL <span className="font-normal text-stone-400">{"（可选，默认官方地址；中转填中转地址）"}</span>
+        Base URL <span className="font-normal text-stone-400">{tt("（可选，默认官方地址；中转填中转地址）")}</span>
       </label>
       <input
         type="text"
@@ -1245,7 +1245,7 @@ function GeneralTab() {
               }`}
             >
               <o.icon className="h-5 w-5" />
-              {o.label}
+              {tt(o.label)}
             </button>
           ))}
         </div>
@@ -1342,9 +1342,9 @@ function GeneralTab() {
                   </span>
                   <span className="min-w-0">
                     <span className={cn("block text-[13px] font-medium", active ? "text-orange-700" : "text-stone-700")}>
-                      {MODE_LABELS[m.id]}
+                      {tt(MODE_LABELS[m.id])}
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-stone-400">{m.desc}</span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-stone-400">{tt(m.desc)}</span>
                   </span>
                 </button>
               );
@@ -1362,7 +1362,7 @@ function GeneralTab() {
             >
               {modelOptions.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.label}
+                  {tt(m.label)}
                 </option>
               ))}
             </select>
@@ -1470,12 +1470,12 @@ function DataOverview() {
         {items.map((it) => {
           const Icon = it.icon;
           return (
-            <div key={it.label} className="rounded-xl border border-stone-100 bg-stone-50/60 p-3 text-center">
+            <div key={tt(it.label)} className="rounded-xl border border-stone-100 bg-stone-50/60 p-3 text-center">
               <span className={cn("mx-auto flex h-8 w-8 items-center justify-center rounded-lg", it.tint)}>
                 <Icon className="h-4 w-4" />
               </span>
               <div className="mt-2 text-[18px] font-bold leading-none text-stone-800">{it.value}</div>
-              <div className="mt-1 text-[11px] text-stone-400">{it.label}</div>
+              <div className="mt-1 text-[11px] text-stone-400">{tt(it.label)}</div>
             </div>
           );
         })}
@@ -1582,13 +1582,13 @@ function AboutTab() {
               const Icon = f.icon;
               return (
                 <div
-                  key={f.label}
+                  key={tt(f.label)}
                   className="flex items-center gap-2.5 rounded-xl border border-stone-100 bg-stone-50/60 px-3 py-2.5"
                 >
                   <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", f.tint)}>
                     <Icon className="h-3.5 w-3.5" />
                   </span>
-                  <span className="text-xs font-medium text-stone-600">{f.label}</span>
+                  <span className="text-xs font-medium text-stone-600">{tt(f.label)}</span>
                 </div>
               );
             })}
@@ -1604,10 +1604,10 @@ function AboutTab() {
       >
         <ol className="space-y-4">
           {CHANGELOG.map((v) => (
-            <li key={v.tag} className="flex gap-3">
+            <li key={tt(v.tag)} className="flex gap-3">
               <div className="flex shrink-0 flex-col items-center">
                 <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[10px] font-bold text-orange-600">
-                  {v.tag}
+                  {tt(v.tag)}
                 </span>
                 <span className="mt-0.5 text-[10px] text-stone-400">{v.date}</span>
               </div>
@@ -1634,11 +1634,11 @@ function AboutTab() {
           {TECH_STACK.map((t) => {
             const Icon = t.icon;
             return (
-              <div key={t.label} className="flex items-center gap-2.5 rounded-xl border border-stone-100 px-3 py-2.5">
+              <div key={tt(t.label)} className="flex items-center gap-2.5 rounded-xl border border-stone-100 px-3 py-2.5">
                 <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", t.tint)}>
                   <Icon className="h-3.5 w-3.5" />
                 </span>
-                <span className="text-xs font-medium text-stone-600">{t.label}</span>
+                <span className="text-xs font-medium text-stone-600">{tt(t.label)}</span>
               </div>
             );
           })}
@@ -1669,7 +1669,7 @@ function ThemeCard() {
             {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </span>
           <div>
-            <div className="text-[13px] font-medium text-stone-700">{label}模式</div>
+            <div className="text-[13px] font-medium text-stone-700">{tt("{label}模式", { label })}</div>
             <p className="text-[11px] text-stone-400">
               {theme === "system" ? tt("随操作系统自动切换浅色/深色") : tt("主题偏好已保存在本地")}
             </p>
@@ -1754,9 +1754,9 @@ function GatewayTuningCard() {
   return (
     <div className="space-y-2">
       {items.map((it) => (
-        <div key={it.label} className="flex items-start justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/60 px-3.5 py-3">
+        <div key={tt(it.label)} className="flex items-start justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/60 px-3.5 py-3">
           <div className="min-w-0">
-            <p className="text-[12.5px] font-semibold text-stone-700">{it.label}</p>
+            <p className="text-[12.5px] font-semibold text-stone-700">{tt(it.label)}</p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-stone-400">{it.desc}</p>
           </div>
           <StatusPill
@@ -1864,8 +1864,8 @@ function GatewayStatsCard() {
                 value: fmtUsd(stats.stats.totals.costUsd),
               },
             ].map((x) => (
-              <div key={x.label} className="rounded-xl border border-stone-100 bg-white px-3 py-2.5">
-                <p className="text-[10px] text-stone-400">{x.label}</p>
+              <div key={tt(x.label)} className="rounded-xl border border-stone-100 bg-white px-3 py-2.5">
+                <p className="text-[10px] text-stone-400">{tt(x.label)}</p>
                 <p className="mt-0.5 text-[15px] font-semibold text-stone-700">{x.value}</p>
               </div>
             ))}

@@ -1,12 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getLocale } from "@/lib/i18n/server";
 import { LEGAL } from "@/lib/i18n/legal";
 
-export const metadata = {
-  title: "隐私政策 · OpenCanvas",
-  description: "OpenCanvas 隐私政策：我们收集什么、如何使用、如何保护与删除你的数据。",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const doc = LEGAL[locale].privacy;
+  return {
+    title: `${doc.title} · OpenCanvas`,
+    description: `${doc.title}：${doc.sections[0]?.title ?? ""}、${doc.sections[1]?.title ?? ""}。`,
+  };
+}
 
 export default async function PrivacyPage() {
   const doc = LEGAL[await getLocale()].privacy;

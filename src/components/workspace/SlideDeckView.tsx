@@ -64,7 +64,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{deck.title}</div>
-            <div className="text-xs text-stone-400">{deck.slides.length} 页 · 文字可直接点击编辑</div>
+            <div className="text-xs text-stone-400">{tt("{n} 页 · 文字可直接点击编辑", { n: deck.slides.length })}</div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -107,7 +107,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
           {THEME_LIST.map((th) => (
             <button
               key={th.id}
-              title={th.label}
+              title={tt(th.label)}
               onClick={() => setDeckTheme(th.id)}
               className={cn(
                 "flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] transition",
@@ -120,7 +120,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
                 className="h-3 w-3 rounded-full border border-black/10"
                 style={{ background: th.primary }}
               />
-              {th.label}
+              {tt(th.label)}
             </button>
           ))}
         </div>
@@ -195,7 +195,7 @@ export function SlideDeckView({ deck }: { deck: SlideDeck }) {
             />
           </div>
           <div className="mx-auto mt-4 flex max-w-2xl items-center justify-between text-xs text-stone-400">
-            <span>第 {idx + 1} / {deck.slides.length} 页</span>
+            <span>{tt("第 {i} / {n} 页", { i: idx + 1, n: deck.slides.length })}</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => duplicateSlide(idx)}

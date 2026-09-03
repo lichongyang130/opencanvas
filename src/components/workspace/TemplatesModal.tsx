@@ -176,7 +176,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
     markUsed(t.id);
     close();
     void fillTemplate({ mode: t.mode, prompt: applyVariables(t.prompt, c.values) });
-    toast(`已把「${t.label}」同款填入输入框，确认后发送`, "success");
+    toast(tt("已把「{label}」同款填入输入框，确认后发送", { label: tt(t.label) }), "success");
   };
 
   /** 分享：生成公开链接并复制（方案 B） */
@@ -242,7 +242,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                 )}
               >
                 {s.icon}
-                <span className="flex-1 text-left">{s.label}</span>
+                <span className="flex-1 text-left">{tt(s.label)}</span>
                 {s.count !== undefined && s.count > 0 && (
                   <span
                     className={cn(
@@ -338,14 +338,14 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                       <div className="mb-1 flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 text-sm font-medium text-stone-800">
-                            <span className="truncate">{t.label}</span>
+                            <span className="truncate">{tt(t.label)}</span>
                           </div>
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <span className={cn("rounded px-1.5 py-0.5 text-[10px]", MODE_COLOR[t.mode])}>
                               {MODE_TAG[t.mode]}
                             </span>
                             <span className="truncate text-[11px] text-stone-400">
-                              {CATEGORY_LABELS[t.category]} · {t.desc}
+                              {tt(CATEGORY_LABELS[t.category])} · {tt(t.desc)}
                             </span>
                           </div>
                         </div>
@@ -412,7 +412,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                           { }
                           <img
                             src={thumb.image}
-                            alt={thumb.label}
+                            alt={tt(thumb.label)}
                             loading="lazy"
                             className="h-32 w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                           />
@@ -425,7 +425,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                         <div className="mb-2 flex flex-wrap gap-1.5">
                           {cases.map((c) => (
                             <span
-                              key={c.label}
+                              key={tt(c.label)}
                               className="flex items-center overflow-hidden rounded-full border border-brand-200 bg-brand-50 text-[11px] text-brand-700"
                             >
                               <button
@@ -433,7 +433,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                                 title={tt("做同款：把该案例填入输入框（不发送）")}
                                 className="flex items-center gap-1 px-2 py-0.5 transition hover:bg-brand-100"
                               >
-                                <Sparkles className="h-3 w-3" /> {c.label}
+                                <Sparkles className="h-3 w-3" /> {tt(c.label)}
                               </button>
                               <button
                                 onClick={() =>
@@ -519,7 +519,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
           >
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">{zoomCase.label}</span>
+                <span className="text-sm font-semibold">{tt(zoomCase.label)}</span>
                 <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">{tt("真实案例")}</span>
               </div>
               <button onClick={() => setZoomCase(null)} className="rounded-lg p-1 text-stone-400 hover:bg-stone-100">
@@ -530,7 +530,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
               {zoomCase.image ? (
                 <>
                   { }
-                  <img src={zoomCase.image} alt={zoomCase.label} className="w-full" />
+                  <img src={zoomCase.image} alt={tt(zoomCase.label)} className="w-full" />
                 </>
               ) : (
                 <div className="bg-stone-900 px-4 py-4">
@@ -590,7 +590,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             setShowImport(false);
             close();
             void fillTemplate({ mode: t.mode, prompt: applyVariables(t.prompt, p.values) });
-            toast(`已载入同款「${t.label}」，确认后发送`, "success");
+            toast(tt("已载入同款「{label}」，确认后发送", { label: tt(t.label) }), "success");
             return true;
           }}
         />
@@ -893,7 +893,7 @@ function VariableDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center gap-2 font-semibold">
-          <Star className="h-4 w-4 text-brand-600" /> {template.label}
+          <Star className="h-4 w-4 text-brand-600" /> {tt(template.label)}
         </div>
         <p className="mb-4 text-xs text-stone-400">{tt("填写下面的内容，替换提示词中的变量")}</p>
         <div className="space-y-3">
@@ -979,7 +979,7 @@ function CreatePromptDialog({
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.label}
+                    {tt(c.label)}
                   </option>
                 ))}
               </select>
