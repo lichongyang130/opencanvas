@@ -1011,6 +1011,42 @@ export const repo = {
       : null;
   },
 
+  /** 删除账号：用户 + 会话（级联消息）+ 网关用量；积分账本为全局记录，不随删号变动 */
+  deleteUserAccount(userId: string): void {
+    const db = getDb();
+    db.prepare("DELETE FROM conversations WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM gateway_usage WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  },
+
+  /** 账号数据导出（GDPR 风格）：资料 + 会话/消息 + 用量汇总 */
+  getUserAccountExport(userId: string) {
+    const db = getDb();
+    const user = db.prepare("SELECT id, email, name, provider, createdAt FROM users WHERE id = ?").get(userId) as
+      | Record<string, unknown>
+      | undefined;
+    if (!user) return null;
+    const conversations = this.listConversations(undefined, userId).map((c) => ({
+      ...c,
+      messages: this.getMessages(c.id),
+    }));
+    const usage = db
+      .prepare(
+        `SELECT modelId, providerId, fallback, status, inputTokens, outputTokens, costUsd, credits, latencyMs, createdAt
+         FROM gateway_usage WHERE userId = ? ORDER BY createdAt DESC`
+      )
+      .all(userId);
+    return {
+      app: "opencanvas",
+      schema: "account-export-v1",
+      exportedAt: new Date().toISOString(),
+      account: { id: user.id, email: user.email, name: user.name, provider: user.provider, createdAt: user.createdAt },
+      conversations,
+      gatewayUsage: usage,
+      note: "本地版提示词模板/知识库/积分账本为全局共享数据，不含个人归属字段，故未包含在本导出中。",
+    };
+  },
+
   deleteSession(token: string): void {
     getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
   },

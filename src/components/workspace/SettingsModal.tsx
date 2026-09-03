@@ -63,6 +63,7 @@ import {
   type WorkspaceMode,
 } from "@/lib/store/chat";
 import type { ProviderId } from "@/lib/gateway";
+import { useAuthStore } from "@/lib/store/auth";
 import type { SettingsProviderId } from "@/lib/settings";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
@@ -1105,6 +1106,16 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                       </div>
                     )}
                   </SectionCard>
+
+                  {/* 账号与合规：导出 / 删除账号（GDPR 式权利） */}
+                  <SectionCard
+                    icon={ShieldCheck}
+                    iconBg="bg-gradient-to-br from-indigo-500 to-violet-600"
+                    title="账号与数据权利"
+                    desc="导出我的全部数据；或永久删除账号及其名下数据（不可撤销）"
+                  >
+                    <AccountRightsCard />
+                  </SectionCard>
                 </>
               )}
 
@@ -1889,6 +1900,84 @@ function GatewayStatsCard() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------------- 账号与数据权利（导出 / 删除） ---------------- */
+
+function AccountRightsCard() {
+  const user = useAuthStore((s) => s.user);
+  const [deleteWord, setDeleteWord] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const doDelete = async () => {
+    if (deleteWord !== "DELETE") {
+      toast("请输入 DELETE 确认", "error");
+      return;
+    }
+    setDeleting(true);
+    try {
+      const r = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      const j = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok || !j.ok) throw new Error(j.error ?? "删除失败");
+      toast("账号已删除，正在退出…", "success");
+      window.location.href = "/";
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "删除失败", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-stone-50 p-3.5">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-stone-600">导出我的数据</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-stone-400">
+            {user
+              ? "包含账号资料、名下会话与消息、模型用量记录（JSON）"
+              : "未登录时导出仅包含本机匿名会话；登录后可导出完整账号数据"}
+          </p>
+        </div>
+        <a
+          href="/api/export"
+          download
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-600 transition hover:border-indigo-300 hover:text-indigo-600"
+        >
+          <Download className="h-3.5 w-3.5" /> 导出 JSON
+        </a>
+      </div>
+
+      <div className="rounded-xl border border-red-100 bg-red-50/50 p-3.5">
+        <p className="text-xs font-medium text-red-700">删除账号（不可撤销）</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-red-500">
+          永久删除账号资料、登录会话、名下全部会话/消息与模型用量记录。积分账本与模板市场为全局共享数据，不随删号变动。
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={deleteWord}
+            onChange={(e) => setDeleteWord(e.target.value)}
+            placeholder='输入 DELETE 确认'
+            disabled={!user || deleting}
+            className="w-40 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs outline-none transition focus:border-red-400 disabled:opacity-50"
+          />
+          <button
+            onClick={() => void doDelete()}
+            disabled={!user || deleting || deleteWord !== "DELETE"}
+            className="flex items-center gap-1.5 rounded-lg bg-red-500 px-3.5 py-2 text-xs font-medium text-white transition hover:bg-red-600 disabled:opacity-50"
+          >
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            永久删除账号
+          </button>
+          {!user && <span className="text-[11px] text-stone-400">请先登录后再删除账号</span>}
+        </div>
+      </div>
     </div>
   );
 }

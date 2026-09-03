@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -546,6 +547,14 @@ export default function HomePage() {
 
       {/* 设置中心（可从首页顶栏直接打开） */}
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* 页脚：合规链接 */}
+      <footer className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 border-t border-stone-100 bg-white/70 py-2 text-[11px] text-stone-400 backdrop-blur">
+        <span>© 2026 OpenCanvas</span>
+        <Link href="/privacy" className="transition hover:text-stone-600">隐私政策</Link>
+        <Link href="/terms" className="transition hover:text-stone-600">用户协议</Link>
+        <Link href="/api/export" className="transition hover:text-stone-600">导出我的数据</Link>
+      </footer>
 
       {/* 首次访问新手引导 */}
       {onboardStep !== null && (
