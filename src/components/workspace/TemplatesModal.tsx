@@ -407,7 +407,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
                           title="查看真实效果图"
                           className="mb-2 block w-full overflow-hidden rounded-lg border border-stone-100 bg-stone-50"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          { }
                           <img
                             src={thumb.image}
                             alt={thumb.label}
@@ -527,7 +527,7 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             <div className="min-h-0 flex-1 overflow-y-auto">
               {zoomCase.image ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  { }
                   <img src={zoomCase.image} alt={zoomCase.label} className="w-full" />
                 </>
               ) : (

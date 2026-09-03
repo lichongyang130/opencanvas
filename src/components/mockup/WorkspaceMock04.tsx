@@ -370,7 +370,7 @@ export default function WorkspaceMock04() {
                   生成的视觉草图
                 </p>
                 <div className="mt-3 overflow-hidden rounded-xl border border-stone-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  { }
                   <img src="/mock-visual.png" alt="智能手表视觉草图" className="h-40 w-full object-cover" />
                 </div>
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-stone-100">

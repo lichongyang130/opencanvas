@@ -4,7 +4,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** 生成/复用模板独立分享码：POST /api/templates/:id/share -> { code, url, shared } */
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const cur = repo.getTemplate(params.id);
   if (!cur) return Response.json({ error: "模板不存在" }, { status: 404 });
   const code = repo.shareTemplate(params.id);
@@ -13,7 +14,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 }
 
 /** 取消分享：DELETE /api/templates/:id/share */
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const cur = repo.getTemplate(params.id);
   if (!cur) return Response.json({ error: "模板不存在" }, { status: 404 });
   repo.unshareTemplate(params.id);

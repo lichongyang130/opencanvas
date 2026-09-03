@@ -8,8 +8,8 @@ export const metadata = {
   description: "OpenCanvas 服务条款：使用规则、积分与付费、内容责任与免责声明。",
 };
 
-export default function TermsPage() {
-  const doc = LEGAL[getLocale()].terms;
+export default async function TermsPage() {
+  const doc = LEGAL[await getLocale()].terms;
   return (
     <div className="min-h-screen bg-[var(--oc-bg)] text-stone-800">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-6 py-6">
@@ -46,7 +46,7 @@ export default function TermsPage() {
         </div>
 
         <p className="mt-8 text-center text-xs text-stone-400">
-          © 2026 OpenCanvas · <Link href="/privacy" className="hover:text-stone-600">{LEGAL[getLocale()].privacy.title}</Link>
+          © 2026 OpenCanvas · <Link href="/privacy" className="hover:text-stone-600">{LEGAL[await getLocale()].privacy.title}</Link>
         </p>
       </main>
     </div>

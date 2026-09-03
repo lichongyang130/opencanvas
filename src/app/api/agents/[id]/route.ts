@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
  * - { action: "unshare" } → 取消分享
  * - 其他字段 → 更新智能体内容
  */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as {
     action?: "share" | "unshare";
@@ -53,7 +54,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 /** DELETE：删除自定义智能体 */
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const cur = repo.getAgent(params.id);
   if (!cur) return Response.json({ error: "智能体不存在" }, { status: 404 });
   repo.deleteAgent(params.id);

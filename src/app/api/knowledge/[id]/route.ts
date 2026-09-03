@@ -5,7 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** PATCH：{ name?, desc?, tags?, semantic?, qa?, cite? }（能力开关持久化） */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const cur = repo.getKnowledgeBase(params.id, uid);
   if (!cur) return Response.json({ error: "知识库不存在" }, { status: 404 });
@@ -35,7 +36,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 /** DELETE：删除知识库（关联自动清理） */
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const cur = repo.getKnowledgeBase(params.id, uid);
   if (!cur) return Response.json({ error: "知识库不存在" }, { status: 404 });

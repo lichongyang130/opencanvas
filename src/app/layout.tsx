@@ -8,8 +8,9 @@ import { getDict, getLocale } from "@/lib/i18n/server";
 const SITE_NAME = "OpenCanvas AI";
 
 /** 按请求 cookie 生成语言感知 metadata（不能在模块顶层求值） */
-export function generateMetadata(): Metadata {
-  const loc = getDict();
+export async function generateMetadata(): Promise<Metadata> {
+  const loc = await getDict();
+  const locale = await getLocale();
   return {
     title: {
       default: `${SITE_NAME} — ${loc.home.heroTitle}`,
@@ -24,7 +25,7 @@ export function generateMetadata(): Metadata {
     openGraph: {
       type: "website",
       siteName: SITE_NAME,
-      locale: getLocale() === "en" ? "en_US" : "zh_CN",
+      locale: locale === "en" ? "en_US" : "zh_CN",
       title: `${SITE_NAME} — ${loc.home.heroTitle}`,
       description: loc.home.heroSub,
     },
@@ -47,9 +48,10 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang={getLocale() === "en" ? "en" : "zh-CN"}>
+    <html lang={locale === "en" ? "en" : "zh-CN"}>
       <body>
         <LocaleProvider>
           <ThemeSync />

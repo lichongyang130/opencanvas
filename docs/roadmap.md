@@ -92,6 +92,7 @@
 ## 三、基础设施
 
 ### 14. 生产化存储与队列（P1）
+- ✅ Next.js 14 → 16 + React 19 升级（async params codemod、ESLint 9 flat config、Turbopack dev）
 - ✅ SQLite → PostgreSQL（schema + 迁移/导入/冒烟，PG 18.4 实测）
 - ✅ Redis + BullMQ 队列抽象（无 Redis 内存队列兜底，/api/health 展示模式）
 - ✅ 文件存 Cloudflare R2 / S3（存储抽象：本地默认 / S3 兼容切换，文档全链路实测）

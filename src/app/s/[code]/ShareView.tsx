@@ -366,7 +366,7 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
                 )}
 
                 {data.kind === "case" && Boolean(data.data.image) && (
-                  // eslint-disable-next-line @next/next/no-img-element
+                   
                   <img src={data.data.image as string} alt={data.title} className="w-full rounded-xl border border-[var(--oc-border-soft)]" />
                 )}
 
@@ -380,7 +380,7 @@ export default function ShareView({ code, initial }: { code: string; initial: Sh
                         key={img.id}
                         className="overflow-hidden rounded-xl border border-[var(--oc-border-soft)] bg-white shadow-sm"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        { }
                         <img src={img.url} alt={img.prompt} className="w-full" />
                         <figcaption className="truncate px-2 py-1.5 text-[10.5px] text-stone-400">{img.model}</figcaption>
                       </figure>

@@ -4,7 +4,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** 取单个会话 + 全部消息（切换会话时加载） */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const convo = repo.getConversation(params.id);
   if (!convo) return Response.json({ error: "不存在" }, { status: 404 });
   const messages = repo.getMessages(params.id);
@@ -12,7 +13,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 /** 更新会话（标题/模式/模型/PPT 产物/归档/置顶） */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const body = (await req.json()) as {
     title?: string;
     mode?: string;
@@ -78,7 +80,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 /** 删除会话（级联删消息） */
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   repo.deleteConversation(params.id);
   return Response.json({ ok: true });
 }

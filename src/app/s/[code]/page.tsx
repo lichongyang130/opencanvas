@@ -6,7 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** 分享页 SEO：标题/描述按分享内容动态生成（公开只读页，便于搜索引擎收录） */
-export async function generateMetadata({ params }: { params: { code: string } }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ code: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const s = resolveShare(params.code);
   if (!s) {
     return {
@@ -34,7 +35,8 @@ export async function generateMetadata({ params }: { params: { code: string } })
 }
 
 /** 服务端解析一次（metadata 与首屏共用），客户端组件复用；未命中时由客户端兜底刷新 */
-export default function SharePage({ params }: { params: { code: string } }) {
+export default async function SharePage(props: { params: Promise<{ code: string }> }) {
+  const params = await props.params;
   const initial = resolveShare(params.code);
   return <ShareView code={params.code} initial={initial} />;
 }

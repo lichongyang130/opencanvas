@@ -177,7 +177,7 @@ export function SlideView({ slide, themeId, index, editable, onPatch }: Props) {
           </div>
           {slide.imagePrompt && (
             slide.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+               
               <img
                 src={slide.imageUrl}
                 alt={slide.imagePrompt}

@@ -6,7 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** 详情 / 预览 / 下载 */
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const doc = repo.getDocument(params.id, uid);
   if (!doc) return Response.json({ error: "文档不存在" }, { status: 404 });
@@ -38,7 +39,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 /** PATCH：改内容 / 重命名 / 收藏 / 恢复（也支持直接编辑正文保存） */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const body = (await req.json()) as {
     name?: string;
@@ -64,7 +66,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 /** DELETE：?hard=1 彻底删除（默认进回收站） */
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const doc = repo.getDocument(params.id, uid);
   if (!doc) return Response.json({ error: "文档不存在" }, { status: 404 });

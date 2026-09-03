@@ -17,7 +17,8 @@ const MODE_BY_KIND: Record<ArtifactShareKind, string> = {
  * 服务端创建会话并写入产物（未登录归属本地 NULL，与普通新建会话一致），
  * 返回 { conversationId }，前端跳 /chat 并选中该会话。
  */
-export async function POST(_req: Request, { params }: { params: { code: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ code: string }> }) {
+  const params = await props.params;
   const share = getArtifactShare(params.code);
   if (!share) {
     return Response.json({ error: "分享不存在或已取消" }, { status: 404 });

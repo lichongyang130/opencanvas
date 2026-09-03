@@ -2,6 +2,22 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第十九轮：Next.js 14 → 16 升级（C 类完成）
+
+**依赖升级**
+- `next` 14.2.35 → 16.3.4（Turbopack dev）、`react`/`react-dom` 18.3 → 19.2、`zustand` 4.5 → 5
+- `eslint` 8 → 9（flat config）＋ `eslint-config-next` 14 → 16；`next lint` 已移除 → `eslint .`（eslint.config.mjs）
+- `@types/react`/`@types/react-dom` 19
+
+**破坏性变更适配**
+- `cookies()` 变 async：i18n 服务端 `getLocale/getDict` 改 async（layout/privacy/terms 同步适配）
+- 动态路由 `params` 为 Promise：15 个 route + `/s/[code]` 页面用官方 `next-async-request-api` codemod 转换
+- `next.config.mjs`：`experimental.serverComponentsExternalPackages` → 顶层 `serverExternalPackages`
+- 新版 eslint-config 引入 React Compiler 实验规则（set-state-in-effect/purity），存量 useEffect 初始化模式在 React 19 运行时合法，暂关闭并在配置内注明；`--fix` 清理失效 disable 注释
+
+**验证**：`next build` 成功（48 API + 12 页面）；dev（Turbopack）下首页/health/robots/sitemap/隐私双语、
+注册→上传→下载→知识库 query 降级、`/s/[code]` 动态分享页全 200；tsc=0、lint=0 ✓
+
 ## 2026-09-03 · 第十八轮：多语言 i18n（中/英，C 类）
 
 **轻量自研 i18n（无路由段、无 next-intl 依赖）**

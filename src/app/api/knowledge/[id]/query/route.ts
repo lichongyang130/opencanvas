@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  *  2. 未配置或 Embedding 失败 → 本地 TF-IDF + 关键词融合检索（零依赖降级）
  *  3. 无命中 → 最近文档片段兜底（保证引用来源能力）
  */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uid = getUserFromRequest(req)?.id ?? null;
   const kb = repo.getKnowledgeBase(params.id, uid);
   if (!kb) return Response.json({ error: "知识库不存在" }, { status: 404 });

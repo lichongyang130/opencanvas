@@ -10,7 +10,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** 开始 Google / GitHub OAuth：生成 state（httpOnly cookie）并跳转授权页 */
-export async function GET(req: Request, { params }: { params: { provider: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ provider: string }> }) {
+  const params = await props.params;
   const provider = params.provider as OAuthProvider;
   if (provider !== "google" && provider !== "github") {
     return Response.json({ error: "不支持的 OAuth 供应商" }, { status: 400 });

@@ -8,8 +8,8 @@ export const metadata = {
   description: "OpenCanvas 隐私政策：我们收集什么、如何使用、如何保护与删除你的数据。",
 };
 
-export default function PrivacyPage() {
-  const doc = LEGAL[getLocale()].privacy;
+export default async function PrivacyPage() {
+  const doc = LEGAL[await getLocale()].privacy;
   return (
     <div className="min-h-screen bg-[var(--oc-bg)] text-stone-800">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-6 py-6">
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
         </div>
 
         <p className="mt-8 text-center text-xs text-stone-400">
-          © 2026 OpenCanvas · <Link href="/terms" className="hover:text-stone-600">{LEGAL[getLocale()].terms.title}</Link>
+          © 2026 OpenCanvas · <Link href="/terms" className="hover:text-stone-600">{LEGAL[await getLocale()].terms.title}</Link>
         </p>
       </main>
     </div>

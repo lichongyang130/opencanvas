@@ -593,7 +593,7 @@ function SplitComposer({
                   className="flex max-w-[220px] items-center gap-1.5 rounded-lg border border-[var(--oc-border)] bg-[var(--oc-bg)] py-1 pl-1.5 pr-1 text-[11px] text-stone-600"
                 >
                   {a.kind === "image" && a.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                     
                     <img src={a.url} alt={a.name} className="h-7 w-7 rounded object-cover" />
                   ) : (
                     <FileText className="h-3.5 w-3.5 shrink-0 text-brand-500" />

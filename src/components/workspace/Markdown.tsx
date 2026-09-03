@@ -23,7 +23,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
         const url = mm[2].trim();
         const isData = url.startsWith("data:");
         parts.push(
-          // eslint-disable-next-line @next/next/no-img-element
+           
           <img
             key={`${keyPrefix}-img${i}`}
             src={url}

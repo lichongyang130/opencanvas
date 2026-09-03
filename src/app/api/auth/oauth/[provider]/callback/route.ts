@@ -13,7 +13,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** OAuth 回调：校验 state → 换 token → 拉资料 → 绑定/创建本地用户 → 建会话 → 回首页 */
-export async function GET(req: Request, { params }: { params: { provider: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ provider: string }> }) {
+  const params = await props.params;
   const provider = params.provider as OAuthProvider;
   const base = encodeURIComponent(new URL(req.url).origin);
   const bad = (reason: string, detail?: string) => {

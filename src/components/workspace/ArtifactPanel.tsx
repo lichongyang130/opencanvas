@@ -183,7 +183,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
         {[...images].reverse().map((img) => (
           <figure key={img.id} className="group overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
             <button onClick={() => setZoom(img)} className="block w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              { }
               <img src={img.url} alt={img.prompt} className="w-full" />
             </button>
             <figcaption className="p-3">
@@ -329,7 +329,7 @@ function ImageGallery({ images }: { images: UIImage[] }) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-8"
           onClick={() => setZoom(null)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          { }
           <img src={zoom.url} alt={zoom.prompt} className="max-h-full max-w-full rounded-lg shadow-2xl" />
         </div>
       )}
