@@ -13,6 +13,7 @@ import {
   Globe,
   Info,
   KeyRound,
+  ListTree,
   Loader2,
   RefreshCw,
   Search,
@@ -125,6 +126,9 @@ export function SettingsCenter({
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [test, setTest] = useState<TestState>({});
   const [serverStatus, setServerStatus] = useState<Record<string, boolean>>({});
+  const [dynamic, setDynamic] = useState<Partial<Record<ProviderId, string[]>>>({});
+  const [fetching, setFetching] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [storage, setStorage] = useState<Array<{ key: string; bytes: number }>>([]);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -146,6 +150,7 @@ export function SettingsCenter({
     setSettings(loadSettings());
     setSaved(false);
     setTest({});
+    setDynamic(loadDynamicModels());
     refreshStorage();
     void serverProviderStatus().then(setServerStatus);
   }, [refreshStorage]);
@@ -204,6 +209,106 @@ export function SettingsCenter({
       setTest((t) => ({ ...t, [id]: "fail" }));
       toast(`连接失败：${e instanceof Error ? e.message : ""}`, "error");
     }
+  };
+
+  /** 已配置（本机填了 key 或服务端 env 配了）才能拉取模型 */
+  const isReady = (id: ProviderId) => Boolean(settings[id]?.apiKey) || Boolean(serverStatus[id]);
+
+  /** 拉取该供应商账号/中转真实可用的模型列表并缓存（用当前表单值，未保存也能拉） */
+  const fetchModels = async (id: ProviderId) => {
+    if (!isReady(id)) {
+      toast("请先填写 API Key（或由服务端配置）", "error");
+      return;
+    }
+    const cur = settings[id];
+    setFetching((f) => ({ ...f, [id]: true }));
+    try {
+      const res = await fetch("/api/models/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: id,
+          overrides: cur?.apiKey
+            ? { [id]: { apiKey: cur.apiKey, baseUrl: cur.baseUrl || undefined } }
+            : undefined,
+        }),
+      });
+      const data = (await res.json()) as { models?: string[]; error?: string };
+      if (!res.ok || !data.models) throw new Error(data.error ?? "获取失败");
+
+      const next = { ...loadDynamicModels(), [id]: data.models };
+      saveDynamicModels(next);
+      setDynamic(next);
+      setTest((t) => ({ ...t, [id]: "ok" }));
+      setExpanded((e) => ({ ...e, [id]: true }));
+      toast(
+        `${PROVIDER_META.find((p) => p.id === id)?.label.split("（")[0]}：已获取 ${data.models.length} 个模型`,
+        "success",
+      );
+    } catch (e) {
+      setTest((t) => ({ ...t, [id]: "fail" }));
+      toast(`获取模型列表失败：${e instanceof Error ? e.message : ""}`, "error");
+    } finally {
+      setFetching((f) => ({ ...f, [id]: false }));
+    }
+  };
+
+  /** 一键刷新全部已配置供应商的模型列表 */
+  const fetchAll = async () => {
+    const targets = PROVIDER_META.filter((p) => isReady(p.id)).map((p) => p.id);
+    if (targets.length === 0) {
+      toast("请先至少配置一家供应商的 API Key", "error");
+      return;
+    }
+    setFetching(Object.fromEntries(targets.map((t) => [t, true])));
+    let ok = 0;
+    let count = 0;
+    const failed: string[] = [];
+    for (const id of targets) {
+      const cur = settings[id];
+      try {
+        const res = await fetch("/api/models/fetch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: id,
+            overrides: cur?.apiKey
+              ? { [id]: { apiKey: cur.apiKey, baseUrl: cur.baseUrl || undefined } }
+              : undefined,
+          }),
+        });
+        const data = (await res.json()) as { models?: string[]; error?: string };
+        if (!res.ok || !data.models) throw new Error(data.error ?? "获取失败");
+        const next = { ...loadDynamicModels(), [id]: data.models };
+        saveDynamicModels(next);
+        setDynamic(next);
+        setTest((t) => ({ ...t, [id]: "ok" }));
+        ok += 1;
+        count += data.models.length;
+      } catch (e) {
+        setTest((t) => ({ ...t, [id]: "fail" }));
+        failed.push(
+          `${PROVIDER_META.find((p) => p.id === id)?.label.split("（")[0]}（${
+            e instanceof Error ? e.message : "失败"
+          }）`,
+        );
+      } finally {
+        setFetching((f) => ({ ...f, [id]: false }));
+      }
+    }
+    if (ok > 0) toast(`已更新 ${ok} 家供应商、共 ${count} 个模型`, "success");
+    if (failed.length > 0) toast(`获取失败：${failed.join("、")}`, "error");
+  };
+
+  /** 清除某家已缓存的模型列表 */
+  const clearModels = (id: ProviderId) => {
+    const next = { ...loadDynamicModels() };
+    delete next[id];
+    saveDynamicModels(next);
+    setDynamic(next);
+    setTest((t) => ({ ...t, [id]: "idle" }));
+    setExpanded((e) => ({ ...e, [id]: false }));
+    toast("已清除该供应商的模型列表", "info");
   };
 
   const handleSave = () => {
@@ -442,11 +547,47 @@ export function SettingsCenter({
 
           {tab === "models" && (
             <div className="space-y-4">
+              {/* 动态模型列表总览 */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[13.5px] font-semibold text-stone-800">
+                    <ListTree className="h-4 w-4 text-stone-400" />
+                    动态模型列表
+                    <StatusPill
+                      text={`${Object.keys(dynamic).length} 家 / ${Object.values(dynamic).reduce(
+                        (n, l) => n + (l?.length ?? 0),
+                        0,
+                      )} 个`}
+                      kind="info"
+                    />
+                  </div>
+                  <p className="mt-0.5 text-xs text-stone-400">
+                    从供应商账号或中转地址拉取真实可用模型；获取成功后会出现在对话页的模型下拉里
+                  </p>
+                </div>
+                <button
+                  onClick={() => void fetchAll()}
+                  disabled={Object.values(fetching).some(Boolean)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
+                >
+                  {Object.values(fetching).some(Boolean) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  一键获取全部
+                </button>
+              </div>
+
               {PROVIDER_META.map((p) => {
                 const cur = settings[p.id] ?? { apiKey: "", baseUrl: "" };
                 const configured = Boolean(cur.apiKey);
                 const st = test[p.id] ?? "idle";
                 const onServer = serverStatus[p.id];
+                const list = dynamic[p.id] ?? [];
+                const isFetching = Boolean(fetching[p.id]);
+                const isOpen = Boolean(expanded[p.id]);
+                const shown = isOpen ? list.slice(0, 60) : [];
                 return (
                   <div
                     key={p.id}
@@ -491,18 +632,33 @@ export function SettingsCenter({
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => void testConnection(p.id)}
-                        disabled={st === "testing" || !configured}
-                        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
-                      >
-                        {st === "testing" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Check className="h-3.5 w-3.5" />
-                        )}
-                        测试连接
-                      </button>
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                        <button
+                          onClick={() => void fetchModels(p.id)}
+                          disabled={isFetching || !isReady(p.id)}
+                          title="从该供应商拉取最新模型列表"
+                          className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
+                        >
+                          {isFetching ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ListTree className="h-3.5 w-3.5" />
+                          )}
+                          获取模型列表
+                        </button>
+                        <button
+                          onClick={() => void testConnection(p.id)}
+                          disabled={st === "testing" || !configured}
+                          className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
+                        >
+                          {st === "testing" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5" />
+                          )}
+                          测试连接
+                        </button>
+                      </div>
                     </div>
                     <label className="mb-1 block text-xs font-medium text-stone-500">API Key</label>
                     {keyInput(p.id, cur.apiKey, "sk-...")}
@@ -516,6 +672,65 @@ export function SettingsCenter({
                       onChange={(e) => update(p.id, "baseUrl", e.target.value)}
                       className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-800 shadow-sm outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
                     />
+
+                    {/* 已获取到的模型列表 */}
+                    <div className="mt-3 rounded-xl border border-stone-100 bg-stone-50/70 p-3">
+                      {list.length > 0 ? (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[12px] font-medium text-stone-600">
+                              已获取 {list.length} 个模型
+                            </span>
+                            <button
+                              onClick={() => setExpanded((e) => ({ ...e, [p.id]: !isOpen }))}
+                              className="flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[11px] text-stone-500 transition hover:border-orange-300 hover:text-orange-600"
+                            >
+                              {isOpen ? "收起" : "展开列表"}
+                            </button>
+                            <button
+                              onClick={() => void fetchModels(p.id)}
+                              disabled={isFetching || !isReady(p.id)}
+                              className="flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[11px] text-stone-500 transition hover:border-orange-300 hover:text-orange-600 disabled:opacity-40"
+                            >
+                              <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+                              刷新
+                            </button>
+                            <button
+                              onClick={() => clearModels(p.id)}
+                              className="flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[11px] text-stone-500 transition hover:border-red-200 hover:text-red-600"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              清除
+                            </button>
+                          </div>
+                          {isOpen && (
+                            <div className="mt-2 max-h-44 overflow-y-auto pr-1">
+                              <div className="flex flex-wrap gap-1.5">
+                                {shown.map((m) => (
+                                  <span
+                                    key={m}
+                                    title={m}
+                                    className="max-w-[220px] truncate rounded-md border border-stone-200 bg-white px-2 py-0.5 text-[11px] text-stone-600"
+                                  >
+                                    {m}
+                                  </span>
+                                ))}
+                                {list.length > shown.length && (
+                                  <span className="rounded-md px-1.5 py-0.5 text-[11px] text-stone-400">
+                                    还有 {list.length - shown.length} 个…
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[11.5px] leading-relaxed text-stone-400">
+                          尚未获取模型列表。点「获取模型列表」从该账号 / 中转拉取真实可用模型，成功后会出现在对话页的模型下拉里。
+                          {!isReady(p.id) && "（需先填写 API Key）"}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
