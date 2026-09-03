@@ -9,9 +9,13 @@ import {
   FileText as FileTextIcon,
   History,
   Image as ImageIcon,
+  Layers,
   LayoutDashboard,
   Loader2,
+  Maximize,
   MonitorPlay,
+  Palette,
+  Pencil,
   Scissors,
   Search,
   Sparkles,
@@ -67,6 +71,34 @@ function ImageGallery({ images }: { images: UIImage[] }) {
       toast(`已生成变体（${data.model}）`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "变体生成失败", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** 通用调用：POST /api/images 并把结果加入画廊 */
+  const imageCall = async (img: UIImage, body: Record<string, unknown>) => {
+    setBusy(img.id);
+    try {
+      const ov = getOverrides();
+      const res = await fetch("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, overrides: ov }),
+      });
+      const data = (await res.json()) as { url?: string; model?: string; error?: string; credits?: number };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "图像生成失败");
+      const next: UIImage = {
+        id: crypto.randomUUID(),
+        prompt: String(body.label ?? body.prompt ?? "图像"),
+        model: data.model ?? "auto",
+        url: data.url,
+        createdAt: Date.now(),
+      };
+      addImages([next]);
+      toast(`已完成（${data.model}）${data.credits ? `，消耗 ${data.credits} 积分` : ""}`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "图像生成失败", "error");
     } finally {
       setBusy(null);
     }
@@ -136,34 +168,137 @@ function ImageGallery({ images }: { images: UIImage[] }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={img.url} alt={img.prompt} className="w-full" />
             </button>
-            <figcaption className="flex items-start justify-between gap-2 p-3">
-              <div className="min-w-0">
-                <p className="truncate text-xs text-stone-600">{img.prompt}</p>
-                <p className="mt-0.5 text-[10px] text-stone-400">{img.model}</p>
+            <figcaption className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-xs text-stone-600">{img.prompt}</p>
+                  <p className="mt-0.5 text-[10px] text-stone-400">{img.model}</p>
+                </div>
+                <button
+                  onClick={() => download(img)}
+                  title="下载/打开"
+                  className="shrink-0 rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              {/* 图片工具行 */}
+              <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-stone-100 pt-2">
                 <button
                   onClick={() => void createVariant(img)}
                   disabled={busy === img.id}
-                  title="以该图为参考生成变体（FLUX dev / 万相 i2i）"
-                  className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-sky-300 hover:text-sky-600 disabled:opacity-40"
+                  title="以该图为参考生成变体"
+                  className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-sky-50 hover:text-sky-600 disabled:opacity-40"
                 >
-                  {busy === img.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {busy === img.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} 变体
+                </button>
+                <button
+                  onClick={() => {
+                    const cmd = window.prompt("输入编辑指令（如：把背景换成沙滩 / 去掉路人）", "");
+                    if (cmd?.trim()) {
+                      void imageCall(img, {
+                        model: "wanx2.1-imageedit",
+                        functionName: "description_edit",
+                        prompt: cmd.trim(),
+                        imageUrl: img.url,
+                        size: "1024x1024",
+                        label: `编辑：${cmd.trim()}`,
+                      });
+                    }
+                  }}
+                  disabled={busy === img.id}
+                  title="AI 指令编辑（万相 imageedit，需 DASHSCOPE_KEY）"
+                  className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40"
+                >
+                  <Pencil className="mr-0.5 inline h-3 w-3" /> 编辑
+                </button>
+                <button
+                  onClick={() => {
+                    const dir = window.prompt("扩展方向：四周 / 上 / 下 / 左 / 右", "四周");
+                    if (!dir?.trim()) return;
+                    const d = dir.trim();
+                    const scales =
+                      d.includes("上") || d.includes("左") || d.includes("右") || d.includes("下")
+                        ? d.includes("上") && !["左", "右", "下"].some((x) => d.includes(x))
+                          ? { top: 1.5 }
+                          : d.includes("下") && !["左", "右", "上"].some((x) => d.includes(x))
+                            ? { bottom: 1.5 }
+                            : d.includes("左") && !["右", "上", "下"].some((x) => d.includes(x))
+                              ? { left: 1.5 }
+                              : d.includes("右") && !["左", "上", "下"].some((x) => d.includes(x))
+                                ? { right: 1.5 }
+                                : { top: 1.5, bottom: 1.5, left: 1.5, right: 1.5 }
+                        : { top: 1.5, bottom: 1.5, left: 1.5, right: 1.5 };
+                    void imageCall(img, {
+                      model: "wanx2.1-imageedit",
+                      functionName: "expand",
+                      prompt: `${d}扩展画面，保持原图主体与风格`,
+                      imageUrl: img.url,
+                      size: "1024x1024",
+                      scales,
+                      label: `扩图：${d}`,
+                    });
+                  }}
+                  disabled={busy === img.id}
+                  title="智能扩图（万相 expand）"
+                  className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-teal-50 hover:text-teal-600 disabled:opacity-40"
+                >
+                  <Maximize className="mr-0.5 inline h-3 w-3" /> 扩图
+                </button>
+                <button
+                  onClick={() => {
+                    const style = window.prompt("输入目标风格（如：水彩 / 赛博朋克 / 法式绘本）", "水彩");
+                    if (style?.trim()) {
+                      void imageCall(img, {
+                        model: "wanx2.1-imageedit",
+                        functionName: "stylization_all",
+                        prompt: `转换成${style.trim()}风格`,
+                        imageUrl: img.url,
+                        size: "1024x1024",
+                        label: `风格化：${style.trim()}`,
+                      });
+                    }
+                  }}
+                  disabled={busy === img.id}
+                  title="风格化重绘（万相 stylization_all）"
+                  className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-fuchsia-50 hover:text-fuchsia-600 disabled:opacity-40"
+                >
+                  <Palette className="mr-0.5 inline h-3 w-3" /> 风格
+                </button>
+                <button
+                  onClick={() => {
+                    if (!window.confirm("以该图为参考，串行生成 3 个视角（正面 / 侧面 / 俯视）？")) return;
+                    void (async () => {
+                      setBusy(img.id);
+                      const views = ["正面", "侧面", "俯视"];
+                      try {
+                        for (const v of views) {
+                          await imageCall(img, {
+                            model: "auto",
+                            prompt: `保持参考图的同一主体与风格，生成${v}视角的完整画面`,
+                            imageUrl: img.url,
+                            size: "1024x1024",
+                            label: `组图-${v}`,
+                          });
+                        }
+                      } finally {
+                        setBusy(null);
+                      }
+                    })();
+                  }}
+                  disabled={busy === img.id}
+                  title="同款组图：同一主体多视角（串行 3 张）"
+                  className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40"
+                >
+                  <Layers className="mr-0.5 inline h-3 w-3" /> 组图
                 </button>
                 <button
                   onClick={() => void removeBg(img)}
                   disabled={busy === img.id}
                   title="去除背景（remove.bg 或本地 AI）"
-                  className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-violet-300 hover:text-violet-600 disabled:opacity-40"
+                  className="rounded-lg px-1.5 py-1 text-[10.5px] text-stone-500 transition hover:bg-violet-50 hover:text-violet-600 disabled:opacity-40"
                 >
-                  <Scissors className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => download(img)}
-                  title="下载/打开"
-                  className="rounded-lg border border-stone-200 p-1.5 text-stone-500 transition hover:border-brand-300 hover:text-brand-600"
-                >
-                  <Download className="h-3.5 w-3.5" />
+                  <Scissors className="mr-0.5 inline h-3 w-3" /> 去背景
                 </button>
               </div>
             </figcaption>

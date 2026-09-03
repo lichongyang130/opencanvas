@@ -2,6 +2,12 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第八轮：图像工具补齐（A1）
+
+- 万相 imageedit 接入：指令编辑（description_edit）/ 智能扩图（expand，四向比例）/ 风格化（stylization_all），base_image_url 支持 base64，设置页选 DASHSCOPE key 即用
+- 画布图片工具行：变体 / AI 编辑 / 扩图 / 风格化 / 同款组图（串行 3 视角）/ 去背景 / 下载
+- 尺寸模板：1:1 / 16:9 / 9:16 / 海报 4:5 / 封面 4:3（fal 与万相同步映射）
+
 ## 2026-09-03 · 第七轮：Google / GitHub OAuth 登录
 
 - 完整 OAuth 2.0 授权码流程（服务端）：/api/auth/oauth/{google,github} 授权跳转（state + httpOnly cookie 防 CSRF）→ 回调换 token → 拉取资料 → 绑定/创建本地用户 → 会话 cookie

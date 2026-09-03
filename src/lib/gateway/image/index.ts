@@ -66,6 +66,8 @@ export async function generateImage(
   opts: {
     size: string;
     imageUrl?: string;
+    functionName?: string;
+    scales?: { top?: number; bottom?: number; left?: number; right?: number };
     signal?: AbortSignal;
     overrides?: ProviderOverrides;
   }
@@ -81,6 +83,8 @@ export async function generateImage(
     size: opts.size,
     imageUrl: opts.imageUrl,
     model: model.id,
+    functionName: opts.functionName,
+    scales: opts.scales,
     signal: opts.signal,
   });
   return { ...result, credits: model.creditsPerImage };

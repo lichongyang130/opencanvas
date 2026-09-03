@@ -67,6 +67,16 @@ export const IMAGE_MODELS: ImageModelInfo[] = [
     imageToImage: true,
   },
   {
+    id: "wanx2.1-imageedit",
+    label: "通义万相 2.1 图像编辑（指令改图/风格化/扩图）",
+    provider: "dashscope",
+    providerLabel: "阿里云百炼",
+    region: "china",
+    pricePerImage: 0.02,
+    creditsPerImage: 2,
+    imageToImage: true,
+  },
+  {
     id: "wanx2.1-i2i-turbo",
     label: "通义万相 图生图（旧版兼容）",
     provider: "dashscope",

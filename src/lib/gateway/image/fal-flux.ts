@@ -8,6 +8,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 流程：POST queue.fal.run/{model} → status_url 轮询 → response_url 取图。
  * 兼容旧别名 fal-ai/flux-schnell、fal-ai/flux-dev。
  */
+/** 尺寸预设 → fal image_size（4:5 海报、4:3 封面等） */
+const FAL_SIZES: Record<string, string> = {
+  "1024x1024": "square_hd",
+  "1792x1024": "landscape_16_9",
+  "1024x1792": "portrait_9_16",
+  "1080x1350": "portrait_4_5",
+  "1280x960": "landscape_4_3",
+};
+
 const MODELS: Record<string, { path: string; i2iPath?: string; supportsImg: boolean }> = {
   "fal-ai/flux/schnell": { path: "fal-ai/flux/schnell", supportsImg: false },
   "fal-ai/flux/dev": { path: "fal-ai/flux/dev", i2iPath: "fal-ai/flux/dev/image-to-image", supportsImg: true },
@@ -35,7 +44,7 @@ export function createFalFluxAdapter(apiKey?: string): ImageAdapter {
       };
       const body: Record<string, unknown> = {
         prompt,
-        image_size: opts.size === "1792x1024" ? "landscape_16_9" : opts.size === "1024x1792" ? "portrait_9_16" : "square_hd",
+        image_size: FAL_SIZES[opts.size] ?? "square_hd",
         num_images: 1,
       };
       if (opts.imageUrl) body.image_url = opts.imageUrl;

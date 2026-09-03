@@ -16,6 +16,8 @@ export async function POST(req: Request) {
     prompt?: string;
     size?: string;
     imageUrl?: string;
+    functionName?: string;
+    scales?: { top?: number; bottom?: number; left?: number; right?: number };
     overrides?: ProviderOverrides;
   };
   const prompt = (body.prompt ?? "").trim();
@@ -29,6 +31,8 @@ export async function POST(req: Request) {
     const result = await generateImage(body.model ?? "auto", prompt, {
       size: body.size ?? "1024x1024",
       imageUrl: imageUrl || undefined,
+      functionName: body.functionName,
+      scales: body.scales,
       overrides: body.overrides,
     });
     // 真实计费扣积分（demo 模型 credits=0 自动跳过；失败不扣）

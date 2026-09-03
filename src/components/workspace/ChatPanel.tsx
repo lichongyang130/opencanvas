@@ -137,6 +137,8 @@ const IMAGE_SIZES = [
   { id: "1024x1024", label: "方形 1:1" },
   { id: "1792x1024", label: "横版 16:9" },
   { id: "1024x1792", label: "竖版 9:16" },
+  { id: "1080x1350", label: "海报 4:5" },
+  { id: "1280x960", label: "封面 4:3" },
 ];
 
 const IMAGE_STYLES = [
