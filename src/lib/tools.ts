@@ -23,10 +23,22 @@ import type { LucideIcon } from "lucide-react";
  * - local：纯前端计算，离线可用
  * - ai：调用 /api/chat 流式生成（未配密钥时走内置演示模型）
  * - watermark / share / task：用到浏览器或现有服务端的专项工具
- * - unsupported：确实依赖服务端/第三方能力，界面上会说明原因并给出替代方案
+ * - pdf / ocr：走服务端接口（pdf-lib / 视觉模型）
+ * - board / matrix：带独立界面的轻量协作工具
+ * - unsupported：确实依赖服务端账号体系，界面上会说明原因并给出替代方案
  */
 
-export type ToolKind = "local" | "ai" | "watermark" | "share" | "task" | "unsupported";
+export type ToolKind =
+  | "local"
+  | "ai"
+  | "watermark"
+  | "share"
+  | "task"
+  | "pdf"
+  | "ocr"
+  | "board"
+  | "matrix"
+  | "unsupported";
 
 export interface ToolResult {
   output: string;
@@ -391,28 +403,38 @@ export const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
       {
         id: "pdf",
         name: "PDF 工具",
-        desc: "合并、拆分、加密、压缩 PDF 文件",
+        desc: "合并 / 拆分 / 提取页面 / 旋转 / 查看信息",
         icon: FileText,
         tint: "text-red-500",
         bg: "bg-red-50",
         category: "文档处理",
-        kind: "unsupported",
-        hint: "",
-        reason: "PDF 处理需要服务端渲染/加密引擎，当前版本未内置。",
-        fallbackPrompt: "请把下面这份内容整理成结构清晰的 PDF 大纲（含标题层级与分页建议）：\n",
+        kind: "pdf",
+        hint: "选择 PDF 文件（合并需 ≥ 2 个，单文件上限 40MB）",
+        action: "处理 PDF",
+        option: {
+          label: "操作",
+          default: "info",
+          choices: [
+            { value: "info", label: "查看信息（页数/标题/作者）" },
+            { value: "merge", label: "合并多个 PDF" },
+            { value: "split-each", label: "拆分：每页一个文件" },
+            { value: "split-range", label: "拆分：按页码段" },
+            { value: "extract", label: "提取指定页面" },
+            { value: "rotate", label: "旋转页面 90°" },
+          ],
+        },
       },
       {
         id: "ocr",
         name: "图片转文字",
-        desc: "提取图片中的文字内容",
+        desc: "用视觉模型识别图片中的文字（支持表格）",
         icon: FileImage,
         tint: "text-emerald-600",
         bg: "bg-emerald-50",
         category: "文档处理",
-        kind: "unsupported",
-        hint: "",
-        reason: "OCR 需要服务端识别模型，当前版本未内置。",
-        fallbackPrompt: "我需要把图片里的文字提取出来，请告诉我可行的步骤与推荐工具：",
+        kind: "ocr",
+        hint: "选择一张图片（PNG/JPG/WebP，≤ 8MB）",
+        action: "识别文字",
       },
       {
         id: "compress",
@@ -676,15 +698,14 @@ export const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
       {
         id: "team",
         name: "团队协作",
-        desc: "多人协作编辑文档",
+        desc: "任务看板：拆分事项、指派负责人、跟踪进度",
         icon: Users,
         tint: "text-blue-600",
         bg: "bg-blue-50",
         category: "协作工具",
-        kind: "unsupported",
-        hint: "",
-        reason: "多人实时协作需要服务端账号与同步服务，当前版本未内置。",
-        fallbackPrompt: "请帮我把下面这份内容整理成适合团队协作的版本（明确分工、待确认项与下一步）：\n",
+        kind: "board",
+        hint: "新增任务并指派负责人…",
+        action: "打开看板",
       },
       {
         id: "comment",
@@ -717,15 +738,14 @@ export const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
       {
         id: "perm",
         name: "权限管理",
-        desc: "设置文档访问权限",
+        desc: "配置角色 × 权限矩阵并导出",
         icon: KeyRound,
         tint: "text-orange-600",
         bg: "bg-orange-50",
         category: "协作工具",
-        kind: "unsupported",
-        hint: "",
-        reason: "权限体系依赖服务端账号与鉴权，当前版本未内置。",
-        fallbackPrompt: "请帮我设计一份文档权限矩阵（角色 × 可读/可写/可分享/可管理）：",
+        kind: "matrix",
+        hint: "勾选每个角色的权限…",
+        action: "打开矩阵",
       },
       {
         id: "share",

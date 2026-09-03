@@ -2,11 +2,35 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Download, Loader2, Sparkles, Square, X } from "lucide-react";
+import { Copy, Download, FileText, Loader2, Sparkles, Square, X } from "lucide-react";
 import type { ToolDef, ToolResult } from "@/lib/tools";
 import { useChatStore } from "@/lib/store/chat";
 import { getOverrides } from "@/lib/settings";
 import { toast } from "@/lib/store/toast";
+import { TaskBoard } from "./TaskBoard";
+import { PermissionMatrix } from "./PermissionMatrix";
+
+interface PdfFile {
+  name: string;
+  size: number;
+  data: string; // dataURL
+}
+
+interface PdfOut {
+  name: string;
+  data: string; // base64
+}
+
+function downloadBase64Pdf(name: string, b64: string) {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function downloadFile(name: string, content: string, type = "text/plain;charset=utf-8") {
   const blob = new Blob([content], { type });
@@ -28,14 +52,24 @@ export function ToolRunnerModal({ tool, onClose }: { tool: ToolDef | null; onClo
   const [wmText, setWmText] = useState("OpenCanvas");
   const [srcImage, setSrcImage] = useState<string>("");
   const [shareUrl, setShareUrl] = useState("");
+  const [pdfFiles, setPdfFiles] = useState<PdfFile[]>([]);
+  const [pdfOuts, setPdfOuts] = useState<PdfOut[]>([]);
+  const [pages, setPages] = useState("");
+  const [ocrImage, setOcrImage] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
+  const ocrRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setInput("");
     setResult(null);
     setShareUrl("");
     setBusy(false);
+    setPdfFiles([]);
+    setPdfOuts([]);
+    setPages("");
+    setOcrImage("");
     setOption(tool?.option?.default ?? "");
   }, [tool]);
 
@@ -159,6 +193,70 @@ export function ToolRunnerModal({ tool, onClose }: { tool: ToolDef | null; onClo
     img.src = srcImage;
   };
 
+  const runPdf = async () => {
+    if (pdfFiles.length === 0) {
+      toast("请先选择 PDF 文件", "error");
+      return;
+    }
+    const opt = option || tool.option?.default || "info";
+    const [action, variant] = opt.split("-");
+    if ((action === "merge") && pdfFiles.length < 2) {
+      toast("合并至少需要 2 个 PDF", "error");
+      return;
+    }
+    if ((opt === "split-range" || action === "extract") && !pages.trim()) {
+      toast(opt === "extract" ? "请填写要提取的页码，如 1,3,5-7" : "请填写页码段，如 1-3;5-8;10-", "error");
+      return;
+    }
+    setBusy(true);
+    setPdfOuts([]);
+    try {
+      const res = await fetch("/api/tools/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          files: pdfFiles.map((f) => ({ name: f.name, data: f.data })),
+          ranges: opt === "split-range" ? pages.trim() : undefined,
+          pages: action === "extract" || action === "rotate" ? pages.trim() || undefined : undefined,
+          angle: 90,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; text?: string; files?: PdfOut[]; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "处理失败");
+      setResult({ output: data.text ?? "完成" });
+      setPdfOuts(data.files ?? []);
+      toast("PDF 处理完成", "success");
+    } catch (err) {
+      setResult({ output: "", note: `⚠️ ${err instanceof Error ? err.message : "处理失败"}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runOcr = async () => {
+    if (!ocrImage) {
+      toast("请先选择图片", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/tools/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: ocrImage, prompt: input.trim() || undefined, overrides: getOverrides() }),
+      });
+      const data = (await res.json()) as { ok?: boolean; text?: string; error?: string; model?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "识别失败");
+      setResult({ output: data.text ?? "", note: `识别模型：${data.model ?? "视觉模型"}` });
+      toast("识别完成", "success");
+    } catch (err) {
+      setResult({ output: "", note: `⚠️ ${err instanceof Error ? err.message : "识别失败"}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const runShare = async () => {
     const text = input.trim();
     if (!text) {
@@ -210,6 +308,8 @@ export function ToolRunnerModal({ tool, onClose }: { tool: ToolDef | null; onClo
   const run = () => {
     if (tool.kind === "ai") return void runAi();
     if (tool.kind === "watermark") return runWatermark();
+    if (tool.kind === "pdf") return void runPdf();
+    if (tool.kind === "ocr") return void runOcr();
     if (tool.kind === "share") return void runShare();
     if (tool.kind === "task") return void runTask();
     if (tool.kind === "local" && tool.run) {
@@ -306,9 +406,146 @@ export function ToolRunnerModal({ tool, onClose }: { tool: ToolDef | null; onClo
                 <Sparkles className="h-4 w-4" /> 用 AI 代替完成
               </button>
             </div>
+          ) : tool.kind === "board" ? (
+            <TaskBoard />
+          ) : tool.kind === "matrix" ? (
+            <PermissionMatrix />
           ) : (
             <>
-              {tool.kind === "watermark" ? (
+              {tool.kind === "pdf" ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => pdfRef.current?.click()}
+                      className="rounded-xl border border-[#e0b79c] px-3.5 py-2 text-[13px] text-[#c05f3c] transition hover:bg-[#fdeee1]"
+                    >
+                      选择 PDF
+                    </button>
+                    <input
+                      ref={pdfRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const list = Array.from(e.target.files ?? []);
+                        for (const f of list) {
+                          const reader = new FileReader();
+                          reader.onload = () =>
+                            setPdfFiles((prev) => [
+                              ...prev,
+                              { name: f.name, size: f.size, data: String(reader.result ?? "") },
+                            ]);
+                          reader.readAsDataURL(f);
+                        }
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                    {pdfFiles.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setPdfFiles([]);
+                          setPdfOuts([]);
+                        }}
+                        className="text-[12px] text-stone-400 hover:text-stone-600"
+                      >
+                        清空
+                      </button>
+                    )}
+                    <span className="text-[11.5px] text-stone-400">
+                      合并选多个；拆分 / 提取 / 旋转只用第一个文件
+                    </span>
+                  </div>
+
+                  {pdfFiles.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-lg border border-stone-100 px-3 py-2 text-[12.5px]">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                      <span className="min-w-0 flex-1 truncate text-stone-700">{f.name}</span>
+                      <span className="shrink-0 text-stone-400">{Math.max(1, Math.round(f.size / 1024))} KB</span>
+                      <button
+                        onClick={() => setPdfFiles((prev) => prev.filter((_, j) => j !== i))}
+                        className="shrink-0 text-stone-300 hover:text-red-500"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {(option === "split-range" || option === "extract" || option === "rotate") && (
+                    <input
+                      value={pages}
+                      onChange={(e) => setPages(e.target.value)}
+                      placeholder={
+                        option === "split-range"
+                          ? "页码段，分号分隔：1-3;5-8;10-"
+                          : option === "extract"
+                            ? "要提取的页码：1,3,5-7"
+                            : "要旋转的页码（留空=全部）：1,2,5-8"
+                      }
+                      className="w-full rounded-xl border border-stone-200 px-3 py-2 text-[13px] outline-none focus:border-[#e0b79c]"
+                    />
+                  )}
+
+                  {pdfOuts.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[12px] font-medium text-stone-500">输出文件（{pdfOuts.length}）</p>
+                      {pdfOuts.map((f, i) => (
+                        <button
+                          key={i}
+                          onClick={() => downloadBase64Pdf(f.name, f.data)}
+                          className="flex w-full items-center gap-2 rounded-lg border border-[#e0b79c] bg-[#fdf1e3] px-3 py-2 text-left text-[12.5px] text-[#c05f3c] transition hover:bg-[#fdeee1]"
+                        >
+                          <Download className="h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : tool.kind === "ocr" ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => ocrRef.current?.click()}
+                      className="rounded-xl border border-[#e0b79c] px-3.5 py-2 text-[13px] text-[#c05f3c] transition hover:bg-[#fdeee1]"
+                    >
+                      选择图片
+                    </button>
+                    <input
+                      ref={ocrRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setOcrImage(String(reader.result ?? ""));
+                        reader.readAsDataURL(f);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                    {ocrImage && (
+                      <button onClick={() => setOcrImage("")} className="text-[12px] text-stone-400 hover:text-stone-600">
+                        移除
+                      </button>
+                    )}
+                  </div>
+                  {ocrImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={ocrImage} alt="待识别" className="max-h-56 rounded-xl border border-stone-100 object-contain" />
+                  )}
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="可选：补充识别要求，如「只提取表格」「保留换行」"
+                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-[13px] outline-none focus:border-[#e0b79c]"
+                  />
+                  <p className="text-[11.5px] leading-5 text-stone-400">
+                    识别需要带视觉能力的模型：在「模型设置」填入 OpenAI / Anthropic / 阿里云百炼 任一密钥；未配置时会给出明确提示。
+                  </p>
+                </div>
+              ) : tool.kind === "watermark" ? (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <button
