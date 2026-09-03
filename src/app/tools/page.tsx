@@ -30,6 +30,8 @@ interface Tool {
   kind: "link" | "chat" | "soon";
   to?: string;
   prompt?: string;
+  /** chat 卡进入的工作台模式：默认 chat，深度研究用 research */
+  mode?: "chat" | "research" | "slides" | "image" | "video" | "docs";
   soonNote?: string;
 }
 
@@ -43,6 +45,7 @@ const DOC_TOOLS: Tool[] = [
 ];
 
 const CONTENT_TOOLS: Tool[] = [
+  { name: "深度研究", desc: "输入主题生成带引用角标的研究报告，可一键转 PPT（联网检索需 Tavily Key，未配置用演示来源）", icon: Search, tint: "text-sky-600", bg: "bg-sky-50", kind: "chat", mode: "research", prompt: "研究 2026 年 AI Agent 赛道的竞争格局与商业化路径" },
   { name: "AI 视频生成", desc: "输入描述生成动画短片，可预览与下载（内置演示引擎，零密钥可用）", icon: Clapperboard, tint: "text-fuchsia-600", bg: "bg-fuchsia-50", kind: "link", to: "/tools/video" },
   { name: "智能写作", desc: "辅助撰写与提升内容质量（进入对话预填指令）", icon: Sparkles, tint: "text-emerald-600", bg: "bg-emerald-50", kind: "chat", prompt: "你是一位专业写作助手。请根据我提供的内容与主题，协助撰写高质量内容，结构清晰、语言自然。" },
   { name: "内容润色", desc: "优化文字表达，提升可读性", icon: FileText, tint: "text-blue-600", bg: "bg-blue-50", kind: "chat", prompt: "请润色下面的文字，使其更流畅、专业、有感染力，保留原意，并说明主要改动：\n\n" },
@@ -131,7 +134,7 @@ export default function ToolsPage() {
       return;
     }
     if (t.kind === "chat" && t.prompt) {
-      await fillTemplate({ mode: "chat", prompt: t.prompt });
+      await fillTemplate({ mode: t.mode ?? "chat", prompt: t.prompt });
       toast(`已打开对话框并预填「${t.name}」指令，粘贴内容后发送即可`, "success");
       router.push("/chat");
       return;
@@ -175,7 +178,7 @@ export default function ToolsPage() {
               <input
                 value={kw}
                 onChange={(e) => setKw(e.target.value)}
-                placeholder="搜索 25 个工具（如：视频、翻译、PDF）"
+                placeholder="搜索 26 个工具（如：研究、视频、翻译、PDF）"
                 className="min-w-0 flex-1 bg-transparent text-[13px] text-stone-700 outline-none placeholder:text-stone-400"
               />
               {searching && (

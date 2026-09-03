@@ -2,6 +2,22 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第二十三轮：深度研究收官（P0 招牌链路 · 演示模式零凭据验收）
+
+**核心链路（工作台 research 模式 / Tavily 双模式引擎 / ReportView 一键转 PPT / 设置中心配置）此前已交付，本轮补齐验收缺口并打标：**
+
+**新增**
+- 工具中心「深度研究」入口卡片：`kind=chat` + `mode=research`（`fillTemplate` 支持工作台模式路由），点击直达研究模式并预填主题（工具 26 个）
+- `POST /api/research` 内容审核：违规 topic → 400（复用 `checkText`）
+- 演示模式计入网关用量：`gateway_usage` 落 `research-demo / research`（免费 cost=0，按用户归属，成本看板可见）；真实模式仍由网关按模型记账，错误不重复入账
+
+**验证**
+- `scripts/e2e-research.mjs`：8/8（health → demo 研究 SSE 进度 4 条 → 报告结构 6 小节/4 来源/4 要点 → [n] 角标与示例来源标记 → 注册 → 登录态研究 → scope=me 归属 research-demo calls≥1 cost=0 → 违规 400 → 删号）
+- `next build` 0 error；tsc=0、eslint=0；生产预览（:3008）回归 E2E 8/8
+- `docs/RESEARCH_E2E.md`：完整验证矩阵与真实联网接入点
+
+**边界**：真实联网需 Tavily Key（env 或设置中心）；扩展检索源（Exa/博查/秘塔）与 Jina Reader 深度阅读为后续迭代。
+
 ## 2026-09-03 · 第二十二轮：AI 视频生成（B 类功能 mock 交付 · 演示引擎零凭据可用）
 
 **视频工作台（复用图像网关模式，前后端全链路真实）**
