@@ -105,3 +105,4 @@ OAUTH_REDIRECT_BASE=https://your-domain.com
 - ✅ **P1** 知识库本地 RAG（检索命中/引用回答）；工具箱真实执行；通知中心
 - ✅ **P2** 代码沙箱（iframe 运行 AI 生成 HTML）；本地积分中心（真实账本）；全局深色模式
 - 📋 详见 [`docs/REAL_FEATURES.md`](docs/REAL_FEATURES.md)（进度清单）、[`docs/CHANGELOG.md`](docs/CHANGELOG.md)、[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+- 🗄️ 生产切换 PostgreSQL（用户体系/迁移/导入）：[`docs/POSTGRES.md`](docs/POSTGRES.md)

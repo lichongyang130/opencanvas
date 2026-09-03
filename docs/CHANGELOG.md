@@ -2,6 +2,22 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第十六轮：PostgreSQL 版用户体系（C 类收尾）
+
+**完整权威 Schema**
+- `prisma/schema.postgres.prisma`：17 张表全量模型（users/sessions/conversations/messages/documents/knowledge_bases/kb_documents/prompt_templates/agents/shares/membership/orders/notifications/client_errors/gateway_usage/credit_ledger），含 userId 归属维度与索引，与运行时 DDL 对齐
+- `prisma/schema.prisma`：SQLite 开发模型同步补全（模型一致，provider 不同）
+- `prisma/migrations/postgresql/0001_init/migration.sql`：初始迁移 DDL
+
+**切换工具链（真实可用）**
+- `scripts/pg-migrate.mjs`：无 psql 迁移执行器（幂等，`_schema_migrations` 记账）
+- `scripts/pg-import.mjs`：SQLite → PG 全量导入（主键 UPSERT、布尔 0/1→boolean、--clear 支持）
+- `scripts/pg-smoke.mjs`：真实 PG 冒烟（表结构/用户会话/跨账号隔离/积分/删号清理，事务回滚）
+- npm scripts：`pg:migrate` / `pg:import` / `pg:smoke`；`.env.example` 补 `DATABASE_URL`
+- `docs/POSTGRES.md`：切换步骤与一致性说明
+
+**实测（真实 PostgreSQL 18.4）**：迁移建 17 表 → 冒烟全 PASS（含发现并修复：PG 无 FK 时删号需显式删 sessions，repo 双端一致）→ 导入 boolean 正确且幂等 ✓
+
 ## 2026-09-03 · 第十五轮：全表数据隔离（账号维度）
 
 **多用户隔离（SQLite 运行时）**

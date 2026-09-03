@@ -1,14 +1,23 @@
-// Prisma 数据模型（开发环境：SQLite）
-// 说明：运行时数据层使用 Node 22 内置 node:sqlite（src/lib/db/sqlite.ts），
-// 本文件用于 dev 侧类型/迁移参考与 prisma studio 查看 data/dev.db。
-// 生产 PostgreSQL 权威 schema 见 prisma/schema.postgres.prisma（模型一致，provider 不同）。
+// PostgreSQL 生产权威 schema（与 src/lib/db/sqlite.ts 运行时 DDL 对齐）
+//
+// 说明：开发环境运行库是 Node 22 内置 node:sqlite（零依赖、零外部服务）；
+// 生产切换 PostgreSQL 的步骤：
+//   1. DATABASE_URL=postgresql://user:pass@host:5432/db （.env / 环境变量）
+//   2. npm run pg:generate     # 生成 PG 专用 Prisma Client
+//   3. npm run pg:migrate      # 应用 prisma/migrations/postgresql 迁移（建表）
+//   4. npm run pg:import       # 把现有 SQLite data/dev.db 全量导入 PG（可选）
+//   5. 业务层统一走 repo（本文件仅作权威 schema 与迁移来源）
+//
+// 字段与索引均与 SQLite 运行时保持一一对应；userId 为个人数据归属维度
+// （NULL = 未登录本地数据），全表隔离语义见 docs/roadmap.md。
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/pg-client"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
