@@ -1075,6 +1075,64 @@ export function createCaseShare(rec: Omit<CaseShareRecord, "code">): string {
   return code;
 }
 
+/* ---------------- 可观测性：客户端错误 & 运行诊断 ---------------- */
+
+export interface ClientErrorInput {
+  message: string;
+  source?: string;
+  stack?: string;
+  url?: string;
+  userAgent?: string;
+  userId?: string | null;
+}
+
+export function logClientError(r: ClientErrorInput): void {
+  getDb()
+    .prepare(
+      `INSERT INTO client_errors (id, message, source, stack, url, userAgent, userId, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      randomUUID(),
+      (r.message ?? "").slice(0, 2000),
+      (r.source ?? "").slice(0, 100),
+      (r.stack ?? "").slice(0, 6000),
+      (r.url ?? "").slice(0, 500),
+      (r.userAgent ?? "").slice(0, 300),
+      r.userId ?? null,
+      Date.now()
+    );
+}
+
+export interface ClientErrorStats {
+  total: number;
+  last24h: number;
+  top: { message: string; count: number }[];
+  recent: { message: string; source: string; url: string; createdAt: number }[];
+}
+
+export function getClientErrorStats(): ClientErrorStats {
+  const db = getDb();
+  const total = (db.prepare("SELECT COUNT(*) AS n FROM client_errors").get() as { n: number }).n;
+  const last24h = (
+    db.prepare("SELECT COUNT(*) AS n FROM client_errors WHERE createdAt >= ?").get(Date.now() - 86_400_000) as {
+      n: number;
+    }
+  ).n;
+  const top = db
+    .prepare(
+      `SELECT message, COUNT(*) AS count FROM client_errors
+       GROUP BY message ORDER BY count DESC LIMIT 5`
+    )
+    .all() as { message: string; count: number }[];
+  const recent = db
+    .prepare(
+      `SELECT message, source, url, createdAt FROM client_errors ORDER BY createdAt DESC LIMIT 5`
+    )
+    .all() as { message: string; source: string; url: string; createdAt: number }[];
+  return { total, last24h, top, recent };
+}
+
 /* ---------------- 网关用量 & 成本 ---------------- */
 
 export interface GatewayUsageInput {

@@ -152,6 +152,16 @@ export function getDb(): DatabaseSync {
       read      INTEGER NOT NULL DEFAULT 0,
       createdAt REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS client_errors (
+      id        TEXT PRIMARY KEY,
+      message   TEXT NOT NULL DEFAULT '',
+      source    TEXT NOT NULL DEFAULT '',
+      stack     TEXT NOT NULL DEFAULT '',
+      url       TEXT NOT NULL DEFAULT '',
+      userAgent TEXT NOT NULL DEFAULT '',
+      userId    TEXT,
+      createdAt REAL NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS gateway_usage (
       id          TEXT PRIMARY KEY,
       userId      TEXT,
@@ -177,6 +187,7 @@ export function getDb(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_credit_ledger_created ON credit_ledger(createdAt);
     CREATE INDEX IF NOT EXISTS idx_gateway_usage_created ON gateway_usage(createdAt);
+    CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(createdAt);
     CREATE INDEX IF NOT EXISTS idx_gateway_usage_user ON gateway_usage(userId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_gateway_usage_model ON gateway_usage(modelId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_kb_docs_kb ON kb_documents(kbId);

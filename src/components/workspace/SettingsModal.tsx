@@ -1036,6 +1036,14 @@ OAUTH_REDIRECT_BASE=https://your-domain.com`}
                 <>
                   <DataOverview />
                   <SectionCard
+                    icon={Activity}
+                    iconBg="bg-gradient-to-br from-slate-500 to-slate-700"
+                    title="运行诊断"
+                    desc="服务健康状态与前端运行时错误（自动采集，无需外部服务）"
+                  >
+                    <DiagnosticsCard />
+                  </SectionCard>
+                  <SectionCard
                     icon={Download}
                     iconBg="bg-gradient-to-br from-emerald-400 to-teal-500"
                     title="导出备份"
@@ -1978,6 +1986,97 @@ function AccountRightsCard() {
           {!user && <span className="text-[11px] text-stone-400">请先登录后再删除账号</span>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- 运行诊断（健康检查 + 前端错误） ---------------- */
+
+function DiagnosticsCard() {
+  const [health, setHealth] = useState<{
+    ok: boolean;
+    version?: string;
+    node?: string;
+    uptimeSec?: number;
+    db?: string;
+    providers?: Record<string, boolean>;
+  } | null>(null);
+  const [errors, setErrors] = useState<{
+    stats: { total: number; last24h: number; top: { message: string; count: number }[]; recent: { message: string; source: string; url: string; createdAt: number }[] };
+  } | null>(null);
+
+  const load = async () => {
+    try {
+      const [h, e] = await Promise.all([
+        fetch("/api/health").then((r) => r.json()),
+        fetch("/api/logs/client/stats").then(async (r) => (r.ok ? r.json() : null)),
+      ]);
+      setHealth(h);
+      setErrors(e);
+    } catch {
+      setHealth(null);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fmtUp = (sec?: number) =>
+    sec === undefined ? "-" : sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec / 60)}m` : `${(sec / 3600).toFixed(1)}h`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill
+            text={health?.ok ? "服务正常" : "检测中"}
+            kind={health?.ok ? "ok" : "info"}
+            icon={health?.ok ? <Check className="h-3 w-3" /> : undefined}
+          />
+          <StatusPill text={`DB ${health?.db ?? "-"}`} kind={health?.db === "ok" ? "ok" : health?.db === "error" ? "fail" : "info"} />
+          <StatusPill text={`Node ${health?.node ?? "-"}`} kind="info" />
+          <StatusPill text={`运行 ${fmtUp(health?.uptimeSec)}`} kind="info" />
+        </div>
+        <button
+          onClick={() => void load()}
+          className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-[11px] text-stone-500 transition hover:border-slate-300"
+        >
+          <RefreshCw className="h-3 w-3" /> 刷新
+        </button>
+      </div>
+
+      {errors && (
+        <div className="rounded-xl border border-stone-100 p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-medium text-stone-500">前端运行时错误</p>
+            <p className="text-[11px] text-stone-400">
+              累计 <span className="font-semibold text-stone-600">{errors.stats.total}</span> · 24h{" "}
+              <span className="font-semibold text-stone-600">{errors.stats.last24h}</span>
+            </p>
+          </div>
+          {errors.stats.total === 0 ? (
+            <p className="mt-2 text-[11.5px] text-emerald-600">✓ 暂无运行时错误上报</p>
+          ) : (
+            <div className="mt-2 space-y-1">
+              {errors.stats.recent.slice(0, 3).map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-[11px] text-stone-500">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />
+                  <span className="min-w-0 flex-1 truncate">{r.message}</span>
+                  <span className="shrink-0 text-stone-300">
+                    {new Date(r.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-[10.5px] leading-relaxed text-stone-400">
+        错误自动采集（window.onerror / unhandledrejection）并按 10 秒节流上报，仅存错误摘要与页面路径，不含对话内容。
+      </p>
     </div>
   );
 }

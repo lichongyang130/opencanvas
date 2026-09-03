@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ThemeSync from "@/components/ThemeSync";
+import Observability from "@/components/Observability";
 
 export const metadata: Metadata = {
   title: "OpenCanvas AI — 一站式 AI 智能体工作空间",
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN">
       <body>
         <ThemeSync />
+        <Observability />
         {children}
       </body>
     </html>
