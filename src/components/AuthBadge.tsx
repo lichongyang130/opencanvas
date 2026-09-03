@@ -46,8 +46,10 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [oauthStatus, setOauthStatus] = useState<{ google: boolean; github: boolean } | null>(null);
 
   useEffect(() => {
@@ -93,15 +95,34 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
     window.location.href = `/api/auth/oauth/${provider}`;
   };
 
-  // 头像下拉外点关闭
+  // 头像下拉外点关闭（btnRef 触发钮 + panelRef 面板双判断；滚动/缩放时收起避免错位）
   useEffect(() => {
     if (!menuOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setMenuOpen(false);
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    const onScroll = () => setMenuOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [menuOpen]);
+
+  /** 打开/关闭下拉：锚定到触发按钮下方（左/右侧形态通用，避免固定 right 导致偏移被裁） */
+  const toggleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const W = 240; // w-60
+    let left = r.left;
+    if (left + W > window.innerWidth - 8) left = Math.max(8, window.innerWidth - W - 8);
+    setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 200), left });
+    setMenuOpen((v) => !v);
+  };
 
   const submit = useCallback(async () => {
     if (!email.trim() || password.length < 6) {
@@ -144,9 +165,9 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
   /* ─────────────── 登录 / 注册弹窗（Portal 到 body，最高层级） ─────────────── */
   const modal = open
     ? createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl oc-pop-in"
+            className="w-full max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl oc-pop-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -264,11 +285,12 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
     : null;
 
   /* ─────────────── 已登录下拉菜单（Portal） ─────────────── */
-  const menu = user && menuOpen
+  const menu = user && menuOpen && menuPos
     ? createPortal(
         <div
-          ref={menuRef}
-          className="oc-pop-in fixed right-3 top-12 z-[9999] w-60 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl"
+          ref={panelRef}
+          style={{ top: menuPos.top, left: menuPos.left }}
+          className="oc-pop-in fixed z-[10000] max-h-[calc(100vh-4rem)] w-60 overflow-y-auto rounded-xl border border-stone-200 bg-white py-1 shadow-xl"
         >
           <div className="border-b border-stone-100 px-3 py-2.5">
             <p className="truncate text-[13px] font-medium text-stone-700">{user.name}</p>
@@ -302,7 +324,7 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
   /* ─────────────── 卡片形态（侧栏底部） ─────────────── */
   if (variant === "card") {
     return (
-      <div ref={menuRef} className="border-t border-stone-100 p-3">
+      <div className="border-t border-stone-100 p-3">
         {user ? (
           <button
             onClick={() => setMenuOpen((v) => !v)}
@@ -344,9 +366,10 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
   return (
     <>
       {user ? (
-        <div className="relative" ref={menuRef}>
+        <div className="relative">
           <button
-            onClick={() => setMenuOpen((v) => !v)}
+            ref={btnRef}
+            onClick={toggleMenu}
             title={user.email}
             className="flex h-8 items-center gap-1.5 rounded-full bg-gradient-to-br from-orange-400 to-rose-400 pl-1 pr-2 text-white shadow-sm transition hover:opacity-90"
           >
