@@ -200,6 +200,14 @@ export function getDb(): DatabaseSync {
   if (!msgCols.some((c) => c.name === "refs")) {
     db.exec("ALTER TABLE messages ADD COLUMN refs TEXT");
   }
+  // 账号：OAuth 绑定信息（无密码的第三方账号 passwordHash 为空串）
+  const userCols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (!userCols.some((c) => c.name === "provider")) {
+    db.exec("ALTER TABLE users ADD COLUMN provider TEXT NOT NULL DEFAULT ''");
+  }
+  if (!userCols.some((c) => c.name === "providerUserId")) {
+    db.exec("ALTER TABLE users ADD COLUMN providerUserId TEXT NOT NULL DEFAULT ''");
+  }
 
   return db;
 }

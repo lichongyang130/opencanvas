@@ -67,7 +67,8 @@
 ### 10. 用户体系（P0 商业化前置）
 - ✅ 本地账号版：邮箱+密码注册/登录/登出（scrypt 哈希 + httpOnly cookie 会话，零外部依赖），首页/工作台顶栏 + 首页左侧用户卡片（真实登录态，Portal 弹窗不被遮挡）
 - ✅ 会话按用户归属（conversations.userId）：未登录=本地，登录后新会话归本人，列表按身份过滤
-- ⬜ 海外：Clerk/Auth0（邮箱/Google）
+- ✅ Google / GitHub OAuth 登录（本地版内置，标准授权码流程 + state 防 CSRF；需在 Google Cloud / GitHub 创建 OAuth 应用并配置 .env 凭据，回调地址见 .env.example）
+- ⬜ 海外托管版：Clerk/Auth0（多租户、社交登录聚合）
 - ⬜ 国内：手机号验证码 + 微信登录
 - ⬜ 全表隔离（文档/知识库/积分等）与 PostgreSQL 版用户体系
 

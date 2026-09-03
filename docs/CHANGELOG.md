@@ -2,6 +2,14 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第七轮：Google / GitHub OAuth 登录
+
+- 完整 OAuth 2.0 授权码流程（服务端）：/api/auth/oauth/{google,github} 授权跳转（state + httpOnly cookie 防 CSRF）→ 回调换 token → 拉取资料 → 绑定/创建本地用户 → 会话 cookie
+- 登录弹窗新增「Google / GitHub」按钮（官方 G 图标 + GitHub 图标）；未配置凭据时点击给出配置指引
+- users 表新增 provider / providerUserId 列（幂等迁移）；同邮箱自动绑定本地账号；GitHub 邮箱非公开时自动请求 user/emails 补拉
+- OAuth 回调结果回到首页 toast 提示（/?oauth=success|error）；.env.example 新增 GOOGLE/GITHUB CLIENT_ID/SECRET、OAUTH_REDIRECT_BASE 及回调地址说明
+- 配置方式：Google Cloud Console / GitHub Developer Settings 创建 OAuth 应用，回调地址 = https://你的域名/api/auth/oauth/{google,github}/callback
+
 ## 2026-09-03 · 第六轮：登录真实化 + 弹窗遮挡修复
 
 - 全局登录态 store（useAuthStore）：顶栏徽章与侧栏底部卡片共享状态，登录/登出实时同步

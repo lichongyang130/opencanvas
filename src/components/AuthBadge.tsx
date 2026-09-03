@@ -2,10 +2,34 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Crown, Loader2, LogIn, LogOut, Mail, UserRound } from "lucide-react";
+import { Crown, Github, Loader2, LogIn, LogOut, Mail, UserRound } from "lucide-react";
 import { toast } from "@/lib/store/toast";
 import { cn } from "@/lib/utils";
 import { refreshAuth, setAuthUser, useAuthStore, type AuthUser } from "@/lib/store/auth";
+
+/** Google 官方四色 G 图标（内联 SVG） */
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.29A7.2 7.2 0 0 1 4.89 12c0-.8.14-1.57.38-2.29V6.62H1.29a12.01 12.01 0 0 0 0 10.76l3.98-3.09Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75Z"
+      />
+    </svg>
+  );
+}
 
 /**
  * 账号徽章（本地版）：
@@ -24,10 +48,50 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
   const [busy, setBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [oauthStatus, setOauthStatus] = useState<{ google: boolean; github: boolean } | null>(null);
 
   useEffect(() => {
     void refreshAuth();
   }, []);
+
+  // 恢复会话 + 读取 OAuth 配置状态 + OAuth 回调结果提示（/?oauth=success|error）
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const oauth = sp.get("oauth");
+    if (oauth) {
+      if (oauth === "success") {
+        toast(`已通过 ${sp.get("provider") === "google" ? "Google" : "GitHub"} 登录`, "success");
+      } else if (oauth === "error") {
+        toast(
+          sp.get("reason") === "config"
+            ? "OAuth 登录未配置：请在 .env 设置对应 CLIENT_ID / CLIENT_SECRET"
+            : `OAuth 登录失败：${sp.get("detail") ?? sp.get("reason") ?? "未知错误"}`,
+          "error"
+        );
+      }
+      window.history.replaceState(null, "", window.location.pathname);
+      void refreshAuth();
+    }
+    fetch("/api/auth/oauth/status")
+      .then((r) => r.json())
+      .then((d: { google?: boolean; github?: boolean }) => setOauthStatus({ google: !!d.google, github: !!d.github }))
+      .catch(() => setOauthStatus({ google: false, github: false }));
+  }, []);
+
+  /** 第三方登录：未配置则提示，配置则跳转授权 */
+  const oauthLogin = (provider: "google" | "github") => {
+    const ok = oauthStatus?.[provider];
+    if (ok === false) {
+      toast(
+        provider === "google"
+          ? "未配置 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET（查看 .env.example）"
+          : "未配置 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET（查看 .env.example）",
+        "error"
+      );
+      return;
+    }
+    window.location.href = `/api/auth/oauth/${provider}`;
+  };
 
   // 头像下拉外点关闭
   useEffect(() => {
@@ -165,6 +229,34 @@ export default function AuthBadge({ variant = "badge" }: { variant?: "badge" | "
               )}
             </p>
             <p className="mt-2 text-center text-[10.5px] text-stone-300">本地版账号 · 密码 scrypt 加密存储</p>
+
+            {/* 第三方登录 */}
+            <div className="mt-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-stone-200" />
+              <span className="text-[11px] text-stone-400">或使用以下方式登录</span>
+              <span className="h-px flex-1 bg-stone-200" />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <button
+                onClick={() => oauthLogin("google")}
+                disabled={oauthStatus === null}
+                title={oauthStatus?.google === false ? "未配置 GOOGLE_CLIENT_ID（查看 .env.example）" : "使用 Google 账号登录"}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white text-[12.5px] font-medium text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
+              >
+                <GoogleIcon className="h-4 w-4" /> Google
+              </button>
+              <button
+                onClick={() => oauthLogin("github")}
+                disabled={oauthStatus === null}
+                title={oauthStatus?.github === false ? "未配置 GITHUB_CLIENT_ID（查看 .env.example）" : "使用 GitHub 账号登录"}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white text-[12.5px] font-medium text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
+              >
+                <Github className="h-4 w-4" /> GitHub
+              </button>
+            </div>
+            <p className="mt-2 text-center text-[10.5px] text-stone-300">
+              未配置凭据时按钮可点但会提示配置方法；OAuth 回调地址见 .env.example
+            </p>
           </div>
         </div>,
         document.body

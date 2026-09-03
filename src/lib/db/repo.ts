@@ -870,10 +870,19 @@ export const repo = {
 
   /* ─────────────────────────── 账号（本地版） ─────────────────────────── */
 
-  createUser(u: { id: string; email: string; name: string; passwordHash: string }): void {
+  createUser(u: {
+    id: string;
+    email: string;
+    name: string;
+    passwordHash: string;
+    provider?: string;
+    providerUserId?: string;
+  }): void {
     getDb()
-      .prepare("INSERT INTO users (id, email, name, passwordHash, createdAt) VALUES (?, ?, ?, ?, ?)")
-      .run(u.id, u.email, u.name, u.passwordHash, Date.now());
+      .prepare(
+        "INSERT INTO users (id, email, name, passwordHash, provider, providerUserId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      )
+      .run(u.id, u.email, u.name, u.passwordHash, u.provider ?? "", u.providerUserId ?? "", Date.now());
   },
 
   findUserByEmail(email: string): {
@@ -881,6 +890,8 @@ export const repo = {
     email: string;
     name: string;
     passwordHash: string;
+    provider: string;
+    providerUserId: string;
     createdAt: number;
   } | null {
     const r = getDb().prepare("SELECT * FROM users WHERE email = ?").get(email) as
@@ -892,9 +903,42 @@ export const repo = {
           email: r.email as string,
           name: r.name as string,
           passwordHash: r.passwordHash as string,
+          provider: (r.provider as string) ?? "",
+          providerUserId: (r.providerUserId as string) ?? "",
           createdAt: r.createdAt as number,
         }
       : null;
+  },
+
+  /** 按 OAuth 三方身份查找用户 */
+  findUserByProvider(provider: string, providerUserId: string): {
+    id: string;
+    email: string;
+    name: string;
+    provider: string;
+    providerUserId: string;
+    createdAt: number;
+  } | null {
+    const r = getDb()
+      .prepare("SELECT * FROM users WHERE provider = ? AND providerUserId = ?")
+      .get(provider, providerUserId) as Record<string, unknown> | undefined;
+    return r
+      ? {
+          id: r.id as string,
+          email: r.email as string,
+          name: r.name as string,
+          provider: (r.provider as string) ?? "",
+          providerUserId: (r.providerUserId as string) ?? "",
+          createdAt: r.createdAt as number,
+        }
+      : null;
+  },
+
+  /** 为已有本地账号绑定 OAuth 身份（邮箱相同即视为同一人） */
+  setUserProvider(userId: string, provider: string, providerUserId: string): void {
+    getDb()
+      .prepare("UPDATE users SET provider = ?, providerUserId = ? WHERE id = ?")
+      .run(provider, providerUserId, userId);
   },
 
   findUserById(id: string): { id: string; email: string; name: string; createdAt: number } | null {

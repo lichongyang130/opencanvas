@@ -826,13 +826,18 @@ DEEPSEEK_API_KEY=sk-...
 DASHSCOPE_API_KEY=sk-...
 FAL_KEY=xxxxx            # FLUX 绘图/图生图（海外）
 REMOVE_BG_API_KEY=xxxxx  # 去背景（可选；不配则前端本地 AI）
-TAVILY_API_KEY=tvly-...`}
+TAVILY_API_KEY=tvly-...
+GOOGLE_CLIENT_ID=...     # Google 登录（可选 OAuth）
+GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...     # GitHub 登录（可选 OAuth）
+GITHUB_CLIENT_SECRET=...
+OAUTH_REDIRECT_BASE=https://your-domain.com`}
                         </pre>
                         <button
                           onClick={() => {
                             navigator.clipboard
                               ?.writeText(
-                                "OPENAI_API_KEY=\nANTHROPIC_API_KEY=\nDEEPSEEK_API_KEY=\nDASHSCOPE_API_KEY=\nFAL_KEY=\nREMOVE_BG_API_KEY=\nTAVILY_API_KEY="
+                                "OPENAI_API_KEY=\nANTHROPIC_API_KEY=\nDEEPSEEK_API_KEY=\nDASHSCOPE_API_KEY=\nFAL_KEY=\nREMOVE_BG_API_KEY=\nTAVILY_API_KEY=\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nGITHUB_CLIENT_ID=\nGITHUB_CLIENT_SECRET=\nOAUTH_REDIRECT_BASE="
                               )
                               .then(() => toast("已复制环境变量模板", "success"))
                               .catch(() => {});
