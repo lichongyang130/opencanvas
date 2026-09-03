@@ -37,7 +37,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
   const { tt } = useI18n();
   const router = useRouter();
   const { conversations, selectConversation } = useChatStore();
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const recent = conversations.filter((c) => !c.archived).slice(0, 6);
 
   const go = (route: string, expand = false) => {
@@ -59,7 +59,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
   /* ────────── 收起态：仅图标栏 ────────── */
   if (collapsed) {
     return (
-      <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-white py-2">
+      <aside className="flex w-16 shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-white py-2">
         <button
           onClick={() => router.push("/")}
           title={tt("AI 对话")}
@@ -122,7 +122,7 @@ export function ShellSidebar({ active }: { active: ShellActive }) {
 
   /* ────────── 展开态：完整侧栏 ────────── */
   return (
-    <aside className="flex w-[236px] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-white">
+    <aside className="flex w-[280px] shrink-0 flex-col border-r border-[var(--oc-border-strong)] bg-white">
       {/* 顶部 Logo */}
       <div className="flex items-center justify-between px-3 py-4 pl-5">
         <button

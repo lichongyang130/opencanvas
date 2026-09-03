@@ -53,7 +53,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <>
       {/* 纯图标轨 48px */}
-      <aside className="flex w-12 shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-[#f5efe4] py-2">
+      <aside className="flex w-16 shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-[#f5efe4] py-2">
         {/* 品牌 */}
         <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white shadow-sm">
           O

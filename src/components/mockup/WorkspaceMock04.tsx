@@ -49,7 +49,7 @@ function IconRail() {
     { icon: Package, label: tt("素材包"), active: false },
   ];
   return (
-    <aside className="flex w-[56px] shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-[#f5efe4] py-3">
+    <aside className="flex w-16 shrink-0 flex-col items-center border-r border-[var(--oc-border-strong)] bg-[#f5efe4] py-3">
       {/* 品牌 */}
       <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-sm font-bold text-white shadow-sm">
         AI
