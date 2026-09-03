@@ -76,10 +76,18 @@ function ImageGallery({ images }: { images: UIImage[] }) {
  * 
  * 默认关闭，有产物时自动弹出。
  */
-export function ArtifactPanel() {
+export function ArtifactPanel({
+  conversationId,
+  onClose,
+}: {
+  conversationId?: string;
+  /** 外部控制显隐时传入（例如首页用本地状态控制抽屉） */
+  onClose?: () => void;
+} = {}) {
   const { conversations, activeId, sending, artifactOpen, artifactDismissed, setArtifactOpen } =
     useChatStore();
-  const convo = conversations.find((c) => c.id === activeId);
+  // conversationId：外部指定要看的会话（首页等场景）；不传则跟随当前会话
+  const convo = conversations.find((c) => c.id === (conversationId ?? activeId));
   const mode = convo?.mode ?? "chat";
 
   const lastAssistant = [...(convo?.messages ?? [])]
@@ -115,7 +123,7 @@ export function ArtifactPanel() {
           AI 创作画布
         </h2>
         <button
-          onClick={() => setArtifactOpen(false)}
+          onClick={() => (onClose ? onClose() : setArtifactOpen(false))}
           title="关闭画布"
           className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
         >
