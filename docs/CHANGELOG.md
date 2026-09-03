@@ -2,6 +2,17 @@
 
 > 本轮目标：把「占位页面」全部替换为真实可用功能，并完成全局深色主题重构。
 
+## 2026-09-03 · 第二十轮：网关计费端到端验证（B 类真实凭据批 · 无凭据可复验）
+
+**本地兼容 Mock + 真实代码路径 E2E**
+- `scripts/openai-mock.mjs`：OpenAI Chat Completions SSE + Anthropic Messages SSE + Embeddings 三协议最小 Mock（x-mock-fail 错误注入）
+- `scripts/e2e-billing.mjs`：10 项断言的端到端计费脚本（注册→签到→流式对话→usage→扣分→落库→成本看板→清理）
+- openai（gpt-4o-mini）/ deepseek（deepseek-chat）/ dashscope（qwen-max）/ anthropic（claude-3-5-sonnet-20241022）四供应商全 PASS
+- 拿到真实 Key 后：改 baseUrl 或用同一脚本复验（docs/GATEWAY_E2E.md）
+
+**修复**
+- `checkedInToday` 按身份精确判定（修复隔离引入的「匿名签到后登录用户无法签到」），E2E 第 3 步回归覆盖
+
 ## 2026-09-03 · 第十九轮：Next.js 14 → 16 升级（C 类完成）
 
 **依赖升级**

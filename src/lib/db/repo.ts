@@ -968,16 +968,16 @@ export const repo = {
       .run(`c-${Date.now()}-${randomUUID().slice(0, 8)}`, delta, reason, ref ?? null, userId ?? null, Date.now());
   },
 
-  /** 今日是否已签到 */
+  /** 今日是否已签到（按身份精确判定：登录只看本人，未登录只看本地，避免本地+本人合并误判） */
   checkedInToday(userId?: string | null): boolean {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    const scope = scopeCond(userId);
+    const cond = userId ? "userId = ?" : "userId IS NULL";
     const row = getDb()
       .prepare(
-        `SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ? AND ${scope.sql}`
+        `SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = ? AND createdAt >= ? AND ${cond}`
       )
-      .get("每日签到", start.getTime(), ...scope.params) as { n: number };
+      .get("每日签到", start.getTime(), ...(userId ? [userId] : [])) as { n: number };
     return row.n > 0;
   },
 
