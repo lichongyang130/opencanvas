@@ -1518,4 +1518,7 @@ export const uiEn: Record<string, string> = {
   "已选 {n} 项": "{n} selected",
   "再点确认": "Confirm again",
   "已删除 {n} 个任务": "Deleted {n} conversations",
+  "重生成": "Regenerate",
+  "继续生成": "Continue",
+  "继续生成该回复": "Continue this reply",
 };

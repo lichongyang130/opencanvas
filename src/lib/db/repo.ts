@@ -402,7 +402,8 @@ export const repo = {
   }): void {
     getDb()
       .prepare(
-        "INSERT INTO messages (id, conversationId, role, content, error, refs, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        `INSERT INTO messages (id, conversationId, role, content, error, refs, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET content = excluded.content, error = excluded.error, refs = excluded.refs`
       )
       .run(
         m.id,

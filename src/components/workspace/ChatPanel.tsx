@@ -15,6 +15,7 @@ import {
   Paperclip,
   Pencil,
   Presentation,
+  MoreHorizontal,
   RefreshCw,
   Search,
   Send,
@@ -174,7 +175,7 @@ const HOME_CARDS: {
  *  消息气泡
  * ═══════════════════════════════════════════ */
 
-function MessageBubble({ m, index }: { m: UIMessage; index: number }) {
+function MessageBubble({ m, index, isLast }: { m: UIMessage; index: number; isLast: boolean }) {
   const { tt } = useI18n();
   const [copied, setCopied] = useState(false);
   const [refsOpen, setRefsOpen] = useState(false);
@@ -282,7 +283,16 @@ function MessageBubble({ m, index }: { m: UIMessage; index: number }) {
                 title={tt("重新生成该回复")}
                 className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-stone-100"
               >
-                <RefreshCw className="h-3 w-3" /> 重生成
+                <RefreshCw className="h-3 w-3" /> {tt("重生成")}
+              </button>
+            )}
+            {!isUser && !sending && isLast && (
+              <button
+                onClick={() => void useChatStore.getState().continueAssistant()}
+                title={tt("继续生成该回复")}
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-stone-400 transition hover:bg-stone-100"
+              >
+                <MoreHorizontal className="h-3 w-3" /> {tt("继续生成")}
               </button>
             )}
             {isUser && !sending && (
@@ -1218,7 +1228,7 @@ export function ChatPanel() {
                   />
                 </div>
               )}
-              {messages.map((m, i) => <MessageBubble key={m.id} m={m} index={i} />)}
+              {messages.map((m, i) => <MessageBubble key={m.id} m={m} index={i} isLast={i === messages.length - 1} />)}
             </div>
           )}
         </div>
